@@ -22,7 +22,8 @@ Unfortunately I don't provide Python wheels yet and you have to build the shared
 This is partly due to limited time and partly due to my lack of knowledge on how to distribute Python packages properly.
 
 ## Good to know
-- When I wrote Rocket-FFT, I made some design decisions that do not match the behavior of SciPy and Numpy. For example, all functions will only transform `numpy.array`'s. This gives the user more responsibility, but also has the potential to avoid unnecessary copying. Rocket-FFT casts types in different ways compared to SciPy/Numpy. All data types with 64 bits or less are cast to either `float32` or `complex64`. Larger types are cast to `float64` or `complex128`. 
+There are a number of points you may want to know when using Rocket-FFT for your project. Most of these relate to performance.
+- When I wrote Rocket-FFT, I made some design decisions that do not match the behavior of SciPy and Numpy. For example, all functions will only transform `numpy.array`'s. This gives the user more responsibility, but also has the potential to avoid unnecessary copying. Rocket-FFT casts types in different ways compared to SciPy/Numpy. All non-floating-point types with less than 64 bits are cast to either `float32` or `complex64`. Larger types are cast to `float64` or `complex128`. 
 - If the user requests to zero-pad/truncate the array and the datatype requires casting, Rocket-FFT is inefficient with the copies. This is not a big performance penalty, but it is better to make sure that the data type matches the one used for the transformation (one of `float32`, `complex64`, `float64`, `complex128`, depending on the transformation). 
 - When performing transformations on half-precision data, Rocket-FFT is much faster than SciPy. If you don't need double precision but need speed, this may be good for you. I never checked why this happens (note that they have the same backend and give the same return type). It could be a bug in SciPy (or in Rocket-FFT 😄) 
 - All transformations are based on the n-dimensional transformation. As a result, the n-dimensional transformation will *always* have the shortest compile time. E.g. `fftn` on a 1-dimensional array will compile faster than `fft`, even though they perform exactly the same operations behind the scene (`fft` has a tiny bit higher overhead). If compile time is important to you, always choose `fftn`. Ideally you also use the default arguments if possible. Rocket-FFT is written to minimize compile time for the default cases. I think this worked quite well, but test it yourself. 
@@ -53,7 +54,7 @@ Since Rocket-FFT was written around SciPy, the signature and argument list is th
 - [x] `numpy.fft.ifftshift`
 
 ## Supported SciPy function
-Most of the "scipy.fft" module is supported, including:
+Most of the `scipy.fft` module is supported, including:
 - [x] `scipy.fft.fft`
 - [x] `scipy.fft.ifft`
 - [x] `scipy.fft.fft2`
