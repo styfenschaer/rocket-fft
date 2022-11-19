@@ -1,0 +1,3 @@
+numba
+scipy
+numpy
