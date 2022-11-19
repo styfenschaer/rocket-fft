@@ -55,8 +55,8 @@ setup(
     long_description=long_description,
     author='Styfen Schär',
     author_email='styfen.schaer.blog@gmail.com',
-    url='',
-    download_url='',
+    url='https://github.com/styfenschaer/rocket-fft',
+    download_url='https://github.com/styfenschaer/rocket-fft',
     packages=find_packages(),
     entry_points={
         'numba_extensions': [
