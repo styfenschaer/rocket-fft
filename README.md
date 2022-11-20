@@ -31,7 +31,7 @@ There are a number of points you may want to know when using Rocket-FFT for your
 - The helper functions are not optimized in any way. They are implemented naively, just to provide full support for Numpy.
 - Last but not least there is a little bonus. You get `numpy.roll` with all arguments (Numba supports only the first two) for free, because I used it for some other functions. But don't use it for large arrays on multiple axes if performance matters, because it`s a pretty naive implementation.
 
-## Supported Numpy function
+## Supported Numpy functions
 The whole `numpy.fft` module is supported, which contains all the functions listed below.
 Since Rocket-FFT was written around SciPy, the signature and argument list is the same as used in `scipy.fft`. This is not a big deal, since the signature of Numpy is just a subset of that of SciPy. However, when passing keyword arguments, care must be taken that the first argument, the array, is always `x` instead of `a`.
 - [x] `numpy.fft.fft`
@@ -53,7 +53,7 @@ Since Rocket-FFT was written around SciPy, the signature and argument list is th
 - [x] `numpy.fft.fftshift`
 - [x] `numpy.fft.ifftshift`
 
-## Supported SciPy function
+## Supported SciPy functions
 Most of the `scipy.fft` module is supported, including:
 - [x] `scipy.fft.fft`
 - [x] `scipy.fft.ifft`

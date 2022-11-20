@@ -406,7 +406,7 @@ def as_integer_1tuple_or_none(val, msg):
     raise TypingError(msg)
 
 
-def check_1dim_arguments(x, n, axis):
+def check_arguments_1dim(x, n, axis):
     msg = "The second argument 'n' must be an integer or None"
     s = as_integer_1tuple_or_none(n, msg)
     msg = "The third argument 'axis' must be an integer or None"
@@ -443,14 +443,14 @@ def patch_1dim_complex(func, forward, x, n, axis, norm, overwrite_x, workers):
 @overload(np.fft.fft)
 @overload(scipy.fft.fft)
 def fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(c2cn, True, x, n, axis, norm, overwrite_x, workers)
 
 
 @overload(np.fft.ifft)
 @overload(scipy.fft.ifft)
 def ifft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(c2cn, False, x, n, axis, norm, overwrite_x, workers)
 
 
@@ -523,7 +523,7 @@ def ihfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None)
 @overload(np.fft.rfft)
 @overload(scipy.fft.rfft)
 def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(r2cn, True, x, n, axis, norm, overwrite_x, workers)
 
 
@@ -531,7 +531,7 @@ def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
 @overload(np.fft.ihfft)
 @overload(scipy.fft.ihfft)
 def ihfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(r2cn, False, x, n, axis, norm, overwrite_x, workers)
 
 
@@ -608,7 +608,7 @@ def hfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
 @overload(np.fft.irfft)
 @overload(scipy.fft.irfft)
 def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(c2rn, False, x, n, axis, norm, overwrite_x, workers)
 
 
@@ -616,7 +616,7 @@ def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
 @overload(np.fft.hfft)
 @overload(scipy.fft.hfft)
 def hfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_complex(c2rn, True, x, n, axis, norm, overwrite_x, workers)
 
 
@@ -778,7 +778,7 @@ def patch_1dim_real(func, transform, forward, x, type, n, axis, norm,
 @overload(scipy.fft.dct)
 def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
         workers=None, orthogonalize=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_real(r2rn, dct_internal, True, x, type, n, axis, norm,
                            overwrite_x, workers, orthogonalize)
 
@@ -787,7 +787,7 @@ def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
 @overload(scipy.fft.idct)
 def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
          workers=None, orthogonalize=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_real(r2rn, dct_internal, False, x, type, n, axis, norm,
                            overwrite_x, workers, orthogonalize)
 
@@ -796,7 +796,7 @@ def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
 @overload(scipy.fft.dst)
 def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
         workers=None, orthogonalize=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_real(r2rn, dst_internal, True, x, type, n, axis, norm,
                            overwrite_x, workers, orthogonalize)
 
@@ -805,7 +805,7 @@ def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
 @overload(scipy.fft.idst)
 def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
          workers=None, orthogonalize=None):
-    x, n, axis = check_1dim_arguments(x, n, axis)
+    x, n, axis = check_arguments_1dim(x, n, axis)
     return patch_1dim_real(r2rn, dst_internal, False, x, type, n, axis, norm,
                            overwrite_x, workers, orthogonalize)
 
@@ -824,7 +824,7 @@ def roll(a, shift, axis=None):
         if not isinstance(axis, types.Integer):
             if not (type_can_asarray(axis) and isinstance(axis.dtype, types.Integer)):
                 raise TypingError("The second argument 'axis' must be a sequences"
-                                  "of integers an integer or None")
+                                  "of integers, an integer or None")
         if type_can_asarray(axis) != type_can_asarray(shift):
             raise TypingError('If axis is provided, shift and axis must both'
                               ' be integers or integer sequences of equal length')
@@ -904,7 +904,7 @@ def fftshift(x, axes=None):
     if not is_nonelike(axes) and not isinstance(axes, types.Integer):
         if not (type_can_asarray(axes) and isinstance(axes.dtype, types.Integer)):
             raise TypingError("The second argument 'axes' must be sequence of"
-                              "integers an integer or None")
+                              "integers, an integer or None")
 
     if is_nonelike(axes):
         def impl(x, axes=None):
@@ -938,7 +938,7 @@ def ifftshift(x, axes=None):
     if not is_nonelike(axes) and not isinstance(axes, types.Integer):
         if not (type_can_asarray(axes) and isinstance(axes.dtype, types.Integer)):
             raise TypingError("The second argument 'axes' must be sequence of"
-                              "integers an integer or None")
+                              "integers, an integer or None")
 
     if is_nonelike(axes):
         def impl(x, axes=None):

@@ -51,7 +51,7 @@ with open('README.md') as f:
 setup(
     name='rocket-fft',
     version='1.0',
-    description='rocket-fft extends Numba by scipy.fft and np.fft',
+    description='rocket-fft extends Numba by scipy.fft and numpy.fft',
     long_description=long_description,
     author='Styfen Schär',
     author_email='styfen.schaer.blog@gmail.com',
