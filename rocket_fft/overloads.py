@@ -1,10 +1,8 @@
-from dataclasses import dataclass
 import numpy.fft
 import scipy.fft
-import textwrap
 import inspect
 import ctypes
-from functools import partial, wraps, partialmethod
+from functools import partial, wraps
 from pathlib import Path
 
 import numba as nb
@@ -17,14 +15,10 @@ from numba.core.config import NUMBA_NUM_THREADS as _cpu_count
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import intrinsic, overload, register_jitable
 from numba.np.arrayobj import make_array
-from numba.np.numpy_support import is_nonelike, type_can_asarray
+from numba.np.numpy_support import is_nonelike
 
-# TODO: check arguments 1d (e.g. ndim of array)
-# @implements(func, *args, check_typing=None)
-# make that implementations can be registered
-# fix typing messages 1d
+# TODO:
 # can optimize for literal values?
-# np.roll -> type_can_asarray also true for integer
 
 ll_size_t = ir.IntType(64)
 ll_int64 = ir.IntType(64)
@@ -46,7 +40,8 @@ class _Pocketfft:
     def __init__(self):
         self.dll = load_pocketfft()
 
-    def _call_cmplx(self, fname, builder, args):
+    @staticmethod
+    def _call_cmplx(fname, builder, args):
         fntype = ir.FunctionType(ll_void, [ll_size_t,  # ndim
                                            ll_voidptr,  # ain
                                            ll_voidptr,  # aout
@@ -57,11 +52,12 @@ class _Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    c2c = partialmethod(_call_cmplx, 'numba_c2c')
-    r2c = partialmethod(_call_cmplx, 'numba_r2c')
-    c2r = partialmethod(_call_cmplx, 'numba_c2r')
+    c2c = partial(_call_cmplx.__func__, 'numba_c2c')
+    r2c = partial(_call_cmplx.__func__, 'numba_r2c')
+    c2r = partial(_call_cmplx.__func__, 'numba_c2r')
 
-    def _call_real(self, fname, builder, args):
+    @staticmethod
+    def _call_real(fname, builder, args):
         fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
                                             ll_voidptr,  # ain
                                             ll_voidptr,  # aout
@@ -73,10 +69,11 @@ class _Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    dct = partialmethod(_call_real, 'numba_dct')
-    dst = partialmethod(_call_real, 'numba_dst')
+    dct = partial(_call_real.__func__, 'numba_dct')
+    dst = partial(_call_real.__func__, 'numba_dst')
 
-    def good_size(self, builder, args):
+    @staticmethod
+    def good_size(builder, args):
         fname = 'numba_good_size'
         fntype = ir.FunctionType(ll_size_t,  [ll_size_t,  # target
                                               ll_bool])  # real
@@ -186,7 +183,7 @@ def is_sequence_like(arg):
     return isinstance(arg, seq_like)
 
 
-class TypingCheck:
+class _TypingCheck:
     __slots__ = ('ty', 'as_one', 'as_seq', 'allow_none', 'msg')
 
     def __init__(self, ty, as_one, as_seq, allow_none, msg):
@@ -215,37 +212,37 @@ class TypingCheck:
 
 # Checks typing of the arguments of the FFT functions
 _typing_checkers = {
-    'a': TypingCheck(
+    'a': _TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'a' must be an array."),
-    'x': TypingCheck(
+    'x': _TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'x' must be an array."),
-    'n': TypingCheck(
+    'n': _TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'n' must be an integer."),
-    's': TypingCheck(
+    's': _TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 's' must be a sequence of integers."),
-    'axis': TypingCheck(
+    'axis': _TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axis' must be an integer."),
-    'axes': TypingCheck(
+    'axes': _TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axes' must be a sequence of integers."),
-    'norm': TypingCheck(
+    'norm': _TypingCheck(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'norm' must be a string."),
-    'type': TypingCheck(
+    'type': _TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'type' must be an integer."),
-    'overwrite_x': TypingCheck(
+    'overwrite_x': _TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'overwrite_x' must be a boolean."),
-    'workers': TypingCheck(
+    'workers': _TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'workers' must be an integer."),
-    'orthogonalize': TypingCheck(
+    'orthogonalize': _TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'orthogonalize' must be a boolean."),
 }
@@ -258,56 +255,53 @@ _pos_to_text = {
 }
 
 
-class implements:
-    __slots__ = ('func', 'extra_args', 'extra_kwargs')
+class _FFTBuilder:
+    _registry = []
+    
+    def __init__(self, header, check_typing=True):
+        self.header = header
+        self.check_typing = check_typing
+        self.registry = []
 
-    def __init__(self, func, *args, **kwargs):
-        self.func = func
-        self.extra_args = args
-        self.extra_kwargs = kwargs
+    def __call__(self, func, *args, **kwargs):
+        @wraps(self.header)
+        def ol_impl(*iargs, **ikwargs):
+            kwd = inspect.getcallargs(self.header, *iargs, **ikwargs)
+            if self.check_typing:
+                self._check_typing(**kwd)
+            params = tuple(kwd.values())
+            impl = func(params, *args, **kwargs)
+            self._patch_co(self.header, impl)
+            return wraps(self.header)(impl)
 
-    def __call__(self, func):
-        fname, sig, args, kwargs = self._parse_sig(func)
-        src = f"""
-        def {fname}{sig}:
-            self._check_typing({kwargs})
-            args = self.extra_args
-            kwargs = self.extra_kwargs
-            impl = self.func(({args},), *args, **kwargs)
-            impl = self._patch_co(func, impl)
-            impl = wraps(func)(impl)
-            return impl
-        """
-        ns = {'self': self, 'wraps': wraps, 'func': func}
-        exec(textwrap.dedent(src), ns)
-        return ns.get(fname)
+        self.active_impl = ol_impl
+        return self
 
-    def _patch_co(self, func, impl):
-        sig_impl = inspect.signature(impl).parameters.keys()
-        sig_func = inspect.signature(func).parameters.keys()
-        impl_co_varnames = list(impl.__code__.co_varnames)
-        for p0, p1 in zip(tuple(sig_impl), tuple(sig_func)):
+    def register(self, func):
+        entry = (func, self.active_impl)
+        self.registry.append(entry)
+        self._registry.append(entry)
+        overload(func)(self.active_impl)
+
+    @staticmethod
+    def _patch_co(f0, f1):
+        sig_f0 = inspect.signature(f0).parameters.keys()
+        sig_f1 = inspect.signature(f1).parameters.keys()
+        cov = list(f1.__code__.co_varnames)
+        for p0, p1 in zip(tuple(sig_f0), tuple(sig_f1)):
             if p0 != p1:
-                idx = impl_co_varnames.index(p0)
-                impl_co_varnames[idx] = p1
-        impl_co_varnames = tuple(impl_co_varnames)
-        impl.__code__ = impl.__code__.replace(co_varnames=impl_co_varnames)
-        return impl
+                idx = cov.index(p1)
+                cov[idx] = p0
+        cov = tuple(cov)
+        f1.__code__ = f1.__code__.replace(co_varnames=cov)
 
-    def _check_typing(self, **kwargs):
+    @staticmethod
+    def _check_typing(**kwargs):
         for i, (key, val) in enumerate(kwargs.items()):
             fn = _typing_checkers.get(key)
             if fn is not None:
                 pos = _pos_to_text.get(i)
                 fn(val, fmt=pos)
-
-    def _parse_sig(self, func):
-        sig = inspect.signature(func)
-        args = tuple(sig.parameters.keys())
-        args = str(args).replace("'", "")[1:-1]
-        kwargs = ','.join(f'{e}={e}' for e in args.split(','))
-        fname = func.__name__
-        return fname, sig, args, kwargs
 
 
 @register_jitable
@@ -513,76 +507,54 @@ def c2cn(args, forward):
     return impl
 
 
-@overload(scipy.fft.fft)
-@implements(c2cn, forward=True)
-def fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
+class HeaderOnlyError(NotImplementedError):
     ...
 
 
-@overload(np.fft.fft)
-@implements(c2cn, forward=True)
-def fft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
+def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Numpy complex 1D header cannot be called!')
 
 
-@overload(scipy.fft.fft2)
-@implements(c2cn, forward=True)
-def fft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
+def _numpy_c2d(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Numpy complex 2D header cannot be called!')
 
 
-@overload(np.fft.fft2)
-@implements(c2cn, forward=True)
-def fft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
+def _numpy_cnd(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Numpy complex ND header cannot be called!')
 
 
-@overload(scipy.fft.fftn)
-@implements(c2cn, forward=True)
-def fftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
+def _scipy_c1d(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Scipy complex 1D header cannot be called!')
 
 
-@overload(np.fft.fftn)
-@implements(c2cn, forward=True)
-def fftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
+def _scipy_c2d(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Scipy complex 2D header cannot be called!')
 
 
-@overload(scipy.fft.ifft)
-@implements(c2cn, forward=False)
-def ifft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
+def _scipy_cnd(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
+    raise HeaderOnlyError('Scipy complex ND header cannot be called!')
 
 
-@overload(np.fft.ifft)
-@implements(c2cn, forward=False)
-def ifft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
+numpy_c1d_builder = _FFTBuilder(_numpy_c1d)
+numpy_c2d_builder = _FFTBuilder(_numpy_c2d)
+numpy_cnd_builder = _FFTBuilder(_numpy_cnd)
+scipy_c1d_builder = _FFTBuilder(_scipy_c1d)
+scipy_c2d_builder = _FFTBuilder(_scipy_c2d)
+scipy_cnd_builder = _FFTBuilder(_scipy_cnd)
 
+numpy_c1d_builder(c2cn, forward=True).register(numpy.fft.fft)
+numpy_c2d_builder(c2cn, forward=True).register(numpy.fft.fft2)
+numpy_cnd_builder(c2cn, forward=True).register(numpy.fft.fftn)
+numpy_c1d_builder(c2cn, forward=False).register(numpy.fft.ifft)
+numpy_c2d_builder(c2cn, forward=False).register(numpy.fft.ifft2)
+numpy_cnd_builder(c2cn, forward=False).register(numpy.fft.ifftn)
 
-@overload(scipy.fft.ifft2)
-@implements(c2cn, forward=False)
-def ifft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.ifft2)
-@implements(c2cn, forward=False)
-def ifft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.ifftn)
-@implements(c2cn, forward=False)
-def ifftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.ifftn)
-@implements(c2cn, forward=False)
-def ifftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
+scipy_c1d_builder(c2cn, forward=True).register(scipy.fft.fft)
+scipy_c2d_builder(c2cn, forward=True).register(scipy.fft.fft2)
+scipy_cnd_builder(c2cn, forward=True).register(scipy.fft.fftn)
+scipy_c1d_builder(c2cn, forward=False).register(scipy.fft.ifft)
+scipy_c2d_builder(c2cn, forward=False).register(scipy.fft.ifft2)
+scipy_cnd_builder(c2cn, forward=False).register(scipy.fft.ifftn)
 
 
 @register_jitable
@@ -620,64 +592,17 @@ def r2cn(args, forward):
     return impl
 
 
-@overload(scipy.fft.rfft)
-@implements(r2cn, forward=True)
-def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
+numpy_c1d_builder(r2cn, forward=True).register(numpy.fft.rfft)
+numpy_c2d_builder(r2cn, forward=True).register(numpy.fft.rfft2)
+numpy_cnd_builder(r2cn, forward=True).register(numpy.fft.rfftn)
+numpy_c1d_builder(r2cn, forward=False).register(numpy.fft.ihfft)
 
-
-@overload(np.fft.rfft)
-@implements(r2cn, forward=True)
-def rfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.rfft2)
-@implements(r2cn, forward=True)
-def rfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.rfft2)
-@implements(r2cn, forward=True)
-def rfft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.rfftn)
-@implements(r2cn, forward=True)
-def rfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.rfftn)
-@implements(r2cn, forward=True)
-def rfftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.ihfft)
-@implements(r2cn, forward=False)
-def ihfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.ihfft)
-@implements(r2cn, forward=False)
-def ihfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.ihfft2)
-@implements(r2cn, forward=False)
-def ihfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.ihfftn)
-@implements(r2cn, forward=False)
-def ihfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
+scipy_c1d_builder(r2cn, forward=True).register(scipy.fft.rfft)
+scipy_c2d_builder(r2cn, forward=True).register(scipy.fft.rfft2)
+scipy_cnd_builder(r2cn, forward=True).register(scipy.fft.rfftn)
+scipy_c1d_builder(r2cn, forward=False).register(scipy.fft.ihfft)
+scipy_c2d_builder(r2cn, forward=False).register(scipy.fft.ihfft2)
+scipy_cnd_builder(r2cn, forward=False).register(scipy.fft.ihfftn)
 
 
 @generated_jit
@@ -717,64 +642,17 @@ def c2rn(args, forward):
     return impl
 
 
-@overload(scipy.fft.irfft)
-@implements(c2rn, forward=False)
-def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
+numpy_c1d_builder(c2rn, forward=False).register(numpy.fft.irfft)
+numpy_c2d_builder(c2rn, forward=False).register(numpy.fft.irfft2)
+numpy_cnd_builder(c2rn, forward=False).register(numpy.fft.irfftn)
+numpy_c1d_builder(c2rn, forward=True).register(numpy.fft.hfft)
 
-
-@overload(np.fft.irfft)
-@implements(c2rn, forward=False)
-def irfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.irfft2)
-@implements(c2rn, forward=False)
-def irfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.irfft2)
-@implements(c2rn, forward=False)
-def irfft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.irfftn)
-@implements(c2rn, forward=False)
-def irfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.irfftn)
-@implements(c2rn, forward=False)
-def irfftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.hfft)
-@implements(c2rn, forward=True)
-def hfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(np.fft.hfft)
-@implements(c2rn, forward=True)
-def hfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.hfft2)
-@implements(c2rn, forward=True)
-def hfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    ...
-
-
-@overload(scipy.fft.hfftn)
-@implements(c2rn, forward=True)
-def hfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    ...
+scipy_c1d_builder(c2rn, forward=False).register(scipy.fft.irfft)
+scipy_c2d_builder(c2rn, forward=False).register(scipy.fft.irfft2)
+scipy_cnd_builder(c2rn, forward=False).register(scipy.fft.irfftn)
+scipy_c1d_builder(c2rn, forward=True).register(scipy.fft.hfft)
+scipy_c2d_builder(c2rn, forward=True).register(scipy.fft.hfft2)
+scipy_cnd_builder(c2rn, forward=True).register(scipy.fft.hfftn)
 
 
 @register_jitable
@@ -864,60 +742,31 @@ def r2rn(args, trafo, delta, forward):
     return impl
 
 
-@overload(scipy.fft.dct)
-@implements(r2rn, trafo=numba_dct, delta=-1, forward=True)
-def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
-        workers=None, orthogonalize=None):
-    ...
+def _scipy_r1d(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
+               workers=None, orthogonalize=None):
+    raise HeaderOnlyError('Scipy real 1D header cannot be called!')
 
 
-@overload(scipy.fft.dctn)
-@implements(r2rn, trafo=numba_dct, delta=-1, forward=True)
-def dctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
-         workers=None, orthogonalize=None):
-    ...
+def _scipy_rnd(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
+               workers=None, orthogonalize=None):
+    raise HeaderOnlyError('Scipy real ND header cannot be called!')
 
 
-@overload(scipy.fft.idct)
-@implements(r2rn, trafo=numba_dct, delta=-1, forward=False)
-def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
-         workers=None, orthogonalize=None):
-    ...
+scipy_r1d_builder = _FFTBuilder(_scipy_r1d)
+scipy_rnd_builder = _FFTBuilder(_scipy_rnd)
 
 
-@overload(scipy.fft.idctn)
-@implements(r2rn, trafo=numba_dct, delta=-1, forward=False)
-def idctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
-          workers=None, orthogonalize=None):
-    ...
+_common_dct = dict(trafo=numba_dct, delta=-1)
+scipy_r1d_builder(r2rn, **_common_dct, forward=True).register(scipy.fft.dct)
+scipy_rnd_builder(r2rn, **_common_dct, forward=True).register(scipy.fft.dctn)
+scipy_r1d_builder(r2rn, **_common_dct, forward=False).register(scipy.fft.idct)
+scipy_rnd_builder(r2rn, **_common_dct, forward=False).register(scipy.fft.idctn)
 
-
-@overload(scipy.fft.dst)
-@implements(r2rn, trafo=numba_dst, delta=1, forward=True)
-def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
-        workers=None, orthogonalize=None):
-    ...
-
-
-@overload(scipy.fft.dstn)
-@implements(r2rn, trafo=numba_dst, delta=1, forward=True)
-def dstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
-         workers=None, orthogonalize=None):
-    ...
-
-
-@overload(scipy.fft.idst)
-@implements(r2rn, trafo=numba_dst, delta=1, forward=False)
-def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False,
-         workers=None, orthogonalize=None):
-    ...
-
-
-@overload(scipy.fft.idstn)
-@implements(r2rn, trafo=numba_dst, delta=1, forward=False)
-def idstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
-          workers=None, orthogonalize=None):
-    ...
+_common_dst = dict(trafo=numba_dst, delta=1)
+scipy_r1d_builder(r2rn, **_common_dst, forward=True).register(scipy.fft.dst)
+scipy_rnd_builder(r2rn, **_common_dst, forward=True).register(scipy.fft.dstn)
+scipy_r1d_builder(r2rn, **_common_dst, forward=False).register(scipy.fft.idst)
+scipy_rnd_builder(r2rn, **_common_dst, forward=False).register(scipy.fft.idstn)
 
 
 @overload(np.roll)
