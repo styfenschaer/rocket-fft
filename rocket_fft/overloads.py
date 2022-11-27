@@ -248,37 +248,37 @@ fft_typing = _TypingChecker()
 fft_typing.register(
     a=_TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'a' must be an array.")
+        msg="The {} argument 'a' must be an array."),
     x=_TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'x' must be an array.")
+        msg="The {} argument 'x' must be an array."),
     n=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'n' must be an integer.")
+        msg="The {} argument 'n' must be an integer."),
     s=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 's' must be a sequence of integers.")
+        msg="The {} argument 's' must be a sequence of integers."),
     axis=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axis' must be an integer.")
+        msg="The {} argument 'axis' must be an integer."),
     axes=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axes' must be a sequence of integers.")
+        msg="The {} argument 'axes' must be a sequence of integers."),
     norm=_TypingCheck(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'norm' must be a string.")
+        msg="The {} argument 'norm' must be a string."),
     type=_TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'type' must be an integer.")
+        msg="The {} argument 'type' must be an integer."),
     overwrite_x=_TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'overwrite_x' must be a boolean.")
+        msg="The {} argument 'overwrite_x' must be a boolean."),
     workers=_TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'workers' must be an integer.")
+        msg="The {} argument 'workers' must be an integer."),
     orthogonalize=_TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'orthogonalize' must be a boolean.")
+        msg="The {} argument 'orthogonalize' must be a boolean."),
 )
 
 
