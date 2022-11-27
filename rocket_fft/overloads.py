@@ -184,7 +184,10 @@ def is_sequence_like(arg):
 
 
 class _TypingCheck:
-    __slots__ = ('ty', 'as_one', 'as_seq', 'allow_none', 'msg')
+    __slots__ = (
+        'ty', 'as_one', 'as_seq',
+        'allow_none', 'msg'
+    )
 
     def __init__(self, ty, as_one, as_seq, allow_none, msg):
         self.ty = ty
@@ -210,65 +213,103 @@ class _TypingCheck:
         return False
 
 
-# Checks typing of the arguments of the FFT functions
-_typing_checkers = {
-    'a': _TypingCheck(
+class _TypingChecker:
+    __slots__ = (
+        'argpos', 'registry'
+    )
+    _pos_to_text = {
+        0: '1st', 1: '2nd', 2: '3rd', 3: '4th',
+        4: '5th', 5: '6th', 6: '7th', 7: '8th',
+    }
+
+    def __init__(self):
+        self.registry = {}
+        self.argpos = 0
+
+    def register(self, **kwargs):
+        for key, checker in kwargs.items():
+            self.registry[key] = checker
+
+    def reset(self):
+        self.argpos = 0
+
+    def check(self, **kwargs):
+        for key, val in kwargs.items():
+            fn = self.registry.get(key)
+            if fn is not None:
+                i = self.argpos
+                pos = self._pos_to_text.get(i)
+                fn(val, fmt=pos)
+            self.argpos += 1
+
+
+fft_typing = _TypingChecker()
+fft_typing.register(
+    a=_TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'a' must be an array."),
-    'x': _TypingCheck(
+        msg="The {} argument 'a' must be an array."))
+fft_typing.register(
+    x=_TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'x' must be an array."),
-    'n': _TypingCheck(
+        msg="The {} argument 'x' must be an array."))
+fft_typing.register(
+    n=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'n' must be an integer."),
-    's': _TypingCheck(
+        msg="The {} argument 'n' must be an integer."))
+fft_typing.register(
+    s=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 's' must be a sequence of integers."),
-    'axis': _TypingCheck(
+        msg="The {} argument 's' must be a sequence of integers."))
+fft_typing.register(
+    axis=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axis' must be an integer."),
-    'axes': _TypingCheck(
+        msg="The {} argument 'axis' must be an integer."))
+fft_typing.register(
+    axes=_TypingCheck(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axes' must be a sequence of integers."),
-    'norm': _TypingCheck(
+        msg="The {} argument 'axes' must be a sequence of integers."))
+fft_typing.register(
+    norm=_TypingCheck(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'norm' must be a string."),
-    'type': _TypingCheck(
+        msg="The {} argument 'norm' must be a string."))
+fft_typing.register(
+    type=_TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'type' must be an integer."),
-    'overwrite_x': _TypingCheck(
+        msg="The {} argument 'type' must be an integer."))
+fft_typing.register(
+    overwrite_x=_TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'overwrite_x' must be a boolean."),
-    'workers': _TypingCheck(
+        msg="The {} argument 'overwrite_x' must be a boolean."))
+fft_typing.register(
+    workers=_TypingCheck(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'workers' must be an integer."),
-    'orthogonalize': _TypingCheck(
+        msg="The {} argument 'workers' must be an integer."))
+fft_typing.register(
+    orthogonalize=_TypingCheck(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'orthogonalize' must be a boolean."),
-}
-
-
-# Helper to format the typing error of the FFT functions
-_pos_to_text = {
-    0: '1st', 1: '2nd', 2: '3rd', 3: '4th',
-    4: '5th', 5: '6th', 6: '7th', 7: '8th',
-}
+        msg="The {} argument 'orthogonalize' must be a boolean."))
 
 
 class _FFTBuilder:
+    __slots__ = (
+        'header', 'active_impl',
+        'registry', 'typing_checker',
+    )
     _registry = []
-    
-    def __init__(self, header, check_typing=True):
+
+    def __init__(self, header, typing_checker=None):
         self.header = header
-        self.check_typing = check_typing
+        self.typing_checker = typing_checker
         self.registry = []
+        self.active_impl = None
 
     def __call__(self, func, *args, **kwargs):
         @wraps(self.header)
         def ol_impl(*iargs, **ikwargs):
             kwd = inspect.getcallargs(self.header, *iargs, **ikwargs)
-            if self.check_typing:
-                self._check_typing(**kwd)
+            if self.typing_checker is not None:
+                self.typing_checker.reset()
+                self.typing_checker.check(**kwd)
             params = tuple(kwd.values())
             impl = func(params, *args, **kwargs)
             self._patch_co(self.header, impl)
@@ -294,14 +335,6 @@ class _FFTBuilder:
                 cov[idx] = p0
         cov = tuple(cov)
         f1.__code__ = f1.__code__.replace(co_varnames=cov)
-
-    @staticmethod
-    def _check_typing(**kwargs):
-        for i, (key, val) in enumerate(kwargs.items()):
-            fn = _typing_checkers.get(key)
-            if fn is not None:
-                pos = _pos_to_text.get(i)
-                fn(val, fmt=pos)
 
 
 @register_jitable
@@ -535,12 +568,12 @@ def _scipy_cnd(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None)
     raise HeaderOnlyError('Scipy complex ND header cannot be called!')
 
 
-numpy_c1d_builder = _FFTBuilder(_numpy_c1d)
-numpy_c2d_builder = _FFTBuilder(_numpy_c2d)
-numpy_cnd_builder = _FFTBuilder(_numpy_cnd)
-scipy_c1d_builder = _FFTBuilder(_scipy_c1d)
-scipy_c2d_builder = _FFTBuilder(_scipy_c2d)
-scipy_cnd_builder = _FFTBuilder(_scipy_cnd)
+numpy_c1d_builder = _FFTBuilder(_numpy_c1d, typing_checker=fft_typing)
+numpy_c2d_builder = _FFTBuilder(_numpy_c2d, typing_checker=fft_typing)
+numpy_cnd_builder = _FFTBuilder(_numpy_cnd, typing_checker=fft_typing)
+scipy_c1d_builder = _FFTBuilder(_scipy_c1d, typing_checker=fft_typing)
+scipy_c2d_builder = _FFTBuilder(_scipy_c2d, typing_checker=fft_typing)
+scipy_cnd_builder = _FFTBuilder(_scipy_cnd, typing_checker=fft_typing)
 
 numpy_c1d_builder(c2cn, forward=True).register(numpy.fft.fft)
 numpy_c2d_builder(c2cn, forward=True).register(numpy.fft.fft2)
@@ -752,8 +785,8 @@ def _scipy_rnd(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
     raise HeaderOnlyError('Scipy real ND header cannot be called!')
 
 
-scipy_r1d_builder = _FFTBuilder(_scipy_r1d)
-scipy_rnd_builder = _FFTBuilder(_scipy_rnd)
+scipy_r1d_builder = _FFTBuilder(_scipy_r1d, typing_checker=fft_typing)
+scipy_rnd_builder = _FFTBuilder(_scipy_rnd, typing_checker=fft_typing)
 
 
 _common_dct = dict(trafo=numba_dct, delta=-1)
