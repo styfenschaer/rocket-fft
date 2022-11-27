@@ -1,15 +1,41 @@
 import distutils.command.build
 import sys
-#  https://stackoverflow.com/questions/4529555/building-a-ctypes-based-c-library-with-distutils
+# https://stackoverflow.com/questions/4529555/building-a-ctypes-based-c-library-with-distutils
+# https://github.com/himbeles/ctypes-example
 from distutils.command.build_ext import build_ext as build_ext_orig
 from pathlib import Path
 
-import numba as nb
-import numpy as np
 from setuptools import Extension, find_packages, setup
 
 
+min_python_version = (3, 6)  # including
+max_python_version = (3, 11)  # excluding
+
+
+def _guard_python_version():
+    version = sys.version_info
+    if version >= max_python_version or version < min_python_version:
+
+        def parse(arg):
+            return '.'.join(str(c) for c in arg[:2])
+
+        msg = ('Unsupported Python version {}; only'
+               'versions >= {}, < {} are supported.')
+        raise RuntimeError(msg.format(parse(version),
+                                      parse(min_python_version),
+                                      parse(max_python_version)))
+
+
+_guard_python_version()
+
+
+def numpy_get_include():
+    import numpy as np
+    return np.get_include()
+
+
 def numba_get_include():
+    import numba as nb
     return Path(nb.__file__).parent
 
 
@@ -28,20 +54,16 @@ class build_ext(build_ext_orig):
         return super().get_export_symbols(ext)
 
     def get_ext_filename(self, ext_name):
-        if not self._ctypes:
-            return super().get_ext_filename(ext_name)
+        if self._ctypes:
+            return ext_name + '.so'
 
-        if sys.platform in ['win32', 'cygwin']:
-            ext_name += '.dll'
-        elif sys.platform in ['aix', 'linux', 'darwin']:
-            ext_name += '.so'
-        return ext_name
+        return super().get_ext_filename(ext_name)
 
 
 class BuildCommand(distutils.command.build.build):
     def initialize_options(self):
         distutils.command.build.build.initialize_options(self)
-        self.build_base = ''
+        self.build_base = 'rocket_fft'
 
 
 with open('README.md') as f:
@@ -67,12 +89,13 @@ setup(
     license='BSD',
     ext_modules=[
         CTypesExtension(
-            'rocket_fft/_pocketfft',
-            sources=['rocket_fft/_pocketfft_internal.cpp'],
+            'rocket_fft/_pocketfft_numba',
+            sources=['rocket_fft/_pocketfft_numba.cpp'],
+            extra_compile_args=['-std=c++11'],
         ),
     ],
     include_dirs=[
-        np.get_include(),
+        numpy_get_include(),
         numba_get_include(),
     ],
     cmdclass={
