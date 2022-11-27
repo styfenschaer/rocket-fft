@@ -244,6 +244,7 @@ class _TypingChecker:
 
 
 fft_typing = _TypingChecker()
+
 fft_typing.register(
     a=_TypingCheck(
         types.Array, as_one=True, as_seq=False, allow_none=False,
@@ -307,6 +308,7 @@ class _FFTBuilder:
         @wraps(self.header)
         def ol_impl(*iargs, **ikwargs):
             kwd = inspect.getcallargs(self.header, *iargs, **ikwargs)
+            # Reorder kwd to check typing?
             if self.typing_checker is not None:
                 self.typing_checker.reset()
                 self.typing_checker.check(**kwd)
