@@ -1,146 +1,22 @@
+import inspect
+from functools import partial, wraps
+
+import numpy as np
 import numpy.fft
 import scipy.fft
-import inspect
-import ctypes
-from functools import partial, wraps
-from pathlib import Path
-
-import numba as nb
-import numpy as np
-from llvmlite import ir
 from numba import TypingError, generated_jit
-from numba.core import cgutils, types
-from numba.core.cgutils import get_or_insert_function
+from numba.core import types
 from numba.core.config import NUMBA_NUM_THREADS as _cpu_count
 from numba.cpython.unsafe.tuple import tuple_setitem
-from numba.extending import intrinsic, overload, register_jitable
-from numba.np.arrayobj import make_array
+from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
+
+from . import ipocketfft as pfft
+from . import typing
 
 # TODO:
 # can optimize for literal values?
-
-ll_size_t = ir.IntType(64)
-ll_int64 = ir.IntType(64)
-ll_double = ir.DoubleType()
-ll_bool = ir.IntType(1)
-ll_voidptr = cgutils.voidptr_t
-ll_void = ir.VoidType()
-void = types.void
-size_t = types.size_t
-
-
-def load_pocketfft():
-    path = Path(__file__).parent / "_pocketfft_numba.so"
-    dll = ctypes.CDLL(str(path))
-    return dll
-
-
-class _Pocketfft:
-    def __init__(self):
-        self.dll = load_pocketfft()
-
-    @staticmethod
-    def _call_cmplx(fname, builder, args):
-        fntype = ir.FunctionType(ll_void, [ll_size_t,  # ndim
-                                           ll_voidptr,  # ain
-                                           ll_voidptr,  # aout
-                                           ll_voidptr,  # axes
-                                           ll_bool,  # forward
-                                           ll_double,  # fct
-                                           ll_size_t])  # nthreads
-        fn = get_or_insert_function(builder.module, fntype, fname)
-        return builder.call(fn, args)
-
-    c2c = partial(_call_cmplx.__func__, 'numba_c2c')
-    r2c = partial(_call_cmplx.__func__, 'numba_r2c')
-    c2r = partial(_call_cmplx.__func__, 'numba_c2r')
-
-    @staticmethod
-    def _call_real(fname, builder, args):
-        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
-                                            ll_voidptr,  # ain
-                                            ll_voidptr,  # aout
-                                            ll_voidptr,  # axes
-                                            ll_int64,  # type
-                                            ll_double,  # fct
-                                            ll_bool,  # ortho
-                                            ll_size_t])  # nthreads
-        fn = get_or_insert_function(builder.module, fntype, fname)
-        return builder.call(fn, args)
-
-    dct = partial(_call_real.__func__, 'numba_dct')
-    dst = partial(_call_real.__func__, 'numba_dst')
-
-    @staticmethod
-    def good_size(builder, args):
-        fname = 'numba_good_size'
-        fntype = ir.FunctionType(ll_size_t,  [ll_size_t,  # target
-                                              ll_bool])  # real
-        fn = get_or_insert_function(builder.module, fntype, fname)
-        return builder.call(fn, args)
-
-
-ll_pocketfft = _Pocketfft()
-
-
-def array_as_voidptr(context, builder, ary_t, ary):
-    ary = make_array(ary_t)(context, builder, ary)
-    ptr = ary._getpointer()
-    return builder.bitcast(ptr, ll_voidptr)
-
-
-def _numba_cmplx(func, typingctx, ain, aout, axes, forward, fct, nthreads):
-    def codegen(context, builder, sig, args):
-        ain, aout, axes, forward, fct, nthreads = args
-        ain_t, aout_t, axes_t, *_ = sig.args
-
-        ndim = ll_size_t(ain_t.ndim)
-        ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
-        aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
-        ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
-
-        args = (ndim, ain_ptr, aout_ptr, ax_ptr, forward, fct, nthreads)
-        func(builder, args)
-
-    sig = void(ain, aout, axes, forward, fct, nthreads)
-    return sig, codegen
-
-
-numba_c2c = intrinsic(partial(_numba_cmplx, ll_pocketfft.c2c))
-numba_r2c = intrinsic(partial(_numba_cmplx, ll_pocketfft.r2c))
-numba_c2r = intrinsic(partial(_numba_cmplx, ll_pocketfft.c2r))
-
-
-def _numba_real(func, typingctx, ain, aout, axes, type, fct, ortho, nthreads):
-    def codegen(context, builder, sig, args):
-        ain, aout, axes, type, fct, ortho, nthreads = args
-        ain_t, aout_t, axes_t, *_ = sig.args
-
-        ndim = ll_size_t(ain_t.ndim)
-        ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
-        aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
-        ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
-
-        args = (ndim, ain_ptr, aout_ptr, ax_ptr, type, fct, ortho, nthreads)
-        func(builder, args)
-
-    sig = void(ain, aout, axes, type, fct, ortho, nthreads)
-    return sig, codegen
-
-
-numba_dst = intrinsic(partial(_numba_real, ll_pocketfft.dst))
-numba_dct = intrinsic(partial(_numba_real, ll_pocketfft.dct))
-
-
-@intrinsic
-def numba_good_size(typingctx, n, real):
-    def codegen(context, builder, sig, args):
-        ret = ll_pocketfft.good_size(builder, args)
-        return ret
-
-    sig = size_t(n, real)
-    return sig, codegen
+# optimize default values for 1D/2D transforms
 
 
 # Casting rules lookup table
@@ -177,157 +53,90 @@ as_supported_cmplx = partial(_as_supported_type, _as_cmplx_lut)
 as_supported_float = partial(_as_supported_type, _as_float_lut)
 
 
-def is_sequence_like(arg):
-    seq_like = (types.Array, types.Sequence, types.Tuple,
-                types.ListType, types.Set)
-    return isinstance(arg, seq_like)
-
-
-class _TypingCheck:
-    __slots__ = (
-        'ty', 'as_one', 'as_seq',
-        'allow_none', 'msg'
-    )
-
-    def __init__(self, ty, as_one, as_seq, allow_none, msg):
-        self.ty = ty
-        self.as_one = as_one
-        self.as_seq = as_seq
-        self.allow_none = allow_none
-        self.msg = msg
-
-    def __call__(self, val, fmt=None):
-        # It's not a numba type -> make it one
-        if not hasattr(val, 'cast_python_value'):
-            val = nb.typeof(val)
-        if self.allow_none and is_nonelike(val):
-            return True
-        if self.as_one and isinstance(val, self.ty):
-            return True
-        if self.as_seq and is_sequence_like(val):
-            if isinstance(val.dtype, self.ty):
-                return True
-        if self.msg is not None:
-            msg = self.msg.format(fmt)
-            raise TypeError(msg)
-        return False
-
-
-class _TypingChecker:
-    __slots__ = (
-        'argpos', 'registry'
-    )
-    _pos_to_text = {
-        0: '1st', 1: '2nd', 2: '3rd', 3: '4th',
-        4: '5th', 5: '6th', 6: '7th', 7: '8th',
-    }
-
-    def __init__(self):
-        self.registry = {}
-        self.argpos = 0
-
-    def register(self, **kwargs):
-        for key, checker in kwargs.items():
-            self.registry[key] = checker
-
-    def reset(self):
-        self.argpos = 0
-
-    def check(self, **kwargs):
-        for key, val in kwargs.items():
-            fn = self.registry.get(key)
-            if fn is not None:
-                i = self.argpos
-                pos = self._pos_to_text.get(i)
-                fn(val, fmt=pos)
-            self.argpos += 1
-
-
-fft_typing = _TypingChecker()
-
-fft_typing.register(
-    a=_TypingCheck(
+fft_typing = typing.TypingChecker().register(
+    a=typing.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'a' must be an array."),
-    x=_TypingCheck(
+    x=typing.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'x' must be an array."),
-    n=_TypingCheck(
+    n=typing.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'n' must be an integer."),
-    s=_TypingCheck(
+    s=typing.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 's' must be a sequence of integers."),
-    axis=_TypingCheck(
+    axis=typing.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axis' must be an integer."),
-    axes=_TypingCheck(
+    axes=typing.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axes' must be a sequence of integers."),
-    norm=_TypingCheck(
+    norm=typing.Check(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'norm' must be a string."),
-    type=_TypingCheck(
+    type=typing.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'type' must be an integer."),
-    overwrite_x=_TypingCheck(
+    overwrite_x=typing.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'overwrite_x' must be a boolean."),
-    workers=_TypingCheck(
+    workers=typing.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'workers' must be an integer."),
-    orthogonalize=_TypingCheck(
+    orthogonalize=typing.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'orthogonalize' must be a boolean."),
 )
 
 
-class _FFTBuilder:
-    __slots__ = (
-        'header', 'active_impl',
-        'registry', 'typing_checker',
-    )
-    _registry = []
-
-    def __init__(self, header, typing_checker=None):
+class FFTBuilder:
+    def __init__(self, header, typing=None):
         self.header = header
-        self.typing_checker = typing_checker
-        self.registry = []
-        self.active_impl = None
+        self.typing = typing
+        self.built = None
+        self.register = []
 
     def __call__(self, func, *args, **kwargs):
         @wraps(self.header)
-        def ol_impl(*iargs, **ikwargs):
-            kwd = inspect.getcallargs(self.header, *iargs, **ikwargs)
-            # Reorder kwd to check typing?
-            if self.typing_checker is not None:
-                self.typing_checker.reset()
-                self.typing_checker.check(**kwd)
+        def ol_func(*iargs, **ikwargs):
+            kwd = self._get_callargs(*iargs, **ikwargs)
+            if self.typing is not None:
+                self.typing.reset()
+                self.typing(**kwd)
             params = tuple(kwd.values())
             impl = func(params, *args, **kwargs)
-            self._patch_co(self.header, impl)
+            self._patch_co(impl)
             return wraps(self.header)(impl)
 
-        self.active_impl = ol_impl
+        self.built = ol_func
         return self
 
-    def register(self, func):
-        entry = (func, self.active_impl)
-        self.registry.append(entry)
-        self._registry.append(entry)
-        overload(func)(self.active_impl)
+    def overload(self, func):
+        entry = (func, self.built)
+        self.register.append(entry)
+        overload(func)(self.built)
+        return self
 
-    @staticmethod
-    def _patch_co(f0, f1):
-        sig_f0 = inspect.signature(f0).parameters.keys()
-        sig_f1 = inspect.signature(f1).parameters.keys()
-        cov = list(f1.__code__.co_varnames)
-        for p0, p1 in zip(tuple(sig_f0), tuple(sig_f1)):
-            if p0 != p1:
-                idx = cov.index(p1)
-                cov[idx] = p0
+    @property
+    def signature(self):
+        return inspect.signature(self.header)
+
+    def _get_callargs(self, *args, **kwargs):
+        kwd = inspect.getcallargs(self.header, *args, **kwargs)
+        params = self.signature.parameters.keys()
+        return {key: kwd[key] for key in params}
+
+    def _patch_co(self, func):
+        params_header = self.signature.parameters
+        params_func = inspect.signature(func).parameters
+        cov = list(func.__code__.co_varnames)
+        for ph, pf in zip(params_header.keys(), params_func.keys()):
+            if ph != pf:
+                idx = cov.index(pf)
+                cov[idx] = ph
         cov = tuple(cov)
-        f1.__code__ = f1.__code__.replace(co_varnames=cov)
+        func.__code__ = func.__code__.replace(co_varnames=cov)
 
 
 @register_jitable
@@ -357,39 +166,39 @@ def ndshape_and_axes(x, s, axes):
 
         return register_jitable(impl)
 
-    handle_shape = asarray_or_none(s)
-    handle_axes = asarray_or_none(axes)
+    prepare_shape = asarray_or_none(s)
+    prepare_axes = asarray_or_none(axes)
 
     if is_nonelike(s) and is_nonelike(axes):
         def impl(x, s, axes):
-            # `axes` not specified, transform all axes
+            # axes not specified, transform all axes
             axes = np.arange(x.ndim)
             return s, axes
 
     elif is_nonelike(s) and not is_nonelike(axes):
         def impl(x, s, axes):
-            axes = handle_axes(axes)
+            axes = prepare_axes(axes)
             assert_unique_axes(axes)
             wraparound_axes(x, axes)
             return s, axes
 
     elif not is_nonelike(s) and is_nonelike(axes):
         def impl(x, s, axes):
-            s = handle_shape(s)
+            s = prepare_shape(s)
             if s.min() < 1:
                 raise ValueError("Invalid number of data points specified.")
             if s.size > x.ndim:
                 raise ValueError("Shape requires more axes than are present.")
-            # `axes` not specified, transform last `len(s)` axes
+            # axes not specified, transform last len(s) axes
             axes = np.arange(x.ndim - s.size, x.ndim)
             return s, axes
 
     else:
         def impl(x, s, axes):
-            s = handle_shape(s)
+            s = prepare_shape(s)
             if s.min() < 1:
                 raise ValueError("Invalid number of data points specified.")
-            axes = handle_axes(axes)
+            axes = prepare_axes(axes)
             assert_unique_axes(axes)
             wraparound_axes(x, axes)
             if s.size != axes.size:
@@ -421,28 +230,55 @@ def zeropad_or_crop(x, s, axes):
 
 
 @generated_jit
-def fct_cmplx(x, axes, norm, forward):
-    @register_jitable
-    def mul_axes(x, axes):
-        n = 1.0
-        for ax in axes:
-            n *= x.shape[ax]
-        return n
-
-    if is_nonelike(norm):
-        def impl(x, axes, norm, forward):
-            return 1.0 if forward else 1.0 / mul_axes(x, axes)
+def get_fct(x, axes, norm, forward, delta=None):
+    if is_nonelike(delta):
+        # For complex transforms
+        @register_jitable
+        def mul_axes(x, axes, delta):
+            n = 1.0
+            for ax in axes:
+                n *= x.shape[ax]
+            return n
 
     else:
-        def impl(x, axes, norm, forward):
+        # For real transforms
+        @register_jitable
+        def mul_axes(x, axes, delta):
+            n = 1.0
+            for ax in axes:
+                n *= 2.0 * (x.shape[ax] + delta)
+            return n
+
+    # Forward is always a literal value
+    if is_nonelike(norm) and forward.literal_value:
+        def impl(x, axes, norm, forward, delta=None):
+            return 1.0
+
+    elif is_nonelike(norm) and not forward.literal_value:
+        def impl(x, axes, norm, forward,  delta=None):
+            return 1.0 / mul_axes(x, axes, delta)
+
+    elif forward.literal_value:
+        def impl(x, axes, norm, forward,  delta=None):
             if norm == "backward":
-                return 1.0 if forward else 1.0 / mul_axes(x, axes)
+                return 1.0
             elif norm == "ortho":
-                return 1.0 / np.sqrt(mul_axes(x, axes))
+                return 1.0 / np.sqrt(mul_axes(x, axes, delta))
             elif norm == "forward":
-                return 1.0 / mul_axes(x, axes) if forward else 1.0
+                return 1.0 / mul_axes(x, axes, delta)
             raise ValueError("Invalid norm value; should be"
-                             " backward', 'ortho' or 'forward'.")
+                             " 'backward', 'ortho' or 'forward'.")
+
+    else:
+        def impl(x, axes, norm, forward,  delta=None):
+            if norm == "backward":
+                return 1.0 / mul_axes(x, axes, delta)
+            elif norm == "ortho":
+                return 1.0 / np.sqrt(mul_axes(x, axes, delta))
+            elif norm == "forward":
+                return 1.0
+            raise ValueError("Invalid norm value; should be"
+                             " 'backward', 'ortho' or 'forward'.")
 
     return impl
 
@@ -525,16 +361,16 @@ def c2cn(args, forward):
         x = astype(x, dtype=rettype)
         x = zeropad_or_crop(x, s, axes)
         out = alloc_output(x, overwrite_x)
-        fct = fct_cmplx(x, axes, norm, forward)
+        fct = get_fct(x, axes, norm, forward)
         nthreads = get_nthreads(workers)
-        numba_c2c(x, out, axes, forward, fct, nthreads)
+        pfft.numba_c2c(x, out, axes, forward, fct, nthreads)
         return out
-
+    
     return impl
 
 
 class HeaderOnlyError(NotImplementedError):
-    ...
+    """Guards functions used as header to the FFTBuilder class."""
 
 
 def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
@@ -561,35 +397,32 @@ def _scipy_cnd(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None)
     raise HeaderOnlyError('Scipy complex ND header cannot be called!')
 
 
-numpy_c1d_builder = _FFTBuilder(_numpy_c1d, typing_checker=fft_typing)
-numpy_c2d_builder = _FFTBuilder(_numpy_c2d, typing_checker=fft_typing)
-numpy_cnd_builder = _FFTBuilder(_numpy_cnd, typing_checker=fft_typing)
-scipy_c1d_builder = _FFTBuilder(_scipy_c1d, typing_checker=fft_typing)
-scipy_c2d_builder = _FFTBuilder(_scipy_c2d, typing_checker=fft_typing)
-scipy_cnd_builder = _FFTBuilder(_scipy_cnd, typing_checker=fft_typing)
+numpy_c1d_builder = FFTBuilder(_numpy_c1d, typing=fft_typing)
+numpy_c2d_builder = FFTBuilder(_numpy_c2d, typing=fft_typing)
+numpy_cnd_builder = FFTBuilder(_numpy_cnd, typing=fft_typing)
+scipy_c1d_builder = FFTBuilder(_scipy_c1d, typing=fft_typing)
+scipy_c2d_builder = FFTBuilder(_scipy_c2d, typing=fft_typing)
+scipy_cnd_builder = FFTBuilder(_scipy_cnd, typing=fft_typing)
 
-numpy_c1d_builder(c2cn, forward=True).register(numpy.fft.fft)
-numpy_c2d_builder(c2cn, forward=True).register(numpy.fft.fft2)
-numpy_cnd_builder(c2cn, forward=True).register(numpy.fft.fftn)
-numpy_c1d_builder(c2cn, forward=False).register(numpy.fft.ifft)
-numpy_c2d_builder(c2cn, forward=False).register(numpy.fft.ifft2)
-numpy_cnd_builder(c2cn, forward=False).register(numpy.fft.ifftn)
+numpy_c1d_builder(c2cn, forward=True).overload(numpy.fft.fft)
+numpy_c2d_builder(c2cn, forward=True).overload(numpy.fft.fft2)
+numpy_cnd_builder(c2cn, forward=True).overload(numpy.fft.fftn)
+numpy_c1d_builder(c2cn, forward=False).overload(numpy.fft.ifft)
+numpy_c2d_builder(c2cn, forward=False).overload(numpy.fft.ifft2)
+numpy_cnd_builder(c2cn, forward=False).overload(numpy.fft.ifftn)
 
-scipy_c1d_builder(c2cn, forward=True).register(scipy.fft.fft)
-scipy_c2d_builder(c2cn, forward=True).register(scipy.fft.fft2)
-scipy_cnd_builder(c2cn, forward=True).register(scipy.fft.fftn)
-scipy_c1d_builder(c2cn, forward=False).register(scipy.fft.ifft)
-scipy_c2d_builder(c2cn, forward=False).register(scipy.fft.ifft2)
-scipy_cnd_builder(c2cn, forward=False).register(scipy.fft.ifftn)
+scipy_c1d_builder(c2cn, forward=True).overload(scipy.fft.fft)
+scipy_c2d_builder(c2cn, forward=True).overload(scipy.fft.fft2)
+scipy_cnd_builder(c2cn, forward=True).overload(scipy.fft.fftn)
+scipy_c1d_builder(c2cn, forward=False).overload(scipy.fft.ifft)
+scipy_c2d_builder(c2cn, forward=False).overload(scipy.fft.ifft2)
+scipy_cnd_builder(c2cn, forward=False).overload(scipy.fft.ifftn)
 
 
 @register_jitable
-def inc_or_dec_shape(shape, axes, inc):
+def decrease_shape(shape, axes):
     idx = axes[-1]
-    if inc:
-        newval = (shape[idx] - 1) * 2
-    else:
-        newval = (shape[idx] // 2) + 1
+    newval = (shape[idx] // 2) + 1
     shape = tuple_setitem(shape, idx, newval)
     return shape
 
@@ -608,27 +441,35 @@ def r2cn(args, forward):
         s, axes = ndshape_and_axes(x, s, axes)
         x = astype(x, dtype=argtype)
         x = zeropad_or_crop(x, s, axes)
-        shape = inc_or_dec_shape(x.shape, axes, inc=False)
+        shape = decrease_shape(x.shape, axes)
         out = np.empty(shape, dtype=rettype)
-        fct = fct_cmplx(x, axes, norm, forward)
+        fct = get_fct(x, axes, norm, forward)
         nthreads = get_nthreads(workers)
-        numba_r2c(x, out, axes, forward, fct, nthreads)
+        pfft.numba_r2c(x, out, axes, forward, fct, nthreads)
         return out
 
     return impl
 
 
-numpy_c1d_builder(r2cn, forward=True).register(numpy.fft.rfft)
-numpy_c2d_builder(r2cn, forward=True).register(numpy.fft.rfft2)
-numpy_cnd_builder(r2cn, forward=True).register(numpy.fft.rfftn)
-numpy_c1d_builder(r2cn, forward=False).register(numpy.fft.ihfft)
+numpy_c1d_builder(r2cn, forward=True).overload(numpy.fft.rfft)
+numpy_c2d_builder(r2cn, forward=True).overload(numpy.fft.rfft2)
+numpy_cnd_builder(r2cn, forward=True).overload(numpy.fft.rfftn)
+numpy_c1d_builder(r2cn, forward=False).overload(numpy.fft.ihfft)
 
-scipy_c1d_builder(r2cn, forward=True).register(scipy.fft.rfft)
-scipy_c2d_builder(r2cn, forward=True).register(scipy.fft.rfft2)
-scipy_cnd_builder(r2cn, forward=True).register(scipy.fft.rfftn)
-scipy_c1d_builder(r2cn, forward=False).register(scipy.fft.ihfft)
-scipy_c2d_builder(r2cn, forward=False).register(scipy.fft.ihfft2)
-scipy_cnd_builder(r2cn, forward=False).register(scipy.fft.ihfftn)
+scipy_c1d_builder(r2cn, forward=True).overload(scipy.fft.rfft)
+scipy_c2d_builder(r2cn, forward=True).overload(scipy.fft.rfft2)
+scipy_cnd_builder(r2cn, forward=True).overload(scipy.fft.rfftn)
+scipy_c1d_builder(r2cn, forward=False).overload(scipy.fft.ihfft)
+scipy_c2d_builder(r2cn, forward=False).overload(scipy.fft.ihfft2)
+scipy_cnd_builder(r2cn, forward=False).overload(scipy.fft.ihfftn)
+
+
+@register_jitable
+def increase_shape(shape, axes):
+    idx = axes[-1]
+    newval = (shape[idx] - 1) * 2
+    shape = tuple_setitem(shape, idx, newval)
+    return shape
 
 
 @generated_jit
@@ -657,39 +498,44 @@ def c2rn(args, forward):
         s, axes = ndshape_and_axes(x, s, axes)
         x = astype(x, dtype=argtype)
         xin = zeropad_or_crop(x, s, axes)
-        shape = inc_or_dec_shape(x.shape, axes, inc=True)
+        shape = increase_shape(x.shape, axes)
         shape = resize(shape, x, s, axes)
         out = np.empty(shape, dtype=rettype)
-        fct = fct_cmplx(out, axes, norm, forward)
+        fct = get_fct(out, axes, norm, forward)
         nthreads = get_nthreads(workers)
-        numba_c2r(xin, out, axes, forward, fct, nthreads)
+        pfft.numba_c2r(xin, out, axes, forward, fct, nthreads)
         return out
 
     return impl
 
 
-numpy_c1d_builder(c2rn, forward=False).register(numpy.fft.irfft)
-numpy_c2d_builder(c2rn, forward=False).register(numpy.fft.irfft2)
-numpy_cnd_builder(c2rn, forward=False).register(numpy.fft.irfftn)
-numpy_c1d_builder(c2rn, forward=True).register(numpy.fft.hfft)
+numpy_c1d_builder(c2rn, forward=False).overload(numpy.fft.irfft)
+numpy_c2d_builder(c2rn, forward=False).overload(numpy.fft.irfft2)
+numpy_cnd_builder(c2rn, forward=False).overload(numpy.fft.irfftn)
+numpy_c1d_builder(c2rn, forward=True).overload(numpy.fft.hfft)
 
-scipy_c1d_builder(c2rn, forward=False).register(scipy.fft.irfft)
-scipy_c2d_builder(c2rn, forward=False).register(scipy.fft.irfft2)
-scipy_cnd_builder(c2rn, forward=False).register(scipy.fft.irfftn)
-scipy_c1d_builder(c2rn, forward=True).register(scipy.fft.hfft)
-scipy_c2d_builder(c2rn, forward=True).register(scipy.fft.hfft2)
-scipy_cnd_builder(c2rn, forward=True).register(scipy.fft.hfftn)
+scipy_c1d_builder(c2rn, forward=False).overload(scipy.fft.irfft)
+scipy_c2d_builder(c2rn, forward=False).overload(scipy.fft.irfft2)
+scipy_cnd_builder(c2rn, forward=False).overload(scipy.fft.irfftn)
+scipy_c1d_builder(c2rn, forward=True).overload(scipy.fft.hfft)
+scipy_c2d_builder(c2rn, forward=True).overload(scipy.fft.hfft2)
+scipy_cnd_builder(c2rn, forward=True).overload(scipy.fft.hfftn)
 
 
-@register_jitable
+@generated_jit
 def get_type(type, forward):
-    if forward:
+    # Forward is always a literal value
+    if forward.literal_value:
+        return lambda type, forward: type
+
+    def impl(type, forward):
+        if type == 2:
+            return 3
+        if type == 3:
+            return 2
         return type
-    if type == 2:
-        return 3
-    if type == 3:
-        return 2
-    return type
+
+    return impl
 
 
 @generated_jit
@@ -701,33 +547,6 @@ def get_ortho(norm, ortho):
         if norm == "ortho":
             return True
         return False
-
-    return impl
-
-
-@generated_jit
-def fct_real(x, axes, norm, delta, forward):
-    @register_jitable
-    def mul_axes(x, axes, delta):
-        n = 1.0
-        for ax in axes:
-            n *= 2.0 * (x.shape[ax] + delta)
-        return n
-
-    if is_nonelike(norm):
-        def impl(x, axes, norm, delta, forward):
-            return 1.0 if forward else 1.0 / mul_axes(x, axes, delta)
-
-    else:
-        def impl(x, axes, norm, delta, forward):
-            if norm == "backward":
-                return 1.0 if forward else 1.0 / mul_axes(x, axes, delta)
-            elif norm == "ortho":
-                return 1.0 / np.sqrt(mul_axes(x, axes, delta))
-            elif norm == "forward":
-                return 1.0 / mul_axes(x, axes, delta) if forward else 1.0
-            raise ValueError("Invalid norm value; should be"
-                             " 'backward', 'ortho' or 'forward'.")
 
     return impl
 
@@ -759,7 +578,7 @@ def r2rn(args, trafo, delta, forward):
         out = alloc_output(x, overwrite_x)
         type = get_type(type, forward)
         delta_ = delta if type == 1 else 0.0
-        fct = fct_real(out, axes, norm, delta_, forward)
+        fct = get_fct(out, axes, norm, forward, delta_)
         ortho = get_ortho(norm, orthogonalize)
         nthreads = get_nthreads(workers)
         do_transform(x, out, axes, type, fct, ortho, nthreads)
@@ -778,48 +597,44 @@ def _scipy_rnd(x, type=2, s=None, axes=None, norm=None, overwrite_x=False,
     raise HeaderOnlyError('Scipy real ND header cannot be called!')
 
 
-scipy_r1d_builder = _FFTBuilder(_scipy_r1d, typing_checker=fft_typing)
-scipy_rnd_builder = _FFTBuilder(_scipy_rnd, typing_checker=fft_typing)
+scipy_r1d_builder = FFTBuilder(_scipy_r1d, typing=fft_typing)
+scipy_rnd_builder = FFTBuilder(_scipy_rnd, typing=fft_typing)
 
 
-_common_dct = dict(trafo=numba_dct, delta=-1)
-scipy_r1d_builder(r2rn, **_common_dct, forward=True).register(scipy.fft.dct)
-scipy_rnd_builder(r2rn, **_common_dct, forward=True).register(scipy.fft.dctn)
-scipy_r1d_builder(r2rn, **_common_dct, forward=False).register(scipy.fft.idct)
-scipy_rnd_builder(r2rn, **_common_dct, forward=False).register(scipy.fft.idctn)
+_common_dct = dict(trafo=pfft.numba_dct, delta=-1)
+scipy_r1d_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dct)
+scipy_rnd_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dctn)
+scipy_r1d_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idct)
+scipy_rnd_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idctn)
 
-_common_dst = dict(trafo=numba_dst, delta=1)
-scipy_r1d_builder(r2rn, **_common_dst, forward=True).register(scipy.fft.dst)
-scipy_rnd_builder(r2rn, **_common_dst, forward=True).register(scipy.fft.dstn)
-scipy_r1d_builder(r2rn, **_common_dst, forward=False).register(scipy.fft.idst)
-scipy_rnd_builder(r2rn, **_common_dst, forward=False).register(scipy.fft.idstn)
+_common_dst = dict(trafo=pfft.numba_dst, delta=1)
+scipy_r1d_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dst)
+scipy_rnd_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dstn)
+scipy_r1d_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idst)
+scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 
 @overload(np.roll)
 def roll(a, shift, axis=None):
     # TODO: The multidimensional case is extremly inefficient!
     # I only implemented a naiv approach.
-    if not isinstance(a, types.Array):
-        raise TypeError("The 1st argument 'a' must be an array.")
+    typing.TypingChecker().register(
+        a=typing.Check(
+            types.Array, as_one=True, as_seq=False, allow_none=False,
+            msg="The 1st argument 'a' must be an array."),
+        shift=typing.Check(
+            types.Integer, as_one=True, as_seq=True, allow_none=False,
+            msg=("The 2nd argument 'shift' must be a"
+                 " sequences of integers or an integer.")),
+        axis=typing.Check(
+            types.Integer, as_one=True, as_seq=True, allow_none=True,
+            msg=("The 3rd argument 'axis' must be a"
+                 " sequences of integers or an integer.")),
+    )(a=a, shift=shift, axis=axis)
 
-    if not (is_sequence_like(shift)
-            and isinstance(shift.dtype, types.Integer)):
-        if not isinstance(shift, types.Integer):
-            raise TypeError("The 2nd argument 'shift' must be a"
-                            " sequences of integers or an integer.")
-
-    if not is_nonelike(axis):
-        if not (is_sequence_like(axis)
-                and isinstance(axis.dtype, types.Integer)):
-            if not isinstance(axis, types.Integer):
-                raise TypeError("The 3rd argument 'axis' must be a"
-                                " sequences of integers or an integer.")
-
-    if not is_nonelike(axis):
-        if is_sequence_like(axis) != is_sequence_like(shift):
-            raise TypingError("If axis is specified, shift and"
-                              " axis must both be integers or"
-                              " integer sequences of equal length.")
+    if typing.is_sequence_like(axis) != typing.is_sequence_like(shift):
+        raise TypingError("If axis is specified, shift and axis must both "
+                          "be integers or  integer sequences of equal length.")
 
     if is_nonelike(axis):
         def impl(a, shift, axis=None):
@@ -832,7 +647,7 @@ def roll(a, shift, axis=None):
     else:
         def impl(a, shift, axis=None):
             axis, shift = np.broadcast_arrays(axis, shift)
-            # `axis` is readonly but we eventually need to write it.
+            # axis is readonly but we eventually need to write it.
             axis = axis.copy()
             wraparound_axes(a, axis)
 
@@ -857,7 +672,7 @@ def roll(a, shift, axis=None):
             # TODO: This part is not efficient.
             r = np.empty_like(a)
 
-            # This is like `np.ndindex` except that we maintain two index
+            # This is like np.ndindex except that we maintain two index
             # tuples in parallel; a normal one and a shifted one.
             done = r.size == 0
             while not done:
@@ -880,21 +695,21 @@ def roll(a, shift, axis=None):
     return impl
 
 
-def _check_typing_fftshift(x, axes):
-    if not isinstance(x, types.Array):
-        raise TypeError("The 1st argument 'x' must be an array.")
-
-    if not is_nonelike(axes):
-        if not (is_sequence_like(axes)
-                and isinstance(axes.dtype, types.Integer)):
-            if not isinstance(axes, types.Integer):
-                raise TypeError("The 2nd argument 'axes' must be sequence of"
-                                " integers, an integer or None.")
+def _typing_fftshift(x, axes):
+    typing.TypingChecker().register(
+        a=typing.Check(
+            types.Array, as_one=True, as_seq=False, allow_none=False,
+            msg="The 1st argument 'x' must be an array."),
+        axes=typing.Check(
+            types.Integer, as_one=True, as_seq=True, allow_none=True,
+            msg=("The 2nd argument 'axes' must be a "
+                 "sequences of integers or an integer.")),
+    )(x=x, axes=axes)
 
 
 @overload(np.fft.fftshift)
 def fftshift(x, axes=None):
-    _check_typing_fftshift(x, axes)
+    _typing_fftshift(x, axes)
 
     if is_nonelike(axes):
         def impl(x, axes=None):
@@ -922,7 +737,7 @@ def fftshift(x, axes=None):
 
 @overload(np.fft.ifftshift)
 def ifftshift(x, axes=None):
-    _check_typing_fftshift(x, axes)
+    _typing_fftshift(x, axes)
 
     if is_nonelike(axes):
         def impl(x, axes=None):
@@ -948,7 +763,7 @@ def ifftshift(x, axes=None):
     return impl
 
 
-def _check_typing_fftfreq(n, d):
+def _typing_fftfreq(n, d):
     if not isinstance(n, types.Integer):
         raise TypeError("The 1st argument 'n' must be an integer.")
 
@@ -958,7 +773,7 @@ def _check_typing_fftfreq(n, d):
 
 @overload(np.fft.fftfreq)
 def fftfreq(n, d=1.0):
-    _check_typing_fftfreq(n, d)
+    _typing_fftfreq(n, d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)
@@ -975,7 +790,7 @@ def fftfreq(n, d=1.0):
 
 @overload(np.fft.rfftfreq)
 def rfftfreq(n, d=1.0):
-    _check_typing_fftfreq(n, d)
+    _typing_fftfreq(n, d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)
@@ -997,6 +812,6 @@ def next_fast_len(target, real):
     def impl(target, real):
         if target < 0:
             raise ValueError("Target cannot be negative.")
-        return numba_good_size(target, real)
+        return pfft.numba_good_size(target, real)
 
     return impl
