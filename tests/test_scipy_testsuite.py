@@ -1585,15 +1585,13 @@ class Test_DCTN_IDCTN:
     shape = (32, 16)
     data = rstate.randn(*shape)
 
-    # NOTE: Removed tests where axes is a list and where axis is an inteter
-    # Integer is only okay for 1-dim transform
     @pytest.mark.parametrize('fforward,finverse', [(dctn, idctn),
                                                    (dstn, idstn)])
     @pytest.mark.parametrize('axes', [None,
-                                      (1,),
-                                      (0,),
-                                      (0, 1),
-                                      (-2, -1)])
+                                      1, (1,), np.array([1]),
+                                      0, (0,), np.array([0]),
+                                      (0, 1), np.array([0, 1]),
+                                      (-2, -1), np.array([-2, -1])])
     @pytest.mark.parametrize('dct_type', dct_type)
     @pytest.mark.parametrize('norm', ['ortho'])
     def test_axes_round_trip(self, fforward, finverse, axes, dct_type, norm):
