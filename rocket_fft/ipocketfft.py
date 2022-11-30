@@ -8,6 +8,7 @@ from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import make_array
 
+
 ll_size_t = ir.IntType(64)
 ll_int64 = ir.IntType(64)
 ll_double = ir.DoubleType()

@@ -1,6 +1,7 @@
 import numba as nb
 from numba.core import types
 from numba.np.numpy_support import is_nonelike
+from numba import TypingError
 
 
 def is_sequence_like(arg):
@@ -9,8 +10,23 @@ def is_sequence_like(arg):
     return isinstance(arg, seq_like)
 
 
+def literal_is_true(arg):
+    if not hasattr(arg, 'literal_value'):
+        raise TypingError('Argument must be literal value')
+    return arg.literal_value
+
+
+def literal_is_false(arg):
+    return not literal_is_true(arg)
+
+
+def is_not_nonelike(arg):
+    return not is_nonelike(arg)
+
+
 class Check:
-    def __init__(self, ty, as_one, as_seq, allow_none, msg):
+    def __init__(self, ty, as_one=True, as_seq=False,
+                 allow_none=False, msg=None):
         self.ty = ty
         self.as_one = as_one
         self.as_seq = as_seq
@@ -20,6 +36,9 @@ class Check:
     def __call__(self, arg, fmt=None):
         # It's not a Numba type so make it one
         # TODO: Is there a better way to check this?
+
+        if hasattr(arg, 'literal_value'):
+            arg = nb.typeof(arg.literal_value)
         if not hasattr(arg, 'cast_python_value'):
             arg = nb.typeof(arg)
         if self.allow_none and is_nonelike(arg):
@@ -31,7 +50,7 @@ class Check:
                 return True
         if self.msg is None:
             return False
-        raise TypeError(self.msg.format(fmt))
+        raise TypingError(self.msg.format(fmt))
 
 
 class TypingChecker:

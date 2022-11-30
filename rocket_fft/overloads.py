@@ -13,6 +13,10 @@ from numba.np.numpy_support import is_nonelike
 
 from . import ipocketfft as pfft
 from . import typing
+from .imputils import implements_jit, otherwise
+from .typing import (is_nonelike, is_not_nonelike, is_sequence_like,
+                     literal_is_false, literal_is_true)
+
 
 # TODO:
 # can optimize for literal values?
@@ -154,168 +158,216 @@ def wraparound_axes(x, axes):
             raise ValueError("Axes exceeds dimensionality of input.")
 
 
-@generated_jit
+@implements_jit
+def asarray_or_none(arg):
+    pass
+
+
+@asarray_or_none.impl(arg=is_nonelike)
+def _(arg):
+    return arg
+
+
+@asarray_or_none.impl(otherwise)
+def _(arg):
+    a = np.asarray(arg)
+    return np.atleast_1d(a)
+
+
+asarray_or_none = asarray_or_none.generate()
+
+
+@implements_jit
 def ndshape_and_axes(x, s, axes):
-    def asarray_or_none(arg):
-        if is_nonelike(arg):
-            return register_jitable(lambda val: val)
-
-        def impl(val):
-            a = np.asarray(val)
-            return np.atleast_1d(a)
-
-        return register_jitable(impl)
-
-    prepare_shape = asarray_or_none(s)
-    prepare_axes = asarray_or_none(axes)
-
-    if is_nonelike(s) and is_nonelike(axes):
-        def impl(x, s, axes):
-            # axes not specified, transform all axes
-            axes = np.arange(x.ndim)
-            return s, axes
-
-    elif is_nonelike(s) and not is_nonelike(axes):
-        def impl(x, s, axes):
-            axes = prepare_axes(axes)
-            assert_unique_axes(axes)
-            wraparound_axes(x, axes)
-            return s, axes
-
-    elif not is_nonelike(s) and is_nonelike(axes):
-        def impl(x, s, axes):
-            s = prepare_shape(s)
-            if s.min() < 1:
-                raise ValueError("Invalid number of data points specified.")
-            if s.size > x.ndim:
-                raise ValueError("Shape requires more axes than are present.")
-            # axes not specified, transform last len(s) axes
-            axes = np.arange(x.ndim - s.size, x.ndim)
-            return s, axes
-
-    else:
-        def impl(x, s, axes):
-            s = prepare_shape(s)
-            if s.min() < 1:
-                raise ValueError("Invalid number of data points specified.")
-            axes = prepare_axes(axes)
-            assert_unique_axes(axes)
-            wraparound_axes(x, axes)
-            if s.size != axes.size:
-                raise ValueError("When given, axes and shape arguments"
-                                 " have to be of the same length.")
-            return s, axes
-
-    return impl
+    pass
 
 
-@generated_jit
+@ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
+def _(x, s, axes):
+    # axes not specified, transform all axes
+    axes = np.arange(x.ndim)
+    return s, axes
+
+
+@ndshape_and_axes.impl(s=is_nonelike, axes=is_not_nonelike)
+def _(x, s, axes):
+    axes = asarray_or_none(axes)
+    assert_unique_axes(axes)
+    wraparound_axes(x, axes)
+    return s, axes
+
+
+@ndshape_and_axes.impl(s=is_not_nonelike, axes=is_nonelike)
+def _(x, s, axes):
+    s = asarray_or_none(s)
+    if s.min() < 1:
+        raise ValueError("Invalid number of data points specified.")
+    if s.size > x.ndim:
+        raise ValueError("Shape requires more axes than are present.")
+    # axes not specified, transform last len(s) axes
+    axes = np.arange(x.ndim - s.size, x.ndim)
+    return s, axes
+
+
+@ndshape_and_axes.impl(otherwise)
+def _(x, s, axes):
+    s = asarray_or_none(s)
+    if s.min() < 1:
+        raise ValueError("Invalid number of data points specified.")
+    axes = asarray_or_none(axes)
+    assert_unique_axes(axes)
+    wraparound_axes(x, axes)
+    if s.size != axes.size:
+        raise ValueError("When given, axes and shape arguments"
+                         " have to be of the same length.")
+    return s, axes
+
+
+ndshape_and_axes = ndshape_and_axes.generate()
+
+
+@implements_jit
 def zeropad_or_crop(x, s, axes):
-    if is_nonelike(s):
-        return lambda x, s, axes: x
-
-    def impl(x, s, axes):
-        shape = x.shape
-        for newlen, ax in zip(s, axes):
-            shape = tuple_setitem(shape, ax, newlen)
-        out = np.zeros(shape, dtype=x.dtype)
-        # smaller axis is decisive how many elements are copied
-        for i, (s1, s2) in enumerate(zip(x.shape, out.shape)):
-            shape = tuple_setitem(shape, i, min(s1, s2))
-        for index in np.ndindex(shape):
-            out[index] = x[index]
-        return out
-
-    return impl
+    pass
 
 
-@generated_jit
+@zeropad_or_crop.impl(s=is_nonelike)
+def _(x, s, axes):
+    return x
+
+
+@zeropad_or_crop.impl(otherwise)
+def _(x, s, axes):
+    shape = x.shape
+    for newlen, ax in zip(s, axes):
+        shape = tuple_setitem(shape, ax, newlen)
+    out = np.zeros(shape, dtype=x.dtype)
+    # smaller axis is decisive how many elements are copied
+    for i, (s1, s2) in enumerate(zip(x.shape, out.shape)):
+        shape = tuple_setitem(shape, i, min(s1, s2))
+    for index in np.ndindex(shape):
+        out[index] = x[index]
+    return out
+
+
+zeropad_or_crop = zeropad_or_crop.generate()
+
+
+@implements_jit
+def mul_axes(x, axes, delta=None):
+    pass
+
+
+@mul_axes.impl(delta=is_nonelike)
+def _(x, axes, delta=None):
+    n = 1.0
+    for ax in axes:
+        n *= x.shape[ax]
+    return n
+
+
+@mul_axes.impl(otherwise)
+def _(x, axes, delta=None):
+    n = 1.0
+    for ax in axes:
+        n *= 2.0 * (x.shape[ax] + delta)
+    return n
+
+
+mul_axes = mul_axes.generate()
+
+
+@implements_jit
 def get_fct(x, axes, norm, forward, delta=None):
-    if is_nonelike(delta):
-        # For complex transforms
-        @register_jitable
-        def mul_axes(x, axes, delta):
-            n = 1.0
-            for ax in axes:
-                n *= x.shape[ax]
-            return n
-
-    else:
-        # For real transforms
-        @register_jitable
-        def mul_axes(x, axes, delta):
-            n = 1.0
-            for ax in axes:
-                n *= 2.0 * (x.shape[ax] + delta)
-            return n
-
-    # Forward is always a literal value
-    if is_nonelike(norm) and forward.literal_value:
-        def impl(x, axes, norm, forward, delta=None):
-            return 1.0
-
-    elif is_nonelike(norm) and not forward.literal_value:
-        def impl(x, axes, norm, forward,  delta=None):
-            return 1.0 / mul_axes(x, axes, delta)
-
-    elif forward.literal_value:
-        def impl(x, axes, norm, forward,  delta=None):
-            if norm == "backward":
-                return 1.0
-            elif norm == "ortho":
-                return 1.0 / np.sqrt(mul_axes(x, axes, delta))
-            elif norm == "forward":
-                return 1.0 / mul_axes(x, axes, delta)
-            raise ValueError("Invalid norm value; should be"
-                             " 'backward', 'ortho' or 'forward'.")
-
-    else:
-        def impl(x, axes, norm, forward,  delta=None):
-            if norm == "backward":
-                return 1.0 / mul_axes(x, axes, delta)
-            elif norm == "ortho":
-                return 1.0 / np.sqrt(mul_axes(x, axes, delta))
-            elif norm == "forward":
-                return 1.0
-            raise ValueError("Invalid norm value; should be"
-                             " 'backward', 'ortho' or 'forward'.")
-
-    return impl
+    pass
 
 
-@generated_jit
+@get_fct.impl(norm=is_nonelike, forward=literal_is_true)
+def _(x, axes, norm, forward, delta=None):
+    return 1.0
+
+
+@get_fct.impl(norm=is_nonelike, forward=literal_is_false)
+def _(x, axes, norm, forward, delta=None):
+    return 1.0 / mul_axes(x, axes, delta)
+
+
+@get_fct.impl(norm=is_not_nonelike, forward=literal_is_true)
+def _(x, axes, norm, forward, delta=None):
+    if norm == "backward":
+        return 1.0
+    elif norm == "ortho":
+        return 1.0 / np.sqrt(mul_axes(x, axes, delta))
+    elif norm == "forward":
+        return 1.0 / mul_axes(x, axes, delta)
+    raise ValueError("Invalid norm value; should be"
+                     " 'backward', 'ortho' or 'forward'.")
+
+
+@get_fct.impl(otherwise)
+def _(x, axes, norm, forward, delta=None):
+    if norm == "backward":
+        return 1.0 / mul_axes(x, axes, delta)
+    elif norm == "ortho":
+        return 1.0 / np.sqrt(mul_axes(x, axes, delta))
+    elif norm == "forward":
+        return 1.0
+    raise ValueError("Invalid norm value; should be"
+                     " 'backward', 'ortho' or 'forward'.")
+
+
+get_fct = get_fct.generate()
+
+
+@implements_jit
 def get_nthreads(workers):
-    if is_nonelike(workers):
-        return lambda workers: 1
-
-    def impl(workers):
-        if workers > 0:
-            return workers
-        if workers == 0:
-            raise ValueError("Workers must not be zero.")
-        if workers < 0 and workers >= -_cpu_count:
-            return workers + 1 + _cpu_count
-        raise ValueError("Workers value out of range.")
-
-    return impl
+    pass
 
 
-@generated_jit
+@get_nthreads.impl(workers=is_nonelike)
+def _(workers):
+    return 1
+
+
+@get_nthreads.impl(otherwise)
+def _(workers):
+    if workers > 0:
+        return workers
+    if workers == 0:
+        raise ValueError("Workers must not be zero.")
+    if workers < 0 and workers >= -_cpu_count:
+        return workers + 1 + _cpu_count
+    raise ValueError("Workers value out of range.")
+
+
+get_nthreads = get_nthreads.generate()
+
+
+@implements_jit
 def astype(ary, dtype):
+    pass
+
+
+@astype.preproc
+def _(ary, dtype):
     if hasattr(dtype, 'instance_type'):
         dtype = dtype.instance_type
     elif hasattr(dtype, '_dtype'):
         dtype = dtype._dtype
+    return ary, dtype
 
-    if ary.dtype != dtype:
-        def impl(ary, dtype):
-            return ary.astype(dtype)
 
-    else:
-        def impl(ary, dtype):
-            return ary
+@astype.impl(lambda ary, dtype: ary.dtype != dtype)
+def _(ary, dtype):
+    return ary.astype(dtype)
 
-    return impl
+
+@astype.impl(otherwise)
+def _(ary, dtype):
+    return ary
+
+
+astype = astype.generate()
 
 
 def generated_alloc_output(s, istype, reqtype):
@@ -365,7 +417,7 @@ def c2cn(args, forward):
         nthreads = get_nthreads(workers)
         pfft.numba_c2c(x, out, axes, forward, fct, nthreads)
         return out
-    
+
     return impl
 
 
@@ -472,19 +524,26 @@ def increase_shape(shape, axes):
     return shape
 
 
-@generated_jit
+@implements_jit
 def resize(shape, x, s, axes):
-    if is_nonelike(s):
-        return lambda shape, x, s, axes: shape
+    pass
 
-    def impl(shape, x, s, axes):
-        last_ax = x.ndim - 1
-        for i, ax in enumerate(axes):
-            if ax == last_ax:
-                shape = tuple_setitem(shape, last_ax, s[i])
-        return shape
 
-    return impl
+@resize.impl(s=is_nonelike)
+def _(shape, x, s, axes):
+    return shape
+
+
+@resize.impl(otherwise)
+def _(shape, x, s, axes):
+    last_ax = x.ndim - 1
+    for i, ax in enumerate(axes):
+        if ax == last_ax:
+            shape = tuple_setitem(shape, last_ax, s[i])
+    return shape
+
+
+resize = resize.generate()
 
 
 # TODO: copies data twice if `s` is specified
@@ -522,33 +581,46 @@ scipy_c2d_builder(c2rn, forward=True).overload(scipy.fft.hfft2)
 scipy_cnd_builder(c2rn, forward=True).overload(scipy.fft.hfftn)
 
 
-@generated_jit
+@implements_jit
 def get_type(type, forward):
-    # Forward is always a literal value
-    if forward.literal_value:
-        return lambda type, forward: type
-
-    def impl(type, forward):
-        if type == 2:
-            return 3
-        if type == 3:
-            return 2
-        return type
-
-    return impl
+    pass
 
 
-@generated_jit
+@get_type.impl(forward=literal_is_true)
+def _(type, forward):
+    return type
+
+
+@get_type.impl(otherwise)
+def _(type, forward):
+    if type == 2:
+        return 3
+    if type == 3:
+        return 2
+    return type
+
+
+get_type = get_type.generate()
+
+
+@implements_jit
 def get_ortho(norm, ortho):
-    if not is_nonelike(ortho):
-        return lambda norm, ortho: ortho
+    pass
 
-    def impl(norm, ortho):
-        if norm == "ortho":
-            return True
-        return False
 
-    return impl
+@get_ortho.impl(ortho=is_not_nonelike)
+def _(norm, ortho):
+    return ortho
+
+
+@get_ortho.impl(otherwise)
+def _(norm, ortho):
+    if norm == "ortho":
+        return True
+    return False
+
+
+get_ortho = get_ortho.generate()
 
 
 # TODO: copies data twice if `s` is specified and `x.dtype != argtype`
@@ -618,21 +690,14 @@ scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 def roll(a, shift, axis=None):
     # TODO: The multidimensional case is extremly inefficient!
     # I only implemented a naiv approach.
-    typing.TypingChecker().register(
-        a=typing.Check(
-            types.Array, as_one=True, as_seq=False, allow_none=False,
-            msg="The 1st argument 'a' must be an array."),
-        shift=typing.Check(
-            types.Integer, as_one=True, as_seq=True, allow_none=False,
-            msg=("The 2nd argument 'shift' must be a"
-                 " sequences of integers or an integer.")),
-        axis=typing.Check(
-            types.Integer, as_one=True, as_seq=True, allow_none=True,
-            msg=("The 3rd argument 'axis' must be a"
-                 " sequences of integers or an integer.")),
-    )(a=a, shift=shift, axis=axis)
+    msg = "The 1st argument 'a' must be an array."
+    typing.Check(types.Array, msg=msg)
+    msg = "The 2nd argument 'shift' must be a sequences of integers or an integer."
+    typing.Check(types.Integer, as_seq=True, msg=msg)
+    msg = "The 3rd argument 'axis' must be a sequences of integers or an integer."
+    typing.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)
 
-    if typing.is_sequence_like(axis) != typing.is_sequence_like(shift):
+    if is_sequence_like(axis) != is_sequence_like(shift):
         raise TypingError("If axis is specified, shift and axis must both "
                           "be integers or  integer sequences of equal length.")
 
@@ -696,15 +761,10 @@ def roll(a, shift, axis=None):
 
 
 def _typing_fftshift(x, axes):
-    typing.TypingChecker().register(
-        a=typing.Check(
-            types.Array, as_one=True, as_seq=False, allow_none=False,
-            msg="The 1st argument 'x' must be an array."),
-        axes=typing.Check(
-            types.Integer, as_one=True, as_seq=True, allow_none=True,
-            msg=("The 2nd argument 'axes' must be a "
-                 "sequences of integers or an integer.")),
-    )(x=x, axes=axes)
+    msg = "The 1st argument 'x' must be an array."
+    typing.Check(types.Array, msg=msg)(x)
+    msg = "The 2nd argument 'axes' must be a sequences of integers or an integer."
+    typing.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)(axes)
 
 
 @overload(np.fft.fftshift)
@@ -764,11 +824,10 @@ def ifftshift(x, axes=None):
 
 
 def _typing_fftfreq(n, d):
-    if not isinstance(n, types.Integer):
-        raise TypeError("The 1st argument 'n' must be an integer.")
-
-    if not isinstance(d, types.Number):
-        raise TypeError("The 2nd argument 'd' must be a scaler.")
+    msg = "The 1st argument 'n' must be an integer."
+    typing.Check(types.Integer, msg=msg)(n)
+    msg = "The 2nd argument 'd' must be an scaler."
+    typing.Check(types.Number, msg=msg)(d)
 
 
 @overload(np.fft.fftfreq)
@@ -803,11 +862,10 @@ def rfftfreq(n, d=1.0):
 
 @overload(scipy.fft.next_fast_len)
 def next_fast_len(target, real):
-    if not isinstance(target, types.Integer):
-        raise TypeError("The 1st argument 'target' must be an integer.")
-
-    if not isinstance(real, types.Boolean):
-        raise TypeError("The 2nd argument 'real' must be a boolean.")
+    msg = "The 1st argument 'target' must be an integer."
+    typing.Check(types.Integer, msg=msg)(target)
+    msg = "The 2nd argument 'real' must be a boolean."
+    typing.Check(types.Boolean, msg=msg)(real)
 
     def impl(target, real):
         if target < 0:
