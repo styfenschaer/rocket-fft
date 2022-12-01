@@ -12,11 +12,11 @@ from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
 
 from . import ipocketfft as pfft
-from . import typing
-from .imputils import implements_jit, otherwise
-from .typing import (is_nonelike, is_not_nonelike, is_sequence_like,
-                     literal_is_false, literal_is_true)
-
+from . import numba_typing as tg
+from .imputils import implements_jit, implements_overload, otherwise
+from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
+                           is_not_nonelike, is_sequence_like, literal_is_false,
+                           literal_is_true)
 
 # TODO:
 # can optimize for literal values?
@@ -57,38 +57,38 @@ as_supported_cmplx = partial(_as_supported_type, _as_cmplx_lut)
 as_supported_float = partial(_as_supported_type, _as_float_lut)
 
 
-fft_typing = typing.TypingChecker().register(
-    a=typing.Check(
+fft_typing = tg.TypingChecker().register(
+    a=tg.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'a' must be an array."),
-    x=typing.Check(
+    x=tg.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'x' must be an array."),
-    n=typing.Check(
+    n=tg.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'n' must be an integer."),
-    s=typing.Check(
+    s=tg.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 's' must be a sequence of integers."),
-    axis=typing.Check(
+    axis=tg.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axis' must be an integer."),
-    axes=typing.Check(
+    axes=tg.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
         msg="The {} argument 'axes' must be a sequence of integers."),
-    norm=typing.Check(
+    norm=tg.Check(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'norm' must be a string."),
-    type=typing.Check(
+    type=tg.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'type' must be an integer."),
-    overwrite_x=typing.Check(
+    overwrite_x=tg.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'overwrite_x' must be a boolean."),
-    workers=typing.Check(
+    workers=tg.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'workers' must be an integer."),
-    orthogonalize=typing.Check(
+    orthogonalize=tg.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
         msg="The {} argument 'orthogonalize' must be a boolean."),
 )
@@ -158,28 +158,40 @@ def wraparound_axes(x, axes):
             raise ValueError("Axes exceeds dimensionality of input.")
 
 
-@implements_jit
-def asarray_or_none(arg):
-    pass
-
-
-@asarray_or_none.impl(arg=is_nonelike)
-def _(arg):
-    return arg
-
-
-@asarray_or_none.impl(otherwise)
-def _(arg):
+@register_jitable
+def asarray(arg):
     a = np.asarray(arg)
     return np.atleast_1d(a)
-
-
-asarray_or_none = asarray_or_none.generate()
 
 
 @implements_jit
 def ndshape_and_axes(x, s, axes):
     pass
+
+
+@ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
+def _(x, s, axes):
+    # compile time reduction for default 1D transform
+    if axes < 0:
+        axes += x.ndim
+    elif axes >= x.ndim:
+        raise ValueError("Axes exceeds dimensionality of input.")
+    axes = np.array([axes])
+    return s, axes
+
+
+@ndshape_and_axes.impl(s=is_nonelike, axes=is_integer_2tuple)
+def _(x, s, axes):
+    # compile time reduction for default 2D transform
+    ax1, ax2 = axes
+    if ax1 < 0:
+        ax1 += x.ndim
+    if ax2 < 0:
+        ax2 += x.ndim
+    elif ax1 >= x.ndim or ax2 >= x.ndim:
+        raise ValueError("Axes exceeds dimensionality of input.")
+    axes = np.array([ax1, ax2])
+    return s, axes
 
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
@@ -191,7 +203,7 @@ def _(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_not_nonelike)
 def _(x, s, axes):
-    axes = asarray_or_none(axes)
+    axes = asarray(axes)
     assert_unique_axes(axes)
     wraparound_axes(x, axes)
     return s, axes
@@ -199,7 +211,7 @@ def _(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_not_nonelike, axes=is_nonelike)
 def _(x, s, axes):
-    s = asarray_or_none(s)
+    s = asarray(s)
     if s.min() < 1:
         raise ValueError("Invalid number of data points specified.")
     if s.size > x.ndim:
@@ -209,12 +221,12 @@ def _(x, s, axes):
     return s, axes
 
 
-@ndshape_and_axes.impl(otherwise)
+@ndshape_and_axes.impl(s=is_not_nonelike, axes=is_not_nonelike)
 def _(x, s, axes):
-    s = asarray_or_none(s)
+    s = asarray(s)
     if s.min() < 1:
         raise ValueError("Invalid number of data points specified.")
-    axes = asarray_or_none(axes)
+    axes = asarray(axes)
     assert_unique_axes(axes)
     wraparound_axes(x, axes)
     if s.size != axes.size:
@@ -686,148 +698,160 @@ scipy_r1d_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idst)
 scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 
-@overload(np.roll)
+@implements_overload(np.roll)
 def roll(a, shift, axis=None):
     # TODO: The multidimensional case is extremly inefficient!
     # I only implemented a naiv approach.
     msg = "The 1st argument 'a' must be an array."
-    typing.Check(types.Array, msg=msg)
+    tg.Check(types.Array, msg=msg)
     msg = "The 2nd argument 'shift' must be a sequences of integers or an integer."
-    typing.Check(types.Integer, as_seq=True, msg=msg)
+    tg.Check(types.Integer, as_seq=True, msg=msg)
     msg = "The 3rd argument 'axis' must be a sequences of integers or an integer."
-    typing.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)
+    tg.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)
 
     if is_sequence_like(axis) != is_sequence_like(shift):
         raise TypingError("If axis is specified, shift and axis must both "
                           "be integers or  integer sequences of equal length.")
 
-    if is_nonelike(axis):
-        def impl(a, shift, axis=None):
-            sh = np.asarray(shift).sum()
-            r = np.empty_like(a.ravel())
-            r[sh:] = a[:-sh]
-            r[:sh] = a[-sh:]
-            return r.reshape(a.shape)
 
-    else:
-        def impl(a, shift, axis=None):
-            axis, shift = np.broadcast_arrays(axis, shift)
-            # axis is readonly but we eventually need to write it.
-            axis = axis.copy()
-            wraparound_axes(a, axis)
+@roll.impl(axis=is_nonelike)
+def _(a, shift, axis=None):
+    sh = np.asarray(shift).sum()
+    r = np.empty_like(a.ravel())
+    r[sh:] = a[:-sh]
+    r[:sh] = a[-sh:]
+    return r.reshape(a.shape)
 
-            a_index = a.shape
-            for i in range(a.ndim):
-                a_index = tuple_setitem(a_index, i, 0)
 
-            r_index = a_index
-            for ax, sh in zip(axis, shift):
-                r_index = tuple_setitem(r_index, ax, r_index[ax] + sh)
-            for i in range(a.ndim):
-                if r_index[i] > 0:
-                    r_index = tuple_setitem(r_index, i, r_index[i] - a.shape[i])
-                if r_index[i] != 0:
-                    if a.shape[i] == 0:
-                        r_index = tuple_setitem(r_index, i, 0)
-                    else:
-                        val = np.abs(r_index[i]) % a.shape[i]
-                        r_index = tuple_setitem(r_index, i, -val)
-            r_index_init = r_index
+@roll.impl(otherwise)
+def _(a, shift, axis=None):
+    axis, shift = np.broadcast_arrays(axis, shift)
+    # axis is readonly but we eventually need to write it.
+    axis = axis.copy()
+    wraparound_axes(a, axis)
 
-            # TODO: This part is not efficient.
-            r = np.empty_like(a)
+    a_index = a.shape
+    for i in range(a.ndim):
+        a_index = tuple_setitem(a_index, i, 0)
 
-            # This is like np.ndindex except that we maintain two index
-            # tuples in parallel; a normal one and a shifted one.
-            done = r.size == 0
-            while not done:
-                r[r_index] = a[a_index]
+    r_index = a_index
+    for ax, sh in zip(axis, shift):
+        r_index = tuple_setitem(r_index, ax, r_index[ax] + sh)
+    for i in range(a.ndim):
+        if r_index[i] > 0:
+            r_index = tuple_setitem(r_index, i, r_index[i] - a.shape[i])
+        if r_index[i] != 0:
+            if a.shape[i] == 0:
+                r_index = tuple_setitem(r_index, i, 0)
+            else:
+                val = np.abs(r_index[i]) % a.shape[i]
+                r_index = tuple_setitem(r_index, i, -val)
+    r_index_init = r_index
 
-                done = True
-                for i in range(a.ndim):
-                    r_index = tuple_setitem(r_index, i, r_index[i] + 1)
-                    a_index = tuple_setitem(a_index, i, a_index[i] + 1)
+    # TODO: This part is not efficient.
+    r = np.empty_like(a)
 
-                    if a_index[i] < a.shape[i]:
-                        done = False
-                        break
+    # This is like np.ndindex except that we maintain two index
+    # tuples in parallel; a normal one and a shifted one.
+    done = r.size == 0
+    while not done:
+        r[r_index] = a[a_index]
 
-                    r_index = tuple_setitem(r_index, i, r_index_init[i])
-                    a_index = tuple_setitem(a_index, i, 0)
+        done = True
+        for i in range(a.ndim):
+            r_index = tuple_setitem(r_index, i, r_index[i] + 1)
+            a_index = tuple_setitem(a_index, i, a_index[i] + 1)
 
-            return r
+            if a_index[i] < a.shape[i]:
+                done = False
+                break
 
-    return impl
+            r_index = tuple_setitem(r_index, i, r_index_init[i])
+            a_index = tuple_setitem(a_index, i, 0)
+
+    return r
+
+
+roll = roll.generate()
 
 
 def _typing_fftshift(x, axes):
     msg = "The 1st argument 'x' must be an array."
-    typing.Check(types.Array, msg=msg)(x)
+    tg.Check(types.Array, msg=msg)(x)
     msg = "The 2nd argument 'axes' must be a sequences of integers or an integer."
-    typing.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)(axes)
+    tg.Check(types.Integer, as_seq=True,
+             allow_none=True, msg=msg)(axes)
 
 
-@overload(np.fft.fftshift)
+@implements_overload(np.fft.fftshift)
 def fftshift(x, axes=None):
     _typing_fftshift(x, axes)
 
-    if is_nonelike(axes):
-        def impl(x, axes=None):
-            axes = x.shape
-            shift = x.shape
-            for i, dim in enumerate(x.shape):
-                shift = tuple_setitem(shift, i, dim // 2)
-                axes = tuple_setitem(axes, i, i)
-            return np.roll(x, shift, axes)
 
-    elif isinstance(axes, types.Integer):
-        def impl(x, axes=None):
-            shift = x.shape[axes] // 2
-            return np.roll(x, shift, axes)
-
-    else:
-        def impl(x, axes=None):
-            shift = x.shape[: len(axes)]
-            for i, ax in enumerate(axes):
-                shift = tuple_setitem(shift, i, x.shape[ax] // 2)
-            return np.roll(x, shift, axes)
-
-    return impl
+@fftshift.impl(axes=is_nonelike)
+def _(x, axes=None):
+    axes = x.shape
+    shift = x.shape
+    for i, dim in enumerate(x.shape):
+        shift = tuple_setitem(shift, i, dim // 2)
+        axes = tuple_setitem(axes, i, i)
+    return np.roll(x, shift, axes)
 
 
-@overload(np.fft.ifftshift)
+@fftshift.impl(axes=is_integer)
+def _(x, axes=None):
+    shift = x.shape[axes] // 2
+    return np.roll(x, shift, axes)
+
+
+@fftshift.impl(otherwise)
+def _(x, axes=None):
+    shift = x.shape[: len(axes)]
+    for i, ax in enumerate(axes):
+        shift = tuple_setitem(shift, i, x.shape[ax] // 2)
+    return np.roll(x, shift, axes)
+
+
+fftshift = fftshift.generate()
+
+
+@implements_overload(np.fft.ifftshift)
 def ifftshift(x, axes=None):
     _typing_fftshift(x, axes)
 
-    if is_nonelike(axes):
-        def impl(x, axes=None):
-            axes = x.shape
-            shift = x.shape
-            for i, dim in enumerate(x.shape):
-                shift = tuple_setitem(shift, i, -(dim // 2))
-                axes = tuple_setitem(axes, i, i)
-            return np.roll(x, shift, axes)
 
-    elif isinstance(axes, types.Integer):
-        def impl(x, axes=None):
-            shift = -(x.shape[axes] // 2)
-            return np.roll(x, shift, axes)
+@ifftshift.impl(axes=is_nonelike)
+def _(x, axes=None):
+    axes = x.shape
+    shift = x.shape
+    for i, dim in enumerate(x.shape):
+        shift = tuple_setitem(shift, i, -(dim // 2))
+        axes = tuple_setitem(axes, i, i)
+    return np.roll(x, shift, axes)
 
-    else:
-        def impl(x, axes=None):
-            shift = x.shape[: len(axes)]
-            for i, ax in enumerate(axes):
-                shift = tuple_setitem(shift, i, -(x.shape[ax] // 2))
-            return np.roll(x, shift, axes)
 
-    return impl
+@ifftshift.impl(axes=is_integer)
+def _(x, axes=None):
+    shift = -(x.shape[axes] // 2)
+    return np.roll(x, shift, axes)
+
+
+@ifftshift.impl(otherwise)
+def _(x, axes=None):
+    shift = x.shape[: len(axes)]
+    for i, ax in enumerate(axes):
+        shift = tuple_setitem(shift, i, -(x.shape[ax] // 2))
+    return np.roll(x, shift, axes)
+
+
+ifftshift = ifftshift.generate()
 
 
 def _typing_fftfreq(n, d):
     msg = "The 1st argument 'n' must be an integer."
-    typing.Check(types.Integer, msg=msg)(n)
+    tg.Check(types.Integer, msg=msg)(n)
     msg = "The 2nd argument 'd' must be an scaler."
-    typing.Check(types.Number, msg=msg)(d)
+    tg.Check(types.Number, msg=msg)(d)
 
 
 @overload(np.fft.fftfreq)
@@ -863,9 +887,9 @@ def rfftfreq(n, d=1.0):
 @overload(scipy.fft.next_fast_len)
 def next_fast_len(target, real):
     msg = "The 1st argument 'target' must be an integer."
-    typing.Check(types.Integer, msg=msg)(target)
+    tg.Check(types.Integer, msg=msg)(target)
     msg = "The 2nd argument 'real' must be a boolean."
-    typing.Check(types.Boolean, msg=msg)(real)
+    tg.Check(types.Boolean, msg=msg)(real)
 
     def impl(target, real):
         if target < 0:

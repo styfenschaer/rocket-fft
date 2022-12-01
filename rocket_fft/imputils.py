@@ -1,3 +1,4 @@
+from numba.extending import overload
 import inspect
 from functools import wraps
 
@@ -37,9 +38,10 @@ class implements_jit:
         self.preprocs.append(func)
         return self
 
-    def generate(self, **kwargs):
+    @property
+    def impl_func(self):
         @wraps(self.func)
-        def impl(*args):
+        def impl_func_(*args):
             self.func(*args)
             for fn in self.preprocs:
                 args = fn(*args)
@@ -53,7 +55,17 @@ class implements_jit:
                     return impl
             msg = 'No implementation found for function {}.'
             raise TypingError(msg.format(self.func.__name__))
+        
+        return impl_func_
 
-        options = self.options.copy()
-        options.update(kwargs)
-        return generated_jit(**options)(impl)
+    def generate(self):
+        return generated_jit(**self.options)(self.impl_func)
+
+
+class implements_overload(implements_jit):
+    def __init__(self, overl, **kwargs):
+        self.overl = overl
+        super().__init__(None, **kwargs)
+
+    def generate(self):
+        return overload(self.overl, **self.options)(self.impl_func)
