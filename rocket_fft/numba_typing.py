@@ -11,6 +11,18 @@ def is_sequence_like(arg):
     return isinstance(arg, seq_like)
 
 
+def is_integer_2tuple(arg):
+    if not isinstance(arg, types.UniTuple):
+        return False
+    if not arg.count == 2:
+        return False
+    return True
+
+
+def is_integer(arg):
+    return isinstance(arg, types.Integer)
+
+
 def literal_is_true(arg):
     if not hasattr(arg, 'literal_value'):
         raise TypingError('Argument must be literal value')
@@ -21,20 +33,8 @@ def literal_is_false(arg):
     return not literal_is_true(arg)
 
 
-def is_integer_2tuple(arg):
-    if not isinstance(arg, types.UniTuple):
-        return False
-    if not arg.count == 2:
-        return False
-    return True
-
-
 def is_not_nonelike(arg):
     return not is_nonelike(arg)
-
-
-def is_integer(arg):
-    return isinstance(arg, types.Integer)
 
 
 class Check:
@@ -49,9 +49,6 @@ class Check:
     def __call__(self, arg, msg=None, fmt=None):
         # It's not a Numba type so make it one
         # TODO: Is there a better way to check this?
-
-        if hasattr(arg, 'literal_value'):
-            arg = nb.typeof(arg.literal_value)
         if not hasattr(arg, 'cast_python_value'):
             arg = nb.typeof(arg)
         if self.allow_none and is_nonelike(arg):
@@ -68,17 +65,17 @@ class Check:
 
 
 class TypingChecker:
-    def __init__(self):
+    def __init__(self, **checks):
         self.argpos = 0
-        self.checks = {}
+        self.checks = checks
 
     def __call__(self, **kwargs):
         for key, val in kwargs.items():
-            fn = self.checks.get(key)
-            if fn is not None:
+            check = self.checks.get(key)
+            if check is not None:
                 i = self.argpos
                 pos = self._pos_to_text(i)
-                fn(val, fmt=pos)
+                check(val, fmt=pos)
             self.argpos += 1
         return self
 
@@ -102,5 +99,5 @@ class TypingChecker:
 
 @contextmanager
 def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
-    check = Check(ty, as_one=True, as_seq=False, allow_none=False)
+    check = Check(ty, as_one, as_seq, allow_none)
     yield check

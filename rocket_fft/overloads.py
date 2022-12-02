@@ -1,3 +1,4 @@
+from .numba_typing import typing_check
 import inspect
 from functools import partial, wraps
 
@@ -10,7 +11,7 @@ from numba.core.config import NUMBA_NUM_THREADS as _cpu_count
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
-
+from numba.np.linalg import dot_3_vm_check_args
 from . import ipocketfft as pfft
 from . import numba_typing as tg
 from .imputils import implements_jit, implements_overload, otherwise
@@ -57,7 +58,7 @@ as_supported_cmplx = partial(_as_supported_type, _as_cmplx_lut)
 as_supported_float = partial(_as_supported_type, _as_float_lut)
 
 
-fft_typing = tg.TypingChecker().register(
+fft_typing = tg.TypingChecker(
     a=tg.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
         msg="The {} argument 'a' must be an array."),
@@ -188,7 +189,7 @@ def _(x, s, axes):
         ax1 += x.ndim
     if ax2 < 0:
         ax2 += x.ndim
-    elif ax1 >= x.ndim or ax2 >= x.ndim:
+    if ax1 >= x.ndim or ax2 >= x.ndim:
         raise ValueError("Axes exceeds dimensionality of input.")
     axes = np.array([ax1, ax2])
     return s, axes
@@ -702,12 +703,14 @@ scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 def roll(a, shift, axis=None):
     # TODO: The multidimensional case is extremly inefficient!
     # I only implemented a naiv approach.
-    msg = "The 1st argument 'a' must be an array."
-    tg.Check(types.Array, msg=msg)
-    msg = "The 2nd argument 'shift' must be a sequences of integers or an integer."
-    tg.Check(types.Integer, as_seq=True, msg=msg)
-    msg = "The 3rd argument 'axis' must be a sequences of integers or an integer."
-    tg.Check(types.Integer, as_seq=True, allow_none=True, msg=msg)
+    with typing_check(types.Array) as check:
+        check(a, "The 1st argument 'a' must be an array.")
+    with typing_check(types.Integer, as_seq=True) as check:
+        check(shift, "The 2nd argument 'shift' must be a "
+                     "sequences of integers or an integer.")
+    with typing_check(types.Integer, as_seq=True, allow_none=True) as check:
+        check(axis, "The 3rd argument 'axis' must be a "
+              "sequences of integers or an integer.")
 
     if is_sequence_like(axis) != is_sequence_like(shift):
         raise TypingError("If axis is specified, shift and axis must both "
@@ -776,11 +779,11 @@ roll = roll.generate()
 
 
 def _typing_fftshift(x, axes):
-    msg = "The 1st argument 'x' must be an array."
-    tg.Check(types.Array, msg=msg)(x)
-    msg = "The 2nd argument 'axes' must be a sequences of integers or an integer."
-    tg.Check(types.Integer, as_seq=True,
-             allow_none=True, msg=msg)(axes)
+    with typing_check(types.Array) as check:
+        check(x, "The 1st argument 'x' must be an array.")
+    with typing_check(types.Integer, as_seq=True, allow_none=True) as check:
+        check(axes, "The 2nd argument 'axes' must be a "
+                    "sequences of integers or an integer.")
 
 
 @implements_overload(np.fft.fftshift)
@@ -848,10 +851,10 @@ ifftshift = ifftshift.generate()
 
 
 def _typing_fftfreq(n, d):
-    msg = "The 1st argument 'n' must be an integer."
-    tg.Check(types.Integer, msg=msg)(n)
-    msg = "The 2nd argument 'd' must be an scaler."
-    tg.Check(types.Number, msg=msg)(d)
+    with typing_check(types.Array) as check:
+        check(n, "The 1st argument 'n' must be an integer.")
+    with typing_check(types.Number) as check:
+        check(d, "The 2nd argument 'd' must be an scaler.")
 
 
 @overload(np.fft.fftfreq)
@@ -886,10 +889,10 @@ def rfftfreq(n, d=1.0):
 
 @overload(scipy.fft.next_fast_len)
 def next_fast_len(target, real):
-    msg = "The 1st argument 'target' must be an integer."
-    tg.Check(types.Integer, msg=msg)(target)
-    msg = "The 2nd argument 'real' must be a boolean."
-    tg.Check(types.Boolean, msg=msg)(real)
+    with typing_check(types.Integer) as check:
+        check(target, "The 1st argument 'target' must be an integer.")
+    with typing_check(types.Boolean) as check:
+        check(real, "The 2nd argument 'real' must be a boolean.")
 
     def impl(target, real):
         if target < 0:
