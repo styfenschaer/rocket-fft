@@ -8,7 +8,6 @@ from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import make_array
 
-
 ll_size_t = ir.IntType(64)
 ll_int64 = ir.IntType(64)
 ll_double = ir.DoubleType()
@@ -23,6 +22,11 @@ def load_pocketfft():
     path = Path(__file__).parent / "_pocketfft_numba.so"
     dll = ctypes.CDLL(str(path))
     return dll
+
+
+def smpartial(func, *args, **kargs):
+    func = func.__func__
+    return partial(func, *args, **kargs)
 
 
 class Pocketfft:
@@ -41,9 +45,9 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    c2c = partial(_call_cmplx.__func__, 'numba_c2c')
-    r2c = partial(_call_cmplx.__func__, 'numba_r2c')
-    c2r = partial(_call_cmplx.__func__, 'numba_c2r')
+    c2c = smpartial(_call_cmplx, 'numba_c2c')
+    r2c = smpartial(_call_cmplx, 'numba_r2c')
+    c2r = smpartial(_call_cmplx, 'numba_c2r')
 
     @staticmethod
     def _call_real(fname, builder, args):
@@ -58,8 +62,36 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    dct = partial(_call_real.__func__, 'numba_dct')
-    dst = partial(_call_real.__func__, 'numba_dst')
+    dct = smpartial(_call_real, 'numba_dct')
+    dst = smpartial(_call_real, 'numba_dst')
+
+    @staticmethod
+    def _call_hartley(fname, builder, args):
+        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
+                                            ll_voidptr,  # ain
+                                            ll_voidptr,  # aout
+                                            ll_voidptr,  # axes
+                                            ll_double,  # fct
+                                            ll_size_t])  # nthreads
+        fn = get_or_insert_function(builder.module, fntype, fname)
+        return builder.call(fn, args)
+
+    separable_hartley = smpartial(_call_hartley, 'numba_separable_hartley')
+    genuine_hartley = smpartial(_call_hartley, 'numba_genuine_hartley')
+
+    @staticmethod
+    def fftpack(builder, args):
+        fname = 'numba_fftpack'
+        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
+                                            ll_voidptr,  # ain
+                                            ll_voidptr,  # aout
+                                            ll_voidptr,  # axes
+                                            ll_bool,  # real2hermitian
+                                            ll_bool,  # forward
+                                            ll_double,  # fct
+                                            ll_size_t])  # nthreads
+        fn = get_or_insert_function(builder.module, fntype, fname)
+        return builder.call(fn, args)
 
     @staticmethod
     def good_size(builder, args):
@@ -96,9 +128,14 @@ def _numba_cmplx(func, typingctx, ain, aout, axes, forward, fct, nthreads):
     return sig, codegen
 
 
-numba_c2c = intrinsic(partial(_numba_cmplx, ll_pocketfft.c2c))
-numba_r2c = intrinsic(partial(_numba_cmplx, ll_pocketfft.r2c))
-numba_c2r = intrinsic(partial(_numba_cmplx, ll_pocketfft.c2r))
+def ipartial(func, *args, **kwargs):
+    partial_func = partial(func, *args, **kwargs)
+    return intrinsic(partial_func)
+
+
+numba_c2c = ipartial(_numba_cmplx, ll_pocketfft.c2c)
+numba_r2c = ipartial(_numba_cmplx, ll_pocketfft.r2c)
+numba_c2r = ipartial(_numba_cmplx, ll_pocketfft.c2r)
 
 
 def _numba_real(func, typingctx, ain, aout, axes, type, fct, ortho, nthreads):
@@ -118,8 +155,50 @@ def _numba_real(func, typingctx, ain, aout, axes, type, fct, ortho, nthreads):
     return sig, codegen
 
 
-numba_dst = intrinsic(partial(_numba_real, ll_pocketfft.dst))
-numba_dct = intrinsic(partial(_numba_real, ll_pocketfft.dct))
+numba_dst = ipartial(_numba_real, ll_pocketfft.dst)
+numba_dct = ipartial(_numba_real, ll_pocketfft.dct)
+
+
+def _numba_hartley(func, typingctx, ain, aout, axes, fct, nthreads):
+    def codegen(context, builder, sig, args):
+        ain, aout, axes, fct, nthreads = args
+        ain_t, aout_t, axes_t, *_ = sig.args
+
+        ndim = ll_size_t(ain_t.ndim)
+        ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
+        aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
+        ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
+
+        args = (ndim, ain_ptr, aout_ptr, ax_ptr, fct, nthreads)
+        func(builder, args)
+
+    sig = void(ain, aout, axes, fct, nthreads)
+    return sig, codegen
+
+
+_ll_pfft = ll_pocketfft
+numba_separable_hartley = ipartial(_numba_hartley, _ll_pfft.separable_hartley)
+numba_genuine_hartley = ipartial(_numba_hartley, _ll_pfft.genuine_hartley)
+
+
+@intrinsic
+def numba_fftpack(typingctx, ain, aout, axes, real2hermitian,
+                  forward, fct, nthreads):
+    def codegen(context, builder, sig, args):
+        ain, aout, axes, real2hermitian, forward, fct, nthreads = args
+        ain_t, aout_t, axes_t, *_ = sig.args
+
+        ndim = ll_size_t(ain_t.ndim)
+        ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
+        aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
+        ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
+
+        args = (ndim, ain_ptr, aout_ptr, ax_ptr,
+                real2hermitian, forward, fct, nthreads)
+        ll_pocketfft.fftpack(builder, args)
+
+    sig = void(ain, aout, axes, real2hermitian, forward, fct, nthreads)
+    return sig, codegen
 
 
 @intrinsic

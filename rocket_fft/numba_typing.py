@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+
 import numba as nb
 from numba import TypingError
 from numba.core import types
@@ -11,21 +12,23 @@ def is_sequence_like(arg):
     return isinstance(arg, seq_like)
 
 
+def is_integer(arg):
+    return isinstance(arg, types.Integer)
+
+
 def is_integer_2tuple(arg):
     if not isinstance(arg, types.UniTuple):
         return False
     if not arg.count == 2:
         return False
+    if not is_integer(arg.dtype):
+        return False
     return True
-
-
-def is_integer(arg):
-    return isinstance(arg, types.Integer)
 
 
 def literal_is_true(arg):
     if not hasattr(arg, 'literal_value'):
-        raise TypingError('Argument must be literal value')
+        raise TypingError('Argument must be literal value.')
     return arg.literal_value
 
 
