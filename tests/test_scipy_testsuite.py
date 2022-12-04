@@ -15,6 +15,7 @@ import numpy as np
 import numpy.fft
 import pytest
 import scipy.fft
+from fixtures import *
 from numpy import (add, arange, array, asarray, cdouble, dot, exp, pi,
                    swapaxes, zeros)
 from numpy.random import rand
@@ -26,140 +27,141 @@ from scipy.fft._pocketfft.realtransforms import (dct, dctn, dst, dstn, idct,
                                                  idctn, idst, idstn)
 from scipy.fft._pocketfft.tests.test_real_transforms import fftpack_test_dir
 
-# Depending on the platform this is a float128 which Numba does not support
+# At maximum double precision is supported
 np.longcomplex = np.complex128
 np.longdouble = np.float64
 np.longfloat = np.float64
 
-njit = partial(nb.njit, cache=False)
+# All functions should be cacheable and run without the GIL
+nb.njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@njit
+@nb.njit
 def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def dctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def idctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def dstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def idstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@njit
+@nb.njit
 def fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def fft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def fftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ifft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ifft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ifftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def rfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def rfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def irfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def irfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def hfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def hfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def hfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ihfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ihfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@njit
+@nb.njit
 def ihfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfftn(x, s, axes, norm, overwrite_x, workers)
 

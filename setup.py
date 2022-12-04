@@ -7,20 +7,18 @@ from pathlib import Path
 
 from setuptools import Extension, find_packages, setup
 
-
-min_python_version = (3, 6)  # including
-max_python_version = (3, 11)  # excluding
+min_python_version = (3, 6)
+max_python_version = (3, 10)
 
 
 def _guard_python_version():
     version = sys.version_info
-    if version >= max_python_version or version < min_python_version:
-
-        def parse(arg):
-            return '.'.join(str(c) for c in arg[:2])
+    if min_python_version > version > max_python_version:
+        def parse(ver):
+            return '.'.join(str(c) for c in ver[:2])
 
         msg = ('Unsupported Python version {}; only'
-               'versions >= {}, < {} are supported.')
+               'versions >= {}, <= {} are supported.')
         raise RuntimeError(msg.format(parse(version),
                                       parse(min_python_version),
                                       parse(max_python_version)))

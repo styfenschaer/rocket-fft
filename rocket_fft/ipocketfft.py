@@ -19,7 +19,8 @@ size_t = types.size_t
 
 
 def load_pocketfft():
-    path = Path(__file__).parent / "_pocketfft_numba.so"
+    root = Path(__file__).parent
+    path = root / "_pocketfft_numba.so"
     dll = ctypes.CDLL(str(path))
     return dll
 

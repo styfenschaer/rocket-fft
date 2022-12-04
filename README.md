@@ -1,8 +1,8 @@
 # rocket-fft
 
-Rocket-FFT makes Numba aware of `numpy.fft` and `scipy.fft`. It takes its name from the *Pocketfft* Fourier library used in the backend, and Numba's goal of making your scientific Python code blazingly fast — like a rocket 🚀.
+Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. It takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library used in the backend, and Numba's goal of making your scientific Python code blazingly fast — like a rocket 🚀.
 
-*Rocket-FFT* is a *work in progress* project that has been a one-man show so far. I wrote it a long time ago and never published it because I thought it was wrong to publish it incomplete. Finally, I convinced myself that it is better to share a good Numba extension than to never share a perfect one. What does it mean for the user? Rocket-FFT has been tested against almost all SciPy and Numpy test suites (with some limitations due to Numba), which include more than 1,000 test cases. Therefore I would consider it somewhat safe to use. I still expect some bugs, probably related to the typing of the function overloads, for which I have not yet written tests. I very much welcome you to report bugs to me so I can iron them out. 
+Rocket-FFT is a *work in progress* project that has been a one-man show so far. I wrote it a long time ago and never published it because I thought it was wrong to publish it incomplete. Finally, I convinced myself that it is better to share a good Numba extension than to never share a perfect one. What does it mean for the user? Rocket-FFT has been tested against almost all [SciPy](https://scipy.org/) and [Numpy](https://numpy.org/) test suites (with some limitations due to Numba), which include more than 1,000 test cases. Therefore I would consider it somewhat safe to use. I still expect some bugs, probably related to the typing of the function overloads, for which I have not yet written tests. I very much welcome you to report bugs to me so I can iron them out. 
 
 ## Getting started
 To use Rocket-FFT, just clone this repository, type
@@ -18,7 +18,7 @@ import numpy as np
 def my_jitted_fft(x):
     return np.fft.fft(x)
 ```
-Unfortunately I don't provide Python wheels yet and you have to build the shared library for the Pocketfft backend locally on your machine. For this you need to have a C++ compiler installed.
+Unfortunately I don't provide Python wheels yet and you have to build the shared library for the PocketFFT backend locally on your machine. For this you need to have a C++ compiler installed.
 This is partly due to limited time and partly due to my lack of knowledge on how to distribute Python packages properly.
 
 ## Good to know
@@ -96,7 +96,7 @@ There are many small, but also big things I have planned with Rocket-FFT. I list
 - There are a few missing functions in the `scipy.fft` module what we can definitely fix. 
 - Currently Rocket-FFT still lacks a test suite to test the typing, which I think is important to fix.
 - Rocket-FFT is sometimes inefficient, for example it doesn`t use symmetry or makes copies. Fortunately, this is easy to fix.
-- Pocketfft also implements two *Hartley transformations*. The C++ interface for them is written, but the Python part is still missing.
-- Finally, when talking about FFT and Numba, one can't help but mention the Intel® MKL FFT library. It is **much** faster than Pocketfft and has a C interface. Using it within Numba in just-in-time compiled code would be great and should be quite easy to do (but still a ton of work).
+- PocketFFT also implements two *Hartley transformations*. The C++ interface for them is written, but the Python part is still missing.
+- Finally, when talking about FFT and Numba, one can't help but mention the Intel® MKL FFT library. It is **much** faster than PocketFFT and has a C interface. Using it within Numba in just-in-time compiled code would be great and should be quite easy to do (but still a ton of work).
 
 

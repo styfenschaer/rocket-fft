@@ -13,105 +13,107 @@ from functools import partial
 import numba as nb
 import numpy as np
 import pytest
+from fixtures import *
 from numpy import pi
 from numpy.random import random
 from numpy.testing import (assert_allclose, assert_array_almost_equal,
                            assert_array_equal, assert_raises)
 
-# Depending on the platform this is a float128 which Numba does not support
+# At maximum double precision is supported
 np.longcomplex = np.complex128
 np.longdouble = np.float64
 np.longfloat = np.float64
 
-njit = partial(nb.njit, cache=False)
+# All functions should be cacheable and run without the GIL
+nb.njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@njit
-def fft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.fft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def fft(a, n=None, axis=-1, norm=None):
+    return np.fft.fft(a, n, axis, norm)
 
 
-@njit
-def fft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    return np.fft.fft2(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def fft2(a, s=None, axes=(-2, -1), norm=None):
+    return np.fft.fft2(a, s, axes, norm)
 
 
-@njit
-def fftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    return np.fft.fftn(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def fftn(a, s=None, axes=None, norm=None):
+    return np.fft.fftn(a, s, axes, norm)
 
 
-@njit
-def ifft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.ifft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def ifft(a, n=None, axis=-1, norm=None):
+    return np.fft.ifft(a, n, axis, norm)
 
 
-@njit
-def ifft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    return np.fft.ifft2(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def ifft2(a, s=None, axes=(-2, -1), norm=None):
+    return np.fft.ifft2(a, s, axes, norm)
 
 
-@njit
-def ifftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    return np.fft.ifftn(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def ifftn(a, s=None, axes=None, norm=None):
+    return np.fft.ifftn(a, s, axes, norm)
 
 
-@njit
-def rfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.rfft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def rfft(a, n=None, axis=-1, norm=None):
+    return np.fft.rfft(a, n, axis, norm)
 
 
-@njit
-def rfft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    return np.fft.rfft2(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def rfft2(a, s=None, axes=(-2, -1), norm=None):
+    return np.fft.rfft2(a, s, axes, norm)
 
 
-@njit
-def rfftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    return np.fft.rfftn(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def rfftn(a, s=None, axes=None, norm=None):
+    return np.fft.rfftn(a, s, axes, norm)
 
 
-@njit
-def irfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.irfft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def irfft(a, n=None, axis=-1, norm=None):
+    return np.fft.irfft(a, n, axis, norm)
 
 
-@njit
-def irfft2(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
-    return np.fft.irfft2(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def irfft2(a, s=None, axes=(-2, -1), norm=None):
+    return np.fft.irfft2(a, s, axes, norm)
 
 
-@njit
-def irfftn(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
-    return np.fft.irfftn(a, s, axes, norm, overwrite_x, workers)
+@nb.njit
+def irfftn(a, s=None, axes=None, norm=None):
+    return np.fft.irfftn(a, s, axes, norm)
 
 
-@njit
-def hfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.hfft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def hfft(a, n=None, axis=-1, norm=None):
+    return np.fft.hfft(a, n, axis, norm)
 
 
-@njit
-def ihfft(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
-    return np.fft.ihfft(a, n, axis, norm, overwrite_x, workers)
+@nb.njit
+def ihfft(a, n=None, axis=-1, norm=None):
+    return np.fft.ihfft(a, n, axis, norm)
 
 
-@njit
-def fftshift(a, axes=None):
-    return np.fft.fftshift(a, axes)
+@nb.njit
+def fftshift(x, axes=None):
+    return np.fft.fftshift(x, axes)
 
 
-@njit
-def ifftshift(a, axes=None):
-    return np.fft.ifftshift(a, axes)
+@nb.njit
+def ifftshift(x, axes=None):
+    return np.fft.ifftshift(x, axes)
 
 
-@njit
+@nb.njit
 def fftfreq(n, d=1.0):
     return np.fft.fftfreq(n, d)
 
 
-@njit
+@nb.njit
 def rfftfreq(n, d=1.0):
     return np.fft.rfftfreq(n, d)
 

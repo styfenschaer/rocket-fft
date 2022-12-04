@@ -18,8 +18,7 @@ from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
                            is_not_nonelike, is_sequence_like, literal_is_false,
                            literal_is_true, typing_check)
 
-
-# Casting rules lookup table
+# Casting rules lookup tables
 # These rules differ to Scipy/Numpy
 _as_cmplx_lut = {
     types.complex64: types.complex64,
@@ -221,7 +220,7 @@ def _(x, s, axes):
     return s, axes
 
 
-@ndshape_and_axes.impl(s=is_not_nonelike, axes=is_not_nonelike)
+@ndshape_and_axes.impl(otherwise)
 def _(x, s, axes):
     s = asarray(s)
     if s.min() < 1:
@@ -312,16 +311,8 @@ def _(workers):
     if workers == 0:
         raise ValueError("Workers must not be zero.")
     if workers < 0 and workers >= -_cpu_count:
-        return workers + 1 + _cpu_count
+        return workers + _cpu_count + 1
     raise ValueError("Workers value out of range.")
-
-
-def _to_dtype(dtype):
-    if hasattr(dtype, 'instance_type'):
-        dtype = dtype.instance_type
-    elif hasattr(dtype, '_dtype'):
-        dtype = dtype._dtype
-    return dtype
 
 
 @implements_jit
@@ -331,7 +322,10 @@ def zeropad_or_crop(x, s, axes, dtype):
 
 @zeropad_or_crop.preproc
 def _(x, s, axes, dtype):
-    dtype = _to_dtype(dtype)
+    if hasattr(dtype, 'instance_type'):
+        dtype = dtype.instance_type
+    elif hasattr(dtype, '_dtype'):
+        dtype = dtype._dtype
     return x, s, axes, dtype
 
 
@@ -425,7 +419,7 @@ def c2cn(args, forward):
 
 
 class HeaderOnlyError(NotImplementedError):
-    """Header functions used for the FFTBuilder are guarded by this error."""
+    """Header functions used by FFTBuilder are guarded by this error."""
 
 
 def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
@@ -675,7 +669,7 @@ scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 @implements_overload(np.roll)
 def roll(a, shift, axis=None):
-    # TODO: Make multidimensional case more inefficient!
+    # TODO: Make multidimensional case more efficient!
     with typing_check(types.Array) as check:
         check(a, "The 1st argument 'a' must be an array.")
     with typing_check(types.Integer, as_seq=True) as check:

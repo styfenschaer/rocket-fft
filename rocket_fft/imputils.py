@@ -9,7 +9,7 @@ def otherwise(*args):
     return True
 
 
-class OverloadDispatcher:
+class Overloader:
     def __init__(self, header=None, overl=None, **options):
         self.header = header
         self.overl = overl
@@ -56,7 +56,7 @@ class OverloadDispatcher:
                 else:
                     if all(val(kwd[key]) for key, val in check):
                         return impl
-            raise TypingError('No implementation found for function {} and '
+            raise TypingError('No implementation found for function {} with '
                               'arguments {}.'.format(self.header.__name__, args))
 
         return impl_func_
@@ -71,28 +71,28 @@ class OverloadDispatcher:
         overload(overl, **self.options)(self.impl_func)
 
 
-def implements_jit(overl_func=None, jit_options=None, strict=True,
+def implements_jit(func=None, jit_options=None, strict=True,
                    inline='never', prefer_literal=False, **kwargs):
     if jit_options is None:
         jit_options = {}
 
-    def wrapper(overl_func):
-        disp = OverloadDispatcher(
-            overl_func, None, jit_options=jit_options, strict=strict,
+    def wrapper(func):
+        disp = Overloader(
+            func, None, jit_options=jit_options, strict=strict,
             inline=inline, prefer_literal=prefer_literal, **kwargs)
         return disp
 
-    if overl_func is not None:
-        return wrapper(overl_func)
+    if func is not None:
+        return wrapper(func)
     return wrapper
 
 
-def implements_overload(overl_func, jit_options=None, strict=True,
+def implements_overload(overloaded_func, jit_options=None, strict=True,
                         inline='never', prefer_literal=False, **kwargs):
     if jit_options is None:
         jit_options = {}
 
-    disp = OverloadDispatcher(
-        None, overl_func, jit_options=jit_options, strict=strict,
+    disp = Overloader(
+        None, overloaded_func, jit_options=jit_options, strict=strict,
         inline=inline, prefer_literal=prefer_literal, **kwargs)
     return disp

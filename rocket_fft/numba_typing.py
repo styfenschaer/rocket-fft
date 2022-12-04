@@ -21,7 +21,7 @@ def is_integer_2tuple(arg):
         return False
     if not arg.count == 2:
         return False
-    if not is_integer(arg.dtype):
+    if not isinstance(arg, types.Integer):
         return False
     return True
 
@@ -94,10 +94,10 @@ class TypingChecker:
     @staticmethod
     def _pos_to_text(pos):
         lut = {0: '1st', 1: '2nd', 2: '3rd'}
-        pos = lut.get(pos)
-        if pos is None:
-            pos = str(pos) + 'th'
-        return pos
+        pos_text = lut.get(pos)
+        if pos_text is None:
+            pos_text = str(pos+1) + 'th'
+        return pos_text
 
 
 @contextmanager
