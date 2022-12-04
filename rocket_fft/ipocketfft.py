@@ -48,6 +48,7 @@ class Pocketfft:
     c2c = smpartial(_call_cmplx, 'numba_c2c')
     r2c = smpartial(_call_cmplx, 'numba_r2c')
     c2r = smpartial(_call_cmplx, 'numba_c2r')
+    c2c_sym = smpartial(_call_cmplx, 'numba_c2c_sym')
 
     @staticmethod
     def _call_real(fname, builder, args):
@@ -136,6 +137,7 @@ def ipartial(func, *args, **kwargs):
 numba_c2c = ipartial(_numba_cmplx, ll_pocketfft.c2c)
 numba_r2c = ipartial(_numba_cmplx, ll_pocketfft.r2c)
 numba_c2r = ipartial(_numba_cmplx, ll_pocketfft.c2r)
+numba_c2c_sym = ipartial(_numba_cmplx, ll_pocketfft.c2c_sym)
 
 
 def _numba_real(func, typingctx, ain, aout, axes, type, fct, ortho, nthreads):

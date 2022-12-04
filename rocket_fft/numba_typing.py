@@ -27,13 +27,15 @@ def is_integer_2tuple(arg):
 
 
 def literal_is_true(arg):
-    if not hasattr(arg, 'literal_value'):
-        raise TypingError('Argument must be literal value.')
+    if not isinstance(arg, types.BooleanLiteral):
+        return False
     return arg.literal_value
 
 
 def literal_is_false(arg):
-    return not literal_is_true(arg)
+    if not isinstance(arg, types.BooleanLiteral):
+        return False
+    return not arg.literal_value
 
 
 def is_not_nonelike(arg):
@@ -50,9 +52,7 @@ class Check:
         self.msg = msg
 
     def __call__(self, arg, msg=None, fmt=None):
-        # It's not a Numba type so make it one
-        # TODO: Is there a better way to check this?
-        if not hasattr(arg, 'cast_python_value'):
+        if not isinstance(arg, types.Type):
             arg = nb.typeof(arg)
         if self.allow_none and is_nonelike(arg):
             return True

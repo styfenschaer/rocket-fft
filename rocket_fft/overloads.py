@@ -4,7 +4,7 @@ from functools import partial, wraps
 import numpy as np
 import numpy.fft
 import scipy.fft
-from numba import TypingError, generated_jit
+from numba import TypingError
 from numba.core import types
 from numba.core.config import NUMBA_NUM_THREADS as _cpu_count
 from numba.cpython.unsafe.tuple import tuple_setitem
@@ -17,8 +17,6 @@ from .imputils import implements_jit, implements_overload, otherwise
 from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
                            is_not_nonelike, is_sequence_like, literal_is_false,
                            literal_is_true, typing_check)
-
-# TODO:
 
 
 # Casting rules lookup table
@@ -169,7 +167,7 @@ def ndshape_and_axes(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
 def _(x, s, axes):
-    # compile time reduction for default 1D transform
+    # Default 1D transform
     if axes < 0:
         axes += x.ndim
     elif axes >= x.ndim:
@@ -180,7 +178,7 @@ def _(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer_2tuple)
 def _(x, s, axes):
-    # compile time reduction for default 2D transform
+    # Default 2D transform
     ax1, ax2 = axes
     if ax1 == ax2:
         ValueError("Both axes must be unique.")
@@ -198,7 +196,7 @@ def _(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
 def _(x, s, axes):
-    # axes not specified, transform all axes
+    # Axes not specified, transform all axes
     axes = np.arange(x.ndim)
     return s, axes
 
@@ -218,7 +216,7 @@ def _(x, s, axes):
         raise ValueError("Invalid number of data points specified.")
     if s.size > x.ndim:
         raise ValueError("Shape requires more axes than are present.")
-    # axes not specified, transform last len(s) axes
+    # Axes not specified, transform last len(s) axes
     axes = np.arange(x.ndim - s.size, x.ndim)
     return s, axes
 
@@ -258,7 +256,7 @@ def _(x, axes, delta=None):
     return n
 
 
-@implements_jit
+@implements_jit(prefer_literal=True)
 def get_fct(x, axes, norm, forward, delta=None):
     pass
 
@@ -285,7 +283,7 @@ def _(x, axes, norm, forward, delta=None):
                      " 'backward', 'ortho' or 'forward'.")
 
 
-@get_fct.impl(otherwise)
+@get_fct.impl(norm=is_not_nonelike, forward=literal_is_false)
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0 / mul_axes(x, axes, delta)
@@ -343,7 +341,6 @@ def _(x, s, axes, dtype):
     for newlen, ax in zip(s, axes):
         shape = tuple_setitem(shape, ax, newlen)
     out = np.zeros(shape, dtype=dtype)
-    # smaller axis is decisive how many elements are copied
     for i, (s1, s2) in enumerate(zip(x.shape, out.shape)):
         shape = tuple_setitem(shape, i, min(s1, s2))
     for index in np.ndindex(shape):
@@ -364,16 +361,16 @@ def _(x, s, axes, dtype):
 def generated_alloc_output(s, istype, reqtype):
     # We don't allocate a new array if:
     # 1. overwrite was requested (runtime check)
-    # 2. array got casted -> we have a new one already (compile time check)
+    # 2. array got casted (compile time check)
     # 3. the array has been zero-padded/truncated (compile time check)
     if istype != reqtype or not is_nonelike(s):
-        @generated_jit
+        @register_jitable
         def alloc_output(x, overwrite_x):
             return x
 
         return alloc_output
 
-    @implements_jit
+    @implements_jit(prefer_literal=True)
     def alloc_output(x, overwrite_x):
         pass
 
@@ -395,38 +392,35 @@ def generated_alloc_output(s, istype, reqtype):
     return alloc_output
 
 
-# TODO: take advantage of symmetry for real valued data
 def c2cn(args, forward):
     x, s, *_ = args
 
     rettype = as_supported_cmplx(x.dtype)
-    alloc_output = generated_alloc_output(s, x.dtype, rettype)
 
-    # if isinstance(x.dtype, types.Complex):
-    def impl(x, s, axes, norm, overwrite_x, workers):
-        s, axes = ndshape_and_axes(x, s, axes)
-        x = zeropad_or_crop(x, s, axes, rettype)
-        out = alloc_output(x, overwrite_x)
-        fct = get_fct(x, axes, norm, forward)
-        nthreads = get_nthreads(workers)
-        pfft.numba_c2c(x, out, axes, forward, fct, nthreads)
-        return out
-        
-    # else:
-    #     argtype = as_supported_float(x.dtype)
-        
-    #     def impl(x, s, axes, norm, overwrite_x, workers):
-    #         s, axes = ndshape_and_axes(x, s, axes)
-    #         x = zeropad_or_crop(x, s, axes, argtype)
-    #         out = np.empty(x.shape, dtype=rettype)
-    #         fct = get_fct(x, axes, norm, forward)
-    #         nthreads = get_nthreads(workers)
-    #         pfft.numba_r2c(x, out, axes, forward, fct, nthreads)
-    #         for i in range(1, x.size//2):
-    #             out[-i] = np.conj(out[i])
-    #         return out
-    
-    
+    if isinstance(x.dtype, types.Complex):
+        alloc_output = generated_alloc_output(s, x.dtype, rettype)
+
+        def impl(x, s, axes, norm, overwrite_x, workers):
+            s, axes = ndshape_and_axes(x, s, axes)
+            x = zeropad_or_crop(x, s, axes, rettype)
+            out = alloc_output(x, overwrite_x)
+            fct = get_fct(x, axes, norm, forward)
+            nthreads = get_nthreads(workers)
+            pfft.numba_c2c(x, out, axes, forward, fct, nthreads)
+            return out
+
+    else:
+        argtype = as_supported_float(x.dtype)
+
+        def impl(x, s, axes, norm, overwrite_x, workers):
+            s, axes = ndshape_and_axes(x, s, axes)
+            x = zeropad_or_crop(x, s, axes, argtype)
+            out = np.empty(x.shape, dtype=rettype)
+            fct = get_fct(x, axes, norm, forward)
+            nthreads = get_nthreads(workers)
+            pfft.numba_c2c_sym(x, out, axes, forward, fct, nthreads)
+            return out
+
     return impl
 
 
@@ -583,7 +577,7 @@ scipy_c2d_builder(c2rn, forward=True).overload(scipy.fft.hfft2)
 scipy_cnd_builder(c2rn, forward=True).overload(scipy.fft.hfftn)
 
 
-@implements_jit
+@implements_jit(prefer_literal=True)
 def get_type(type, forward):
     pass
 
@@ -681,7 +675,7 @@ scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 @implements_overload(np.roll)
 def roll(a, shift, axis=None):
-    # TODO: Make multidimensional more inefficient!
+    # TODO: Make multidimensional case more inefficient!
     with typing_check(types.Array) as check:
         check(a, "The 1st argument 'a' must be an array.")
     with typing_check(types.Integer, as_seq=True) as check:
@@ -708,7 +702,7 @@ def _(a, shift, axis=None):
 @roll.impl(otherwise)
 def _(a, shift, axis=None):
     axis, shift = np.broadcast_arrays(axis, shift)
-    # axis is readonly but we eventually need to write it
+    # Axis is readonly but we eventually need to write it
     axis = axis.copy()
     wraparound_axes(a, axis)
 
@@ -730,7 +724,6 @@ def _(a, shift, axis=None):
                 r_index = tuple_setitem(r_index, i, -val)
     r_index_init = r_index
 
-    # TODO: This part is not efficient
     r = np.empty_like(a)
 
     # This is like np.ndindex except that we maintain two index

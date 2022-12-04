@@ -151,6 +151,47 @@ numba_r2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
+numba_c2c_sym(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+              bool forward, double fct, size_t nthreads = 1)
+{
+    using namespace pocketfft::detail;
+    auto shape_in = copy_shape(ain, ndim);
+    auto stride_in = copy_stride(ain, ndim);
+    auto stride_out = copy_stride(aout, ndim);
+    auto axes_ = copy_array(axes);
+    if (ain->itemsize == SIZEOF_DOUBLE)
+    {
+        auto data_in = reinterpret_cast<double *>(ain->data);
+        auto data_out = reinterpret_cast<std::complex<double> *>(aout->data);
+        pocketfft::r2c<double>(shape_in, stride_in, stride_out, axes_,
+                               forward, data_in, data_out, fct, nthreads);
+        ndarr<std::complex<double>> ares(data_out, shape_in, stride_out);
+        rev_iter iter(ares, axes_);
+        while (iter.remaining() > 0)
+        {
+            auto v = ares[iter.ofs()];
+            ares[iter.rev_ofs()] = conj(v);
+            iter.advance();
+        }
+    }
+    else
+    {
+        auto data_in = reinterpret_cast<float *>(ain->data);
+        auto data_out = reinterpret_cast<std::complex<float> *>(aout->data);
+        pocketfft::r2c<float>(shape_in, stride_in, stride_out, axes_,
+                              forward, data_in, data_out, fct, nthreads);
+        ndarr<std::complex<float>> ares(data_out, shape_in, stride_out);
+        rev_iter iter(ares, axes_);
+        while (iter.remaining() > 0)
+        {
+            auto v = ares[iter.ofs()];
+            ares[iter.rev_ofs()] = conj(v);
+            iter.advance();
+        }
+    }
+}
+
+DLL_EXPORT void
 numba_c2r(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
           bool forward, double fct, size_t nthreads = 1)
 {
@@ -199,8 +240,8 @@ numba_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_
 }
 
 DLL_EXPORT void
-numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-                        double fct, size_t nthreads = 1)
+numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
+                        arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
     auto stride_in = copy_stride(ain, ndim);
@@ -223,8 +264,8 @@ numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout, 
 }
 
 DLL_EXPORT void
-numba_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-                      double fct, size_t nthreads = 1)
+numba_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
+                      arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
     auto stride_in = copy_stride(ain, ndim);
