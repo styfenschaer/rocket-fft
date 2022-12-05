@@ -27,21 +27,21 @@ def is_integer_2tuple(arg):
 
 
 def literal_integer(val):
-    def inner(arg):
+    def impl(arg):
         if not isinstance(arg, types.IntegerLiteral):
             return False
         return arg.literal_value == val
 
-    return inner
+    return impl
 
 
 def literal_bool(val):
-    def inner(arg):
+    def impl(arg):
         if not isinstance(arg, types.BooleanLiteral):
             return False
         return arg.literal_value == val
 
-    return inner
+    return impl
 
 
 def is_not_nonelike(arg):
