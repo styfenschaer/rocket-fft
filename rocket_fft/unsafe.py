@@ -26,7 +26,7 @@ is_mapped_to_cmplx = partial(is_mapped_to, real=False)
 is_mapped_to_real = partial(is_mapped_to, real=True)
 
 
-def update_dtype_mapping(argty, retty, real=None):
+def update_mapping_table(argty, retty, real=None):
     if not all(isinstance(ty, types.Type) for ty in (argty, retty)):
         raise TypeError(
             "The first two arguments 'argty' and 'retty' must be Numba types.")
@@ -48,5 +48,5 @@ def update_dtype_mapping(argty, retty, real=None):
     lut[argty] = retty
 
 
-update_dtype_mapping_cmplx = partial(update_dtype_mapping, real=False)
-update_dtype_mapping_real = partial(update_dtype_mapping, real=True)
+update_mapping_table_cmplx = partial(update_mapping_table, real=False)
+update_mapping_table_real = partial(update_mapping_table, real=True)
