@@ -1,11 +1,14 @@
 import distutils.command.build
 import sys
-# https://stackoverflow.com/questions/4529555/building-a-ctypes-based-c-library-with-distutils
-# https://github.com/himbeles/ctypes-example
 from distutils.command.build_ext import build_ext as build_ext_orig
 from pathlib import Path
 
 from setuptools import Extension, find_packages, setup
+
+# Partially adopted from:
+# https://github.com/himbeles/ctypes-example
+# https://github.com/numba/numba/blob/main/setup.py
+
 
 min_python_version = (3, 6)
 max_python_version = (3, 10)

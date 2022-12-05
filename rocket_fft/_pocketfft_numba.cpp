@@ -47,11 +47,11 @@ copy_array(const arystruct_t *arystruct)
 }
 
 DLL_EXPORT size_t
-numba_good_size(size_t n, bool real)
+numba_good_size(size_t target, bool real)
 {
     using pocketfft::detail::util;
-    return real ? util::good_size_real(n)
-                : util::good_size_cmplx(n);
+    return real ? util::good_size_real(target)
+                : util::good_size_cmplx(target);
 }
 
 DLL_EXPORT void

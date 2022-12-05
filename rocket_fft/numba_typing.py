@@ -26,16 +26,22 @@ def is_integer_2tuple(arg):
     return True
 
 
-def literal_is_true(arg):
-    if not isinstance(arg, types.BooleanLiteral):
-        return False
-    return arg.literal_value
+def literal_integer(val):
+    def inner(arg):
+        if not isinstance(arg, types.IntegerLiteral):
+            return False
+        return arg.literal_value == val
+
+    return inner
 
 
-def literal_is_false(arg):
-    if not isinstance(arg, types.BooleanLiteral):
-        return False
-    return not arg.literal_value
+def literal_bool(val):
+    def inner(arg):
+        if not isinstance(arg, types.BooleanLiteral):
+            return False
+        return arg.literal_value == val
+
+    return inner
 
 
 def is_not_nonelike(arg):
@@ -69,21 +75,15 @@ class Check:
 
 class TypingChecker:
     def __init__(self, **checks):
-        self.argpos = 0
         self.checks = checks
 
     def __call__(self, **kwargs):
-        for key, val in kwargs.items():
+        items = kwargs.items()
+        for pos, (key, val) in enumerate(items):
             check = self.checks.get(key)
             if check is not None:
-                i = self.argpos
-                pos = self._pos_to_text(i)
-                check(val, fmt=pos)
-            self.argpos += 1
-        return self
-
-    def reset(self):
-        self.argpos = 0
+                txt = self._int_to_ordinal(pos+1)
+                check(val, fmt=txt)
         return self
 
     def register(self, **kwargs):
@@ -92,12 +92,10 @@ class TypingChecker:
         return self
 
     @staticmethod
-    def _pos_to_text(pos):
-        lut = {0: '1st', 1: '2nd', 2: '3rd'}
-        pos_text = lut.get(pos)
-        if pos_text is None:
-            pos_text = str(pos+1) + 'th'
-        return pos_text
+    def _int_to_ordinal(n):
+        # Adopted from https://codegolf.stackexchange.com/questions/4707
+        suffix = "tsnrhtdd"[(n//10 % 10 != 1)*(n % 10 < 4)*n % 10::4]
+        return f"{n}{suffix}"
 
 
 @contextmanager

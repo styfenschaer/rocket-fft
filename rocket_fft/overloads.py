@@ -6,7 +6,7 @@ import numpy.fft
 import scipy.fft
 from numba import TypingError
 from numba.core import types
-from numba.core.config import NUMBA_NUM_THREADS as _cpu_count
+from numba.core.config import NUMBA_NUM_THREADS
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
@@ -15,11 +15,18 @@ from . import ipocketfft as pfft
 from . import numba_typing as nt
 from .imputils import implements_jit, implements_overload, otherwise
 from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
-                           is_not_nonelike, is_sequence_like, literal_is_false,
-                           literal_is_true, typing_check)
+                           is_not_nonelike, is_sequence_like, literal_bool,
+                           literal_integer, typing_check)
+
+# TODO: Tests np.roll
+# TODO: Tests casting rules
+# TODO: Tests copying behavior
+
 
 # Casting rules lookup tables
 # These rules differ to Scipy/Numpy
+# Rules can be modified using the unsafe.py features
+# Rules of already compiled overloads are frozen
 _as_cmplx_lut = {
     types.complex64: types.complex64,
     types.complex128: types.complex128,
@@ -101,7 +108,6 @@ class FFTBuilder:
         def ol_func(*iargs, **ikwargs):
             kwd = self._get_callargs(*iargs, **ikwargs)
             if self.typing_checker is not None:
-                self.typing_checker.reset()
                 self.typing_checker(**kwd)
             params = tuple(kwd.values())
             impl = func(params, *args, **kwargs)
@@ -195,6 +201,7 @@ def _(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
 def _(x, s, axes):
+    # Default ND transform
     # Axes not specified, transform all axes
     axes = np.arange(x.ndim)
     return s, axes
@@ -260,17 +267,17 @@ def get_fct(x, axes, norm, forward, delta=None):
     pass
 
 
-@get_fct.impl(norm=is_nonelike, forward=literal_is_true)
+@get_fct.impl(norm=is_nonelike, forward=literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     return 1.0
 
 
-@get_fct.impl(norm=is_nonelike, forward=literal_is_false)
+@get_fct.impl(norm=is_nonelike, forward=literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     return 1.0 / mul_axes(x, axes, delta)
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=literal_is_true)
+@get_fct.impl(norm=is_not_nonelike, forward=literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0
@@ -282,7 +289,7 @@ def _(x, axes, norm, forward, delta=None):
                      " 'backward', 'ortho' or 'forward'.")
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=literal_is_false)
+@get_fct.impl(norm=is_not_nonelike, forward=literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0 / mul_axes(x, axes, delta)
@@ -292,16 +299,23 @@ def _(x, axes, norm, forward, delta=None):
         return 1.0
     raise ValueError("Invalid norm value; should be"
                      " 'backward', 'ortho' or 'forward'.")
+
+
+_cpu_count = NUMBA_NUM_THREADS
+_default_workers = 1
 
 
 @implements_jit
 def get_nthreads(workers):
-    pass
+    if is_nonelike(workers):
+        global _default_workers
+        _default_workers = scipy.fft.get_workers()
 
 
 @get_nthreads.impl(workers=is_nonelike)
 def _(workers):
-    return 1
+    # Number of workers is frozen after compilation
+    return _default_workers
 
 
 @get_nthreads.impl(otherwise)
@@ -368,19 +382,19 @@ def generated_alloc_output(s, istype, reqtype):
     def alloc_output(x, overwrite_x):
         pass
 
-    @alloc_output.impl(overwrite_x=literal_is_true)
+    @alloc_output.impl(overwrite_x=literal_bool(True))
     def _(x, overwrite_x):
         return x
 
-    @alloc_output.impl(overwrite_x=literal_is_false)
+    @alloc_output.impl(overwrite_x=literal_bool(False))
     def _(x, overwrite_x):
-        return np.empty_like(x)
+        return np.empty(x.shape, dtype=x.dtype)
 
     @alloc_output.impl(otherwise)
     def _(x, overwrite_x):
         if overwrite_x:
             return x
-        out = np.empty_like(x)
+        out = np.empty(x.shape, dtype=x.dtype)
         return out
 
     return alloc_output
@@ -576,13 +590,29 @@ def get_type(type, forward):
     pass
 
 
-@get_type.impl(forward=literal_is_true)
+@get_type.impl(type=literal_integer(2), forward=literal_bool(True))
 def _(type, forward):
+    # Default case forward
+    return 2
+
+
+@get_type.impl(type=literal_integer(2), forward=literal_bool(False))
+def _(type, forward):
+    # Default case backward
+    return 3
+
+
+@get_type.impl(forward=literal_bool(True))
+def _(type, forward):
+    if not type in (1, 2, 3, 4):
+        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
     return type
 
 
-@get_type.impl(otherwise)
+@get_type.impl(forward=literal_bool(False))
 def _(type, forward):
+    if not type in (1, 2, 3, 4):
+        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
     if type == 2:
         return 3
     if type == 3:
@@ -687,10 +717,12 @@ def roll(a, shift, axis=None):
 @roll.impl(axis=is_nonelike)
 def _(a, shift, axis=None):
     sh = np.asarray(shift).sum()
-    r = np.empty_like(a.ravel())
-    r[sh:] = a[:-sh]
-    r[:sh] = a[-sh:]
-    return r.reshape(a.shape)
+    r = np.empty(a.shape, dtype=a.dtype)
+    r_flat = r.ravel()
+    a_flat = a.ravel()
+    r_flat[sh:] = a_flat[:-sh]
+    r_flat[:sh] = a_flat[-sh:]
+    return r
 
 
 @roll.impl(otherwise)
@@ -718,7 +750,7 @@ def _(a, shift, axis=None):
                 r_index = tuple_setitem(r_index, i, -val)
     r_index_init = r_index
 
-    r = np.empty_like(a)
+    r = np.empty(a.shape, dtype=a.dtype)
 
     # This is like np.ndindex except that we maintain two index
     # tuples in parallel; a normal one and a shifted one.
