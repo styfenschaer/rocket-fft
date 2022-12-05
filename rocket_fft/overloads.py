@@ -148,10 +148,10 @@ def assert_unique_axes(axes):
 @register_jitable
 def wraparound_axes(x, axes):
     for i, ax in enumerate(axes):
+        if ax >= x.ndim or ax < -x.ndim:
+            raise ValueError("Axes exceeds dimensionality of input.")
         if ax < 0:
             axes[i] += x.ndim
-        elif ax >= x.ndim:
-            raise ValueError("Axes exceeds dimensionality of input.")
 
 
 @register_jitable
@@ -167,36 +167,36 @@ def ndshape_and_axes(x, s, axes):
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
 def _(x, s, axes):
-    # Default 1D transform
+    # Specialization for 1D transform
+    if axes >= x.ndim or axes < -x.ndim:
+        raise ValueError("Axes exceeds dimensionality of input.")
     if axes < 0:
         axes += x.ndim
-    elif axes >= x.ndim:
-        raise ValueError("Axes exceeds dimensionality of input.")
     axes = np.array([axes])
     return s, axes
 
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer_2tuple)
 def _(x, s, axes):
-    # Default 2D transform
+    # Specialization for 2D transform
     ax1, ax2 = axes
     if ax1 == ax2:
         ValueError("Both axes must be unique.")
+    if ax1 >= x.ndim or ax1 < -x.ndim:
+        raise ValueError("First axis exceeds dimensionality of input.")
     if ax1 < 0:
         ax1 += x.ndim
-    elif ax1 >= x.ndim:
-        raise ValueError("First axis exceeds dimensionality of input.")
+    if ax2 >= x.ndim or ax2 < -x.ndim:
+        raise ValueError("Second axis exceeds dimensionality of input.")
     if ax2 < 0:
         ax2 += x.ndim
-    elif ax2 >= x.ndim:
-        raise ValueError("Second axis exceeds dimensionality of input.")
     axes = np.array([ax1, ax2])
     return s, axes
 
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
 def _(x, s, axes):
-    # Default ND transform
+    # Specialization for default ND transform
     # Axes not specified, transform all axes
     axes = np.arange(x.ndim)
     return s, axes
@@ -587,13 +587,13 @@ def get_type(type, forward):
 
 @get_type.impl(type=literal_integer(2), forward=literal_bool(True))
 def _(type, forward):
-    # Default case forward
+    # Specialization for default case forward
     return 2
 
 
 @get_type.impl(type=literal_integer(2), forward=literal_bool(False))
 def _(type, forward):
-    # Default case backward
+    # Specialization for default case backward
     return 3
 
 
