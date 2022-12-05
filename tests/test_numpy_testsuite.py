@@ -6,18 +6,16 @@ https://github.com/numpy/numpy/blob/main/numpy/fft/tests/test_pocketfft.py
 Whenever I changed a test, I left a note.
 """
 
-import queue
-import threading
 from functools import partial
 
 import numba as nb
 import numpy as np
 import pytest
-from fixtures import *
+from helpers import numba_cache_cleanup
 from numpy import pi
 from numpy.random import random
 from numpy.testing import (assert_allclose, assert_array_almost_equal,
-                           assert_array_equal, assert_raises)
+                           assert_raises)
 
 # At maximum double precision is supported
 np.longcomplex = np.complex128

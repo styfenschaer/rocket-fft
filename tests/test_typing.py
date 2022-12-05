@@ -5,7 +5,7 @@ import numpy as np
 import numpy.fft
 import pytest
 import scipy.fft
-from fixtures import *
+from helpers import numba_cache_cleanup
 from pytest import raises as assert_raises
 
 # All functions should be cacheable and run without the GIL
@@ -68,11 +68,10 @@ def fftfreq(n, d=1.0):
 
 
 def mk_match(pos, name):
-    lut = {0: '1st', 1: '2nd', 2: '3rd'}
-    pos_text = lut.get(pos)
-    if pos_text is None:
-        pos_text = str(pos+1) + 'th'
-    return fr".* {pos_text} .* '{name}' .*"
+    lut = {0: '1st', 1: '2nd', 2: '3rd', 3: '4th',
+           4: '5th', 5: '6th', 6: '7th', 7: '8th'}
+    pos = lut.get(pos)
+    return fr".* {pos} .* '{name}' .*"
 
 
 class TestFFTShift:

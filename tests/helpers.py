@@ -13,5 +13,3 @@ def numba_cache_cleanup():
         path = cache_dir / file
         if path.suffix in ['.nbc', '.nbi']:
             os.remove(path)
-
-

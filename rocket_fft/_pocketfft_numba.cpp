@@ -6,6 +6,9 @@
 #include "_arraystruct.h"
 #include "./core/runtime/nrt_external.h"
 
+// TODO: replace shape_t and stride_t by a shape_view and stride_view
+// TODO: Avoid code duplication where possible
+
 #ifdef _MSC_VER
 #define DLL_EXPORT extern "C" __declspec(dllexport)
 #else

@@ -21,7 +21,7 @@ def is_integer_2tuple(arg):
         return False
     if not arg.count == 2:
         return False
-    if not isinstance(arg, types.Integer):
+    if not isinstance(arg.dtype, types.Integer):
         return False
     return True
 

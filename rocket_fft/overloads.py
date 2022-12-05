@@ -15,13 +15,8 @@ from . import ipocketfft as pfft
 from . import numba_typing as nt
 from .imputils import implements_jit, implements_overload, otherwise
 from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
-                           is_not_nonelike, is_sequence_like, literal_bool,
+                           is_not_nonelike, literal_bool,
                            literal_integer, typing_check)
-
-# TODO: Tests np.roll
-# TODO: Tests casting rules
-# TODO: Tests copying behavior
-
 
 # Casting rules lookup tables
 # These rules differ to Scipy/Numpy
@@ -218,7 +213,7 @@ def _(x, s, axes):
 @ndshape_and_axes.impl(s=is_not_nonelike, axes=is_nonelike)
 def _(x, s, axes):
     s = asarray(s)
-    if s.min() < 1:
+    if (s < 1).any():
         raise ValueError("Invalid number of data points specified.")
     if s.size > x.ndim:
         raise ValueError("Shape requires more axes than are present.")
@@ -433,7 +428,7 @@ def c2cn(args, forward):
 
 
 class HeaderOnlyError(NotImplementedError):
-    """Header functions used by FFTBuilder are guarded by this error."""
+    """This error guards header functions used by the FFTBuilder"""
 
 
 def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
@@ -604,19 +599,19 @@ def _(type, forward):
 
 @get_type.impl(forward=literal_bool(True))
 def _(type, forward):
-    if not type in (1, 2, 3, 4):
+    if type not in (1, 2, 3, 4):
         raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
     return type
 
 
 @get_type.impl(forward=literal_bool(False))
 def _(type, forward):
-    if not type in (1, 2, 3, 4):
-        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
     if type == 2:
         return 3
     if type == 3:
         return 2
+    if type not in (1, 4):
+        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
     return type
 
 
@@ -709,15 +704,13 @@ def roll(a, shift, axis=None):
         check(axis, "The 3rd argument 'axis' must be a "
                     "sequences of integers or an integer.")
 
-    if is_sequence_like(axis) != is_sequence_like(shift):
-        raise TypingError("If axis is specified, shift and axis must both "
-                          "be integers or  integer sequences of equal length.")
-
 
 @roll.impl(axis=is_nonelike)
 def _(a, shift, axis=None):
-    sh = np.asarray(shift).sum()
     r = np.empty(a.shape, dtype=a.dtype)
+    if a.size == 0:
+        return r
+    sh = np.asarray(shift).sum() % a.size
     r_flat = r.ravel()
     a_flat = a.ravel()
     r_flat[sh:] = a_flat[:-sh]
@@ -739,15 +732,14 @@ def _(a, shift, axis=None):
     r_index = a_index
     for ax, sh in zip(axis, shift):
         r_index = tuple_setitem(r_index, ax, r_index[ax] + sh)
+
     for i in range(a.ndim):
-        if r_index[i] > 0:
-            r_index = tuple_setitem(r_index, i, r_index[i] - a.shape[i])
-        if r_index[i] != 0:
-            if a.shape[i] == 0:
-                r_index = tuple_setitem(r_index, i, 0)
-            else:
-                val = np.abs(r_index[i]) % a.shape[i]
-                r_index = tuple_setitem(r_index, i, -val)
+        if a.shape[i] == 0:
+            r_index = tuple_setitem(r_index, i, 0)
+        elif r_index[i] > 0:
+            val = (r_index[i] % a.shape[i]) - a.shape[i]
+            r_index = tuple_setitem(r_index, i, val)
+
     r_index_init = r_index
 
     r = np.empty(a.shape, dtype=a.dtype)

@@ -7,7 +7,7 @@ Whenever I changed a test, I left a note.
 """
 
 from functools import partial
-from os.path import dirname, join
+from os.path import join
 from typing import Callable, Dict, Tuple, Type, Union
 
 import numba as nb
@@ -15,7 +15,7 @@ import numpy as np
 import numpy.fft
 import pytest
 import scipy.fft
-from fixtures import *
+from helpers import numba_cache_cleanup
 from numpy import (add, arange, array, asarray, cdouble, dot, exp, pi,
                    swapaxes, zeros)
 from numpy.random import rand

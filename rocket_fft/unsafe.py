@@ -5,47 +5,48 @@ from numba import types
 from .overloads import _as_cmplx_lut, _as_float_lut
 
 
-def get_mapping_table(cmplx):
-    if not isinstance(cmplx, bool):
-        raise TypeError("The 1st argument 'cmplx' must be a boolean.")
+def get_mapping_table(real):
+    if not isinstance(real, bool):
+        raise TypeError("The 1st argument 'real' must be a boolean.")
 
-    return _as_cmplx_lut if cmplx else _as_float_lut
+    return _as_float_lut if real else _as_cmplx_lut
 
 
-def maps_to(ty, cmplx):
+def is_mapped_to(ty, real):
     if not isinstance(ty, types.Type):
-        raise TypeError("The 1st argument must be a Numba type.")
-    if not isinstance(cmplx, bool):
-        raise TypeError("The 2nd argument 'cmplx' must be a boolean.")
+        raise TypeError("The 1st argument 'ty' must be a Numba type.")
+    if not isinstance(real, bool):
+        raise TypeError("The 2nd argument 'real' must be a boolean.")
 
-    lut = get_mapping_table(cmplx)
+    lut = get_mapping_table(real)
     return lut[ty]
 
 
-maps_to_complex = partial(maps_to, cmplx=True)
-maps_to_real = partial(maps_to, cmplx=False)
+is_mapped_to_cmplx = partial(is_mapped_to, real=False)
+is_mapped_to_real = partial(is_mapped_to, real=True)
 
 
-def update_dtype_mapping(argty, retty, cmplx=None):
+def update_dtype_mapping(argty, retty, real=None):
     if not all(isinstance(ty, types.Type) for ty in (argty, retty)):
-        raise TypeError("The first two arguments must Numba types.")
+        raise TypeError(
+            "The first two arguments 'argty' and 'retty' must be Numba types.")
 
-    if cmplx is None:
-        cmplx = isinstance(retty, types.Complex)
-    if not isinstance(cmplx, bool):
-        raise TypeError("The 3rd argument 'cmplx' must be a boolean.")
+    if real is None:
+        real = isinstance(retty, types.Complex)
+    if not isinstance(real, bool):
+        raise TypeError("The 3rd argument 'real' must be a boolean.")
 
-    if cmplx:
-        supported = (types.complex64, types.complex128)
-    else:
+    if real:
         supported = (types.float32, types.float64)
+    else:
+        supported = (types.complex64, types.complex128)
     if retty not in supported:
         raise TypeError(
             f"Unsupported return type {retty}; must be one of {supported}.")
 
-    lut = get_mapping_table(cmplx)
+    lut = get_mapping_table(real)
     lut[argty] = retty
 
 
-update_dtype_mapping_complex = partial(update_dtype_mapping, cmplx=True)
-update_dtype_mapping_real = partial(update_dtype_mapping, cmplx=False)
+update_dtype_mapping_cmplx = partial(update_dtype_mapping, real=False)
+update_dtype_mapping_real = partial(update_dtype_mapping, real=True)
