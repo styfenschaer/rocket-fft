@@ -1,4 +1,5 @@
 import ctypes
+import glob
 from functools import partial
 from pathlib import Path
 
@@ -19,10 +20,9 @@ size_t = types.size_t
 
 
 def load_pocketfft():
-    root = Path(__file__).parent
-    path = root / "_pocketfft_numba.so"
-    dll = ctypes.CDLL(str(path))
-    return dll
+    pattern = Path(__file__).parent / '*.so'
+    libpath = glob.glob(str(pattern))[0]
+    return ctypes.CDLL(libpath)
 
 
 def smpartial(func, *args, **kargs):

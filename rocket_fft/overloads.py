@@ -140,18 +140,24 @@ class FFTBuilder:
 
 
 @register_jitable
-def assert_unique_axes(axes):
-    if len(set(axes)) != axes.size:
-        raise ValueError("All axes must be unique.")
-
-
-@register_jitable
 def wraparound_axes(x, axes):
     for i, ax in enumerate(axes):
         if ax >= x.ndim or ax < -x.ndim:
             raise ValueError("Axes exceeds dimensionality of input.")
         if ax < 0:
             axes[i] += x.ndim
+
+
+@register_jitable
+def assert_unique_axes(axes):
+    # Does only work if all axes are positive
+    # This works because ndarray supports only up to 32 dimensions
+    # It compiles much faster than len(set(axes)) != axes.size
+    slots = (0,)*32
+    for ax in axes:
+        if slots[ax] != 0:
+            raise ValueError("All axes must be unique.")
+        slots = tuple_setitem(slots, ax, 1)
 
 
 @register_jitable
@@ -180,8 +186,6 @@ def _(x, s, axes):
 def _(x, s, axes):
     # Specialization for 2D transform
     ax1, ax2 = axes
-    if ax1 == ax2:
-        ValueError("Both axes must be unique.")
     if ax1 >= x.ndim or ax1 < -x.ndim:
         raise ValueError("First axis exceeds dimensionality of input.")
     if ax1 < 0:
@@ -190,6 +194,8 @@ def _(x, s, axes):
         raise ValueError("Second axis exceeds dimensionality of input.")
     if ax2 < 0:
         ax2 += x.ndim
+    if ax1 == ax2:
+        ValueError("Both axes must be unique.")
     axes = np.array([ax1, ax2])
     return s, axes
 
@@ -205,8 +211,8 @@ def _(x, s, axes):
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_not_nonelike)
 def _(x, s, axes):
     axes = asarray(axes)
-    assert_unique_axes(axes)
     wraparound_axes(x, axes)
+    assert_unique_axes(axes)
     return s, axes
 
 
@@ -228,8 +234,8 @@ def _(x, s, axes):
     if s.min() < 1:
         raise ValueError("Invalid number of data points specified.")
     axes = asarray(axes)
-    assert_unique_axes(axes)
     wraparound_axes(x, axes)
+    assert_unique_axes(axes)
     if s.size != axes.size:
         raise ValueError("When given, axes and shape arguments"
                          " have to be of the same length.")
