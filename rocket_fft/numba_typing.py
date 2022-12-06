@@ -1,5 +1,3 @@
-from contextlib import contextmanager
-
 import numba as nb
 from numba import TypingError
 from numba.core import types
@@ -57,7 +55,7 @@ class Check:
         self.allow_none = allow_none
         self.msg = msg
 
-    def __call__(self, arg, msg=None, fmt=None):
+    def __call__(self, arg, fmt=None):
         if not isinstance(arg, types.Type):
             arg = nb.typeof(arg)
         if self.allow_none and is_nonelike(arg):
@@ -67,10 +65,9 @@ class Check:
         if self.as_seq and is_sequence_like(arg):
             if isinstance(arg.dtype, self.ty):
                 return True
-        msg = self.msg if msg is None else msg
-        if msg is None:
+        if self.msg is None:
             return False
-        raise TypingError(msg.format(fmt))
+        raise TypingError(self.msg.format(fmt))
 
 
 class TypingChecker:
@@ -93,12 +90,14 @@ class TypingChecker:
 
     @staticmethod
     def _int_to_ordinal(n):
-        # Adopted from https://codegolf.stackexchange.com/questions/4707
-        suffix = "tsnrhtdd"[(n//10 % 10 != 1)*(n % 10 < 4)*n % 10::4]
-        return f"{n}{suffix}"
+        lut = {1: 'st', 2: 'nd', 3: 'rd'}
+        i = n if (n < 20) else (n % 10)
+        return str(n) + lut.get(i, 'th')
 
 
-@contextmanager
 def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
-    check = Check(ty, as_one, as_seq, allow_none)
-    yield check
+    def impl(arg, msg):
+        check = Check(ty, as_one, as_seq, allow_none, msg)
+        return check(arg)
+
+    return impl

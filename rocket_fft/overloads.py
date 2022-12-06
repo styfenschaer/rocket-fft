@@ -150,14 +150,18 @@ def wraparound_axes(x, axes):
 
 @register_jitable
 def assert_unique_axes(axes):
-    # Does only work if all axes are positive
-    # This works because ndarray supports only up to 32 dimensions
-    # It compiles much faster than len(set(axes)) != axes.size
-    slots = (0,)*32
+    slots = (0,)*32 # maximum ndim of ndarray
     for ax in axes:
         if slots[ax] != 0:
             raise ValueError("All axes must be unique.")
         slots = tuple_setitem(slots, ax, 1)
+
+
+@register_jitable
+def assert_valid_shape(shape):
+    for size in shape:
+        if size < 1:
+            raise ValueError("Invalid number of data points specified.")
 
 
 @register_jitable
@@ -175,7 +179,7 @@ def ndshape_and_axes(x, s, axes):
 def _(x, s, axes):
     # Specialization for 1D transform
     if axes >= x.ndim or axes < -x.ndim:
-        raise ValueError("Axes exceeds dimensionality of input.")
+        raise ValueError("Axis exceeds dimensionality of input.")
     if axes < 0:
         axes += x.ndim
     axes = np.array([axes])
@@ -219,8 +223,7 @@ def _(x, s, axes):
 @ndshape_and_axes.impl(s=is_not_nonelike, axes=is_nonelike)
 def _(x, s, axes):
     s = asarray(s)
-    if (s < 1).any():
-        raise ValueError("Invalid number of data points specified.")
+    assert_valid_shape(s)
     if s.size > x.ndim:
         raise ValueError("Shape requires more axes than are present.")
     # Axes not specified, transform last len(s) axes
@@ -231,8 +234,7 @@ def _(x, s, axes):
 @ndshape_and_axes.impl(otherwise)
 def _(x, s, axes):
     s = asarray(s)
-    if s.min() < 1:
-        raise ValueError("Invalid number of data points specified.")
+    assert_valid_shape(s)
     axes = asarray(axes)
     wraparound_axes(x, axes)
     assert_unique_axes(axes)
@@ -701,14 +703,14 @@ scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 @implements_overload(np.roll)
 def roll(a, shift, axis=None):
     # TODO: Make multidimensional case more efficient!
-    with typing_check(types.Array) as check:
-        check(a, "The 1st argument 'a' must be an array.")
-    with typing_check(types.Integer, as_seq=True) as check:
-        check(shift, "The 2nd argument 'shift' must be a "
-                     "sequences of integers or an integer.")
-    with typing_check(types.Integer, as_seq=True, allow_none=True) as check:
-        check(axis, "The 3rd argument 'axis' must be a "
-                    "sequences of integers or an integer.")
+    typing_check(types.Array)(
+        a, "The 1st argument 'a' must be an array.")
+    typing_check(types.Integer, as_seq=True)(
+        shift, ("The 2nd argument 'shift' must be a"
+                " sequences of integers or an integer."))
+    typing_check(types.Integer, as_seq=True, allow_none=True)(
+        axis, ("The 3rd argument 'axis' must be a"
+               " sequences of integers or an integer."))
 
 
 @roll.impl(axis=is_nonelike)
@@ -772,11 +774,11 @@ def _(a, shift, axis=None):
 
 
 def _typing_fftshift(x, axes):
-    with typing_check(types.Array) as check:
-        check(x, "The 1st argument 'x' must be an array.")
-    with typing_check(types.Integer, as_seq=True, allow_none=True) as check:
-        check(axes, "The 2nd argument 'axes' must be a "
-                    "sequences of integers or an integer.")
+    typing_check(types.Array)(
+        x, "The 1st argument 'x' must be an array.")
+    typing_check(types.Integer, as_seq=True, allow_none=True)(
+        axes, ("The 2nd argument 'axes' must be a"
+               " sequences of integers or an integer."))
 
 
 @implements_overload(np.fft.fftshift)
@@ -838,10 +840,10 @@ def _(x, axes=None):
 
 
 def _typing_fftfreq(n, d):
-    with typing_check(types.Integer) as check:
-        check(n, "The 1st argument 'n' must be an integer.")
-    with typing_check(types.Number) as check:
-        check(d, "The 2nd argument 'd' must be an scaler.")
+    typing_check(types.Integer)(
+        n, "The 1st argument 'n' must be an integer.")
+    typing_check(types.Number)(
+        d, "The 2nd argument 'd' must be an scaler.")
 
 
 @overload(np.fft.fftfreq)
@@ -876,10 +878,10 @@ def rfftfreq(n, d=1.0):
 
 @overload(scipy.fft.next_fast_len)
 def next_fast_len(target, real):
-    with typing_check(types.Integer) as check:
-        check(target, "The 1st argument 'target' must be an integer.")
-    with typing_check(types.Boolean) as check:
-        check(real, "The 2nd argument 'real' must be a boolean.")
+    typing_check(types.Integer)(
+        target, "The 1st argument 'target' must be an integer.")
+    typing_check(types.Boolean)(
+        real, "The 2nd argument 'real' must be a boolean.")
 
     def impl(target, real):
         if target < 0:
