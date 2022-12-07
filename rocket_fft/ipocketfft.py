@@ -18,7 +18,6 @@ ll_void = ir.VoidType()
 void = types.void
 size_t = types.size_t
 
-
 def load_pocketfft():
     pattern = Path(__file__).parent / '*.so'
     libpath = glob.glob(str(pattern))[0]

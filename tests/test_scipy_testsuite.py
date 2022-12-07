@@ -16,6 +16,7 @@ import numpy.fft
 import pytest
 import scipy.fft
 from helpers import numba_cache_cleanup
+from numba import TypingError
 from numpy import (add, arange, array, asarray, cdouble, dot, exp, pi,
                    swapaxes, zeros)
 from numpy.random import rand
@@ -33,135 +34,135 @@ np.longdouble = np.float64
 np.longfloat = np.float64
 
 # All functions should be cacheable and run without the GIL
-nb.njit = partial(nb.njit, cache=True, nogil=True)
+njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@nb.njit
+@njit
 def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def dctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def idctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def dstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def idstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.idstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
-@nb.njit
+@njit
 def fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def fft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def fftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ifft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ifft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ifftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ifftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def rfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def rfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def irfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def irfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def hfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def hfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def hfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.hfftn(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ihfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ihfft2(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfft2(x, s, axes, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def ihfftn(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.ihfftn(x, s, axes, norm, overwrite_x, workers)
 
@@ -696,7 +697,7 @@ class TestFftn:
         # NOTE: We don't allows this case
         # y = fftn(x, axes=())  # point
         # assert_array_almost_equal(y, x)
-        with assert_raises(nb.TypingError):
+        with assert_raises(TypingError):
             y = fftn(x, axes=())
 
     def test_shape_argument(self):
@@ -768,7 +769,7 @@ class TestFftn:
         # NOTE: We don't allow this case
         x = numpy.random.random((2, 2, 2))
         # assert_allclose(fftn(x, axes=[]), x, atol=1e-7)
-        with assert_raises(nb.TypingError):
+        with assert_raises(TypingError):
             y = fftn(x, axes=())
 
 
@@ -1013,7 +1014,7 @@ class _TestRFFTBase:
     def test_complex_input(self):
         x = np.zeros(10, dtype=self.cdt)
         # NOTE: Only test Error not specific message
-        with assert_raises(nb.TypingError):
+        with assert_raises(TypingError):
             rfft(x)
 
     # NOTE: Numba does not support this

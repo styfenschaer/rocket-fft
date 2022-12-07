@@ -8,25 +8,25 @@ from numba import TypingError
 from pytest import raises as assert_raises
 
 # All functions should be cacheable and run without the GIL
-nb.njit = partial(nb.njit, cache=True, nogil=True)
+njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@nb.njit
+@njit
 def fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.fft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def rfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.rfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def irfft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     return scipy.fft.irfft(x, n, axis, norm, overwrite_x, workers)
 
 
-@nb.njit
+@njit
 def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
     return scipy.fft.dct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 

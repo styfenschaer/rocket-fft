@@ -12,6 +12,7 @@ import numba as nb
 import numpy as np
 import pytest
 from helpers import numba_cache_cleanup
+from numba import TypingError
 from numpy import pi
 from numpy.random import random
 from numpy.testing import (assert_allclose, assert_array_almost_equal,
@@ -23,95 +24,95 @@ np.longdouble = np.float64
 np.longfloat = np.float64
 
 # All functions should be cacheable and run without the GIL
-nb.njit = partial(nb.njit, cache=True, nogil=True)
+njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@nb.njit
+@njit
 def fft(a, n=None, axis=-1, norm=None):
     return np.fft.fft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def fft2(a, s=None, axes=(-2, -1), norm=None):
     return np.fft.fft2(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def fftn(a, s=None, axes=None, norm=None):
     return np.fft.fftn(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def ifft(a, n=None, axis=-1, norm=None):
     return np.fft.ifft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def ifft2(a, s=None, axes=(-2, -1), norm=None):
     return np.fft.ifft2(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def ifftn(a, s=None, axes=None, norm=None):
     return np.fft.ifftn(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def rfft(a, n=None, axis=-1, norm=None):
     return np.fft.rfft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def rfft2(a, s=None, axes=(-2, -1), norm=None):
     return np.fft.rfft2(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def rfftn(a, s=None, axes=None, norm=None):
     return np.fft.rfftn(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def irfft(a, n=None, axis=-1, norm=None):
     return np.fft.irfft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def irfft2(a, s=None, axes=(-2, -1), norm=None):
     return np.fft.irfft2(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def irfftn(a, s=None, axes=None, norm=None):
     return np.fft.irfftn(a, s, axes, norm)
 
 
-@nb.njit
+@njit
 def hfft(a, n=None, axis=-1, norm=None):
     return np.fft.hfft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def ihfft(a, n=None, axis=-1, norm=None):
     return np.fft.ihfft(a, n, axis, norm)
 
 
-@nb.njit
+@njit
 def fftshift(x, axes=None):
     return np.fft.fftshift(x, axes)
 
 
-@nb.njit
+@njit
 def ifftshift(x, axes=None):
     return np.fft.ifftshift(x, axes)
 
 
-@nb.njit
+@njit
 def fftfreq(n, d=1.0):
     return np.fft.fftfreq(n, d)
 
 
-@nb.njit
+@njit
 def rfftfreq(n, d=1.0):
     return np.fft.rfftfreq(n, d)
 
@@ -127,7 +128,7 @@ class TestFFTShift:
 
     def test_fft_n(self):
         # NOTE: Test modified
-        assert_raises(nb.TypingError, fft, [1, 2, 3], 0)
+        assert_raises(TypingError, fft, [1, 2, 3], 0)
 
 
 class TestFFT1D:

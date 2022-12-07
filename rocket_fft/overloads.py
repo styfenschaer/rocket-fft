@@ -1,27 +1,28 @@
 import inspect
 from functools import partial, wraps
+from os import cpu_count
 
 import numpy as np
 import numpy.fft
 import scipy.fft
 from numba import TypingError
 from numba.core import types
-from numba.core.config import NUMBA_NUM_THREADS
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
+from scipy.fft import get_workers
 
 from . import ipocketfft as pfft
 from . import numba_typing as nt
 from .imputils import implements_jit, implements_overload, otherwise
 from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
-                           is_not_nonelike, literal_bool,
-                           literal_integer, typing_check)
+                           is_not_nonelike, literal_bool, literal_integer,
+                           typing_check)
 
-# Casting rules lookup tables
-# These rules differ to Scipy/Numpy
+# Casting/Mapping rules lookup tables
+# These rules are different from Scipy/Numpy
 # Rules can be modified using the unsafe.py features
-# Rules of already compiled overloads are frozen
+# The rules for a function are frozen upon compilation
 _as_cmplx_lut = {
     types.complex64: types.complex64,
     types.complex128: types.complex128,
@@ -140,6 +141,15 @@ class FFTBuilder:
 
 
 @register_jitable
+def wraparound_axis(x, ax):
+    if ax >= x.ndim or ax < -x.ndim:
+        raise ValueError("Axis exceeds dimensionality of input.")
+    if ax < 0:
+        ax += x.ndim
+    return ax
+
+
+@register_jitable
 def wraparound_axes(x, axes):
     for i, ax in enumerate(axes):
         if ax >= x.ndim or ax < -x.ndim:
@@ -148,9 +158,9 @@ def wraparound_axes(x, axes):
             axes[i] += x.ndim
 
 
-@register_jitable
+@register_jitable(locals={'slots': types.UniTuple(types.byte, 32)})
 def assert_unique_axes(axes):
-    slots = (0,)*32 # maximum ndim of ndarray
+    slots = (0,)*32  # maximum ndim of ndarray
     for ax in axes:
         if slots[ax] != 0:
             raise ValueError("All axes must be unique.")
@@ -159,8 +169,8 @@ def assert_unique_axes(axes):
 
 @register_jitable
 def assert_valid_shape(shape):
-    for size in shape:
-        if size < 1:
+    for n in shape:
+        if n < 1:
             raise ValueError("Invalid number of data points specified.")
 
 
@@ -178,10 +188,7 @@ def ndshape_and_axes(x, s, axes):
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
 def _(x, s, axes):
     # Specialization for 1D transform
-    if axes >= x.ndim or axes < -x.ndim:
-        raise ValueError("Axis exceeds dimensionality of input.")
-    if axes < 0:
-        axes += x.ndim
+    axes = wraparound_axis(x, axes)
     axes = np.array([axes])
     return s, axes
 
@@ -190,14 +197,8 @@ def _(x, s, axes):
 def _(x, s, axes):
     # Specialization for 2D transform
     ax1, ax2 = axes
-    if ax1 >= x.ndim or ax1 < -x.ndim:
-        raise ValueError("First axis exceeds dimensionality of input.")
-    if ax1 < 0:
-        ax1 += x.ndim
-    if ax2 >= x.ndim or ax2 < -x.ndim:
-        raise ValueError("Second axis exceeds dimensionality of input.")
-    if ax2 < 0:
-        ax2 += x.ndim
+    ax1 = wraparound_axis(x, ax1)
+    ax2 = wraparound_axis(x, ax2)
     if ax1 == ax2:
         ValueError("Both axes must be unique.")
     axes = np.array([ax1, ax2])
@@ -304,20 +305,20 @@ def _(x, axes, norm, forward, delta=None):
                      " 'backward', 'ortho' or 'forward'.")
 
 
-_cpu_count = NUMBA_NUM_THREADS
-_default_workers = 1
+_cpu_count = cpu_count()
+_default_workers = get_workers()
 
 
 @implements_jit
 def get_nthreads(workers):
     if is_nonelike(workers):
         global _default_workers
-        _default_workers = scipy.fft.get_workers()
+        _default_workers = get_workers()
 
 
 @get_nthreads.impl(workers=is_nonelike)
 def _(workers):
-    # Number of workers is frozen after compilation
+    # Number of workers is frozen upon compilation
     return _default_workers
 
 
@@ -349,8 +350,8 @@ def _(x, s, axes, dtype):
 @zeropad_or_crop.impl(s=is_not_nonelike)
 def _(x, s, axes, dtype):
     shape = x.shape
-    for newlen, ax in zip(s, axes):
-        shape = tuple_setitem(shape, ax, newlen)
+    for n, ax in zip(s, axes):
+        shape = tuple_setitem(shape, ax, n)
     out = np.zeros(shape, dtype=dtype)
     for i, (s1, s2) in enumerate(zip(x.shape, out.shape)):
         shape = tuple_setitem(shape, i, min(s1, s2))
@@ -436,7 +437,7 @@ def c2cn(args, forward):
 
 
 class HeaderOnlyError(NotImplementedError):
-    """This error guards header functions used by the FFTBuilder"""
+    """This error guards headers used by the FFTBuilder"""
 
 
 def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
@@ -773,7 +774,7 @@ def _(a, shift, axis=None):
     return r
 
 
-def _typing_fftshift(x, axes):
+def _check_typing_fftshift(x, axes):
     typing_check(types.Array)(
         x, "The 1st argument 'x' must be an array.")
     typing_check(types.Integer, as_seq=True, allow_none=True)(
@@ -783,7 +784,7 @@ def _typing_fftshift(x, axes):
 
 @implements_overload(np.fft.fftshift)
 def fftshift(x, axes=None):
-    _typing_fftshift(x, axes)
+    _check_typing_fftshift(x, axes)
 
 
 @fftshift.impl(axes=is_nonelike)
@@ -812,7 +813,7 @@ def _(x, axes=None):
 
 @implements_overload(np.fft.ifftshift)
 def ifftshift(x, axes=None):
-    _typing_fftshift(x, axes)
+    _check_typing_fftshift(x, axes)
 
 
 @ifftshift.impl(axes=is_nonelike)
@@ -839,7 +840,7 @@ def _(x, axes=None):
     return np.roll(x, shift, axes)
 
 
-def _typing_fftfreq(n, d):
+def _check_typing_fftfreq(n, d):
     typing_check(types.Integer)(
         n, "The 1st argument 'n' must be an integer.")
     typing_check(types.Number)(
@@ -848,7 +849,7 @@ def _typing_fftfreq(n, d):
 
 @overload(np.fft.fftfreq)
 def fftfreq(n, d=1.0):
-    _typing_fftfreq(n, d)
+    _check_typing_fftfreq(n, d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)
@@ -865,7 +866,7 @@ def fftfreq(n, d=1.0):
 
 @overload(np.fft.rfftfreq)
 def rfftfreq(n, d=1.0):
-    _typing_fftfreq(n, d)
+    _check_typing_fftfreq(n, d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)

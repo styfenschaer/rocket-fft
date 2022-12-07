@@ -76,10 +76,10 @@ class TypingChecker:
 
     def __call__(self, **kwargs):
         items = kwargs.items()
-        for pos, (key, val) in enumerate(items):
+        for i, (key, val) in enumerate(items, start=1):
             check = self.checks.get(key)
             if check is not None:
-                txt = self._int_to_ordinal(pos+1)
+                txt = self._int_to_ordinal(i)
                 check(val, fmt=txt)
         return self
 
@@ -90,9 +90,9 @@ class TypingChecker:
 
     @staticmethod
     def _int_to_ordinal(n):
-        lut = {1: 'st', 2: 'nd', 3: 'rd'}
+        sfx = {1: 'st', 2: 'nd', 3: 'rd'}
         i = n if (n < 20) else (n % 10)
-        return str(n) + lut.get(i, 'th')
+        return str(n) + sfx.get(i, 'th')
 
 
 def typing_check(ty, as_one=True, as_seq=False, allow_none=False):

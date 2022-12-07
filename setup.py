@@ -1,14 +1,15 @@
+"""
+Partially adopted from:
+https://github.com/himbeles/ctypes-example
+https://github.com/numba/numba/blob/main/setup.py
+"""
+
 import distutils.command.build
 import sys
 from distutils.command.build_ext import build_ext as build_ext_orig
 from pathlib import Path
 
 from setuptools import Extension, find_packages, setup
-
-# Partially adopted from:
-# https://github.com/himbeles/ctypes-example
-# https://github.com/numba/numba/blob/main/setup.py
-
 
 min_python_version = (3, 6)
 max_python_version = (3, 10)
@@ -73,7 +74,7 @@ with open('README.md') as f:
 
 setup(
     name='rocket-fft',
-    version='1.0',
+    version='0.1.1',
     description='rocket-fft extends Numba by scipy.fft and numpy.fft',
     long_description=long_description,
     author='Styfen Schär',

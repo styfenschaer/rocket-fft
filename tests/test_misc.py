@@ -8,21 +8,17 @@ import numba as nb
 import numpy as np
 import pytest
 from helpers import numba_cache_cleanup
-from numba import types
+from numba import TypingError, types
 from numpy.testing import assert_equal
 from pytest import raises as assert_raises
 
-from rocket_fft.unsafe import (get_mapping_table, is_mapped_to,
-                               is_mapped_to_cmplx, is_mapped_to_real,
-                               update_dtype_mapping,
-                               update_dtype_mapping_cmplx,
-                               update_dtype_mapping_real)
+from rocket_fft.unsafe import get_mapping_table, maps_to, update_mapping_table
 
 # All functions should be cacheable and run without the GIL
-nb.njit = partial(nb.njit, cache=True, nogil=True)
+njit = partial(nb.njit, cache=True, nogil=True)
 
 
-@nb.njit
+@njit
 def roll(a, shift, axis=None):
     return np.roll(a, shift, axis)
 
@@ -97,20 +93,20 @@ class TestRollTyping:
     x2 = np.arange(10).reshape(5, 2)
 
     def test_a(self):
-        with assert_raises(nb.TypingError, match=mk_match(0, 'a')):
+        with assert_raises(TypingError, match=mk_match(0, 'a')):
             roll(list(self.x), shift=1)
-        with assert_raises(nb.TypingError, match=mk_match(0, 'a')):
+        with assert_raises(TypingError, match=mk_match(0, 'a')):
             roll(tuple(self.x), shift=1)
         with assert_raises(TypeError):
             roll(x=self.x, shift=1)
         roll(self.x, shift=1)
 
     def test_shift(self):
-        with assert_raises(nb.TypingError, match=mk_match(1, 'shift')):
+        with assert_raises(TypingError, match=mk_match(1, 'shift')):
             roll(self.x, shift=None)
-        with assert_raises(nb.TypingError, match=mk_match(1, 'shift')):
+        with assert_raises(TypingError, match=mk_match(1, 'shift')):
             roll(self.x, shift=1.0)
-        with assert_raises(nb.TypingError, match=mk_match(1, 'shift')):
+        with assert_raises(TypingError, match=mk_match(1, 'shift')):
             roll(self.x, shift=((1,),))
         with assert_raises(TypeError):
             roll(self.x)
@@ -121,9 +117,9 @@ class TestRollTyping:
         roll(self.x2, shift=(1, 0), axis=None)
 
     def test_axis(self):
-        with assert_raises(nb.TypingError, match=mk_match(2, 'axis')):
+        with assert_raises(TypingError, match=mk_match(2, 'axis')):
             roll(self.x, shift=1, axis=1.)
-        with assert_raises(nb.TypingError, match=mk_match(2, 'axis')):
+        with assert_raises(TypingError, match=mk_match(2, 'axis')):
             roll(self.x, shift=1, axis=((1,),))
         roll(self.x, shift=1, axis=(0,))
         roll(self.x, shift=1, axis=0)
@@ -146,8 +142,6 @@ def backup_mapping_table():
     lut_real_bak = lut_real.copy()
     lut_cmplx_bak = lut_cmplx.copy()
     yield
-    lut_real = get_mapping_table(real=True)
-    lut_cmplx = get_mapping_table(real=False)
     lut_real.update(lut_real_bak)
     lut_cmplx.update(lut_cmplx_bak)
 
@@ -162,59 +156,41 @@ def test_unsafe_features():
     assert lut1 is not lut2
 
     with assert_raises(TypeError):
-        d = is_mapped_to(types.complex128)
-    d = is_mapped_to(types.complex128, real=True)
+        d = maps_to(types.complex128)
+    d = maps_to(types.complex128, real=True)
     assert d == types.float64
-    d = is_mapped_to(types.complex128, real=False)
+    d = maps_to(types.complex128, real=False)
     assert d == types.complex128
-    d = is_mapped_to(types.byte, real=True)
+    d = maps_to(types.byte, real=True)
     assert d == types.float32
-    d = is_mapped_to(types.float64, real=True)
+    d = maps_to(types.float64, real=True)
     assert d == types.float64
-    d = is_mapped_to(types.byte, real=False)
+    d = maps_to(types.byte, real=False)
+    assert d == types.complex64
+    d = maps_to(types.float32, real=False)
     assert d == types.complex64
 
-    d = is_mapped_to_real(types.complex128)
+    with assert_raises(TypeError):
+        lut = update_mapping_table(types.complex64, types.float32, real=False)
+    with assert_raises(TypeError):
+        lut = update_mapping_table(types.complex64, np.float32)
+    with assert_raises(TypeError):
+        lut = update_mapping_table(types.complex64, types.float32, 1)
+
+    with assert_raises(TypeError):
+        lut = update_mapping_table(types.float32, types.complex64, real=True)
+    update_mapping_table(types.complex64, types.float64, real=True)
+    d = maps_to(types.complex64, real=True)
     assert d == types.float64
-    d = is_mapped_to_real(types.byte)
+    lut = update_mapping_table(types.complex64, types.float32)
+    d = maps_to(types.complex64, real=True)
     assert d == types.float32
-    d = is_mapped_to_real(types.float64)
-    assert d == types.float64
 
-    d = is_mapped_to_cmplx(types.complex128)
-    assert d == types.complex128
-    d = is_mapped_to_cmplx(types.float32)
+    with assert_raises(TypeError):
+        lut = update_mapping_table(types.complex64, types.float64, real=False)
+    update_mapping_table(types.float64, types.complex64, real=False)
+    d = maps_to(types.float64, real=False)
     assert d == types.complex64
-    d = is_mapped_to_cmplx(types.byte)
-    assert d == types.complex64
-
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping(types.complex64, types.float32)
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping(types.complex64, np.float32)
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping(types.complex64, types.float32, 1)
-
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping(types.float32, types.complex64, real=True)
-    update_dtype_mapping(types.complex64, types.float64, real=True)
-    d = is_mapped_to_real(types.complex64)
-    assert d == types.float64
-
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping(types.complex64, types.float64, real=False)
-    update_dtype_mapping(types.float64, types.complex64, real=False)
-    d = is_mapped_to_cmplx(types.float64)
-    assert d == types.complex64
-
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping_real(types.float32, types.complex64)
-    update_dtype_mapping_real(types.complex64, types.float64)
-    d = is_mapped_to_real(types.complex64)
-    assert d == types.float64
-
-    with assert_raises(TypeError):
-        lut = update_dtype_mapping_cmplx(types.complex64, types.float64)
-    update_dtype_mapping_cmplx(types.float64, types.complex64)
-    d = is_mapped_to_cmplx(types.float64)
+    lut = update_mapping_table(types.float32, types.complex64)
+    d = maps_to(types.float32, real=False)
     assert d == types.complex64

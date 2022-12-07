@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Files used only for developement
+z_*
+
+# Build folder
+temp.*
+
 # C extensions
 *.so
 
