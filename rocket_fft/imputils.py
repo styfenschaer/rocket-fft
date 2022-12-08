@@ -48,6 +48,7 @@ class Overloader:
             self.header(*args)
             for fn in self.preprocs:
                 args = fn(*args)
+                
             kwd = inspect.getcallargs(self.header, *args)
             for check, impl in zip(self.checks, self.impls):
                 if not isinstance(check, tuple):
@@ -56,6 +57,7 @@ class Overloader:
                 else:
                     if all(val(kwd[key]) for key, val in check):
                         return impl
+                    
             raise TypingError('No implementation found for function {} with '
                               'arguments {}.'.format(self.header.__name__, args))
 
@@ -64,10 +66,8 @@ class Overloader:
     def _try_overload(self):
         if self.header is None:
             return
-        if self.overl is None:
-            overl = self
-        else:
-            overl = self.overl
+        
+        overl = self if self.overl is None else self.overl
         overload(overl, **self.options)(self.impl_func)
 
 

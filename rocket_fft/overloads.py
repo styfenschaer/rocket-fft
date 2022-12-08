@@ -328,9 +328,9 @@ def _(workers):
         return workers
     if workers == 0:
         raise ValueError("Workers must not be zero.")
-    if workers < 0 and workers >= -_cpu_count:
-        return workers + _cpu_count + 1
-    raise ValueError("Workers value out of range.")
+    if workers < -_cpu_count:
+        raise ValueError("Workers value out of range.")
+    return workers + _cpu_count + 1
 
 
 @implements_jit
@@ -489,8 +489,8 @@ scipy_cnd_builder(c2cn, forward=False).overload(scipy.fft.ifftn)
 @register_jitable
 def decrease_shape(shape, axes):
     idx = axes[-1]
-    newval = (shape[idx] // 2) + 1
-    shape = tuple_setitem(shape, idx, newval)
+    n = (shape[idx] // 2) + 1
+    shape = tuple_setitem(shape, idx, n)
     return shape
 
 
@@ -532,8 +532,8 @@ scipy_cnd_builder(r2cn, forward=False).overload(scipy.fft.ihfftn)
 @register_jitable
 def increase_shape(shape, axes):
     idx = axes[-1]
-    newval = (shape[idx] - 1) * 2
-    shape = tuple_setitem(shape, idx, newval)
+    n = (shape[idx] - 1) * 2
+    shape = tuple_setitem(shape, idx, n)
     return shape
 
 
@@ -609,7 +609,7 @@ def _(type, forward):
 @get_type.impl(forward=literal_bool(True))
 def _(type, forward):
     if type not in (1, 2, 3, 4):
-        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
+        raise ValueError('Invalid type; must be one of (1, 2, 3, 4).')
     return type
 
 
@@ -620,7 +620,7 @@ def _(type, forward):
     if type == 3:
         return 2
     if type not in (1, 4):
-        raise ValueError('Invalid type; must be one of (1, 2, 3, 4)')
+        raise ValueError('Invalid type; must be one of (1, 2, 3, 4).')
     return type
 
 
@@ -844,7 +844,7 @@ def _check_typing_fftfreq(n, d):
     typing_check(types.Integer)(
         n, "The 1st argument 'n' must be an integer.")
     typing_check(types.Number)(
-        d, "The 2nd argument 'd' must be an scaler.")
+        d, "The 2nd argument 'd' must be a scalar.")
 
 
 @overload(np.fft.fftfreq)

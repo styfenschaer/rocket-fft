@@ -29,7 +29,7 @@ def update_mapping_table(argty, retty, real=None):
     if not isinstance(real, bool):
         raise TypeError("The 3rd argument 'real' must be a boolean.")
 
-    supported = ((types.c8, types.c16), (types.f4, types.f8))[real]
+    supported = [(types.c8, types.c16), (types.f4, types.f8)][real]
     if retty not in supported:
         raise TypeError(
             f"Unsupported return type {retty}; must be one of {supported}.")

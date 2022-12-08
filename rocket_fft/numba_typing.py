@@ -5,7 +5,7 @@ from numba.np.numpy_support import is_nonelike
 
 
 def is_sequence_like(arg):
-    seq_like = (types.Array, types.Set, types.Tuple,
+    seq_like = (types.Tuple, types.Array, types.Set,
                 types.ListType, types.Sequence)
     return isinstance(arg, seq_like)
 

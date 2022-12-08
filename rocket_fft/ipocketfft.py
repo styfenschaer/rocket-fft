@@ -24,7 +24,7 @@ def load_pocketfft():
     return ctypes.CDLL(libpath)
 
 
-def smpartial(func, *args, **kargs):
+def spartial(func, *args, **kargs):
     func = func.__func__
     return partial(func, *args, **kargs)
 
@@ -45,10 +45,10 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    c2c = smpartial(_call_cmplx, 'numba_c2c')
-    r2c = smpartial(_call_cmplx, 'numba_r2c')
-    c2r = smpartial(_call_cmplx, 'numba_c2r')
-    c2c_sym = smpartial(_call_cmplx, 'numba_c2c_sym')
+    c2c = spartial(_call_cmplx, 'numba_c2c')
+    r2c = spartial(_call_cmplx, 'numba_r2c')
+    c2r = spartial(_call_cmplx, 'numba_c2r')
+    c2c_sym = spartial(_call_cmplx, 'numba_c2c_sym')
 
     @staticmethod
     def _call_real(fname, builder, args):
@@ -63,8 +63,8 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    dct = smpartial(_call_real, 'numba_dct')
-    dst = smpartial(_call_real, 'numba_dst')
+    dct = spartial(_call_real, 'numba_dct')
+    dst = spartial(_call_real, 'numba_dst')
 
     @staticmethod
     def _call_hartley(fname, builder, args):
@@ -77,8 +77,8 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
-    separable_hartley = smpartial(_call_hartley, 'numba_separable_hartley')
-    genuine_hartley = smpartial(_call_hartley, 'numba_genuine_hartley')
+    separable_hartley = spartial(_call_hartley, 'numba_separable_hartley')
+    genuine_hartley = spartial(_call_hartley, 'numba_genuine_hartley')
 
     @staticmethod
     def fftpack(builder, args):
