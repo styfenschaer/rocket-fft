@@ -43,12 +43,11 @@ class Overloader:
 
     @property
     def impl_func(self):
-        @wraps(self.header)
         def impl_func_(*args):
             self.header(*args)
             for fn in self.preprocs:
                 args = fn(*args)
-                
+
             kwd = inspect.getcallargs(self.header, *args)
             for check, impl in zip(self.checks, self.impls):
                 if not isinstance(check, tuple):
@@ -57,7 +56,7 @@ class Overloader:
                 else:
                     if all(val(kwd[key]) for key, val in check):
                         return impl
-                    
+
             raise TypingError('No implementation found for function {} with '
                               'arguments {}.'.format(self.header.__name__, args))
 
@@ -66,9 +65,10 @@ class Overloader:
     def _try_overload(self):
         if self.header is None:
             return
-        
+
         overl = self if self.overl is None else self.overl
-        overload(overl, **self.options)(self.impl_func)
+        impl_func = wraps(self.header)(self.impl_func)
+        overload(overl, **self.options)(impl_func)
 
 
 def implements_jit(func=None, jit_options=None, strict=True,

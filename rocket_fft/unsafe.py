@@ -1,13 +1,13 @@
 from numba import types
 
-from .overloads import _as_cmplx_lut, _as_float_lut
+from .overloads import _as_cmplx_lut, _as_real_lut
 
 
 def get_mapping_table(real):
-    if not isinstance(real, bool):
+    if real not in [True, False]:
         raise TypeError("The 1st argument 'real' must be a boolean.")
 
-    return _as_float_lut if real else _as_cmplx_lut
+    return _as_real_lut if real else _as_cmplx_lut
 
 
 def maps_to(ty, real):

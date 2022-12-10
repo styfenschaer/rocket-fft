@@ -21,8 +21,6 @@ from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
 
 # Casting/Mapping rules lookup tables
 # These rules are different from Scipy/Numpy
-# Rules can be modified using the unsafe.py features
-# The rules for a function are frozen upon compilation
 _as_cmplx_lut = {
     types.complex64: types.complex64,
     types.complex128: types.complex128,
@@ -39,11 +37,11 @@ _as_cmplx_lut = {
     types.bool_: types.complex64,
     types.byte: types.complex64,
 }
-_as_float_lut = {key: val.underlying_float
-                 for key, val in _as_cmplx_lut.items()}
+_as_real_lut = {key: val.underlying_float
+                for key, val in _as_cmplx_lut.items()}
 
 
-def _as_supported_type(lut, dtype):
+def _as_supported_dtype(lut, dtype):
     ty = lut.get(dtype)
     if ty is not None:
         return ty
@@ -51,8 +49,8 @@ def _as_supported_type(lut, dtype):
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
 
-as_supported_cmplx = partial(_as_supported_type, _as_cmplx_lut)
-as_supported_float = partial(_as_supported_type, _as_float_lut)
+as_supported_cmplx = partial(_as_supported_dtype, _as_cmplx_lut)
+as_supported_real = partial(_as_supported_dtype, _as_real_lut)
 
 
 fft_typing = nt.TypingChecker(
@@ -318,7 +316,6 @@ def get_nthreads(workers):
 
 @get_nthreads.impl(workers=is_nonelike)
 def _(workers):
-    # Number of workers is frozen upon compilation
     return _default_workers
 
 
@@ -422,7 +419,7 @@ def c2cn(args, forward):
             return out
 
     else:
-        argtype = as_supported_float(x.dtype)
+        argtype = as_supported_real(x.dtype)
 
         def impl(x, s, axes, norm, overwrite_x, workers):
             s, axes = ndshape_and_axes(x, s, axes)
@@ -500,7 +497,7 @@ def r2cn(args, forward):
     if isinstance(x.dtype, types.Complex):
         raise TypingError(f"unsupported dtype {x.dtype}")
 
-    argtype = as_supported_float(x.dtype)
+    argtype = as_supported_real(x.dtype)
     rettype = as_supported_cmplx(argtype)
 
     def impl(x, s, axes, norm, overwrite_x, workers):
@@ -560,7 +557,7 @@ def c2rn(args, forward):
     x, *_ = args
 
     argtype = as_supported_cmplx(x.dtype)
-    rettype = as_supported_float(argtype)
+    rettype = as_supported_real(argtype)
 
     def impl(x, s, axes, norm, overwrite_x, workers):
         s, axes = ndshape_and_axes(x, s, axes)
@@ -648,13 +645,13 @@ def r2rn(args, trafo, delta, forward):
         argtype = as_supported_cmplx(x.dtype)
 
         @register_jitable
-        def do_transform(x, out, axes, type, fct, ortho, nthreads):
+        def transform(x, out, axes, type, fct, ortho, nthreads):
             trafo(x.real, out.real, axes, type, fct, ortho, nthreads)
             trafo(x.imag, out.imag, axes, type, fct, ortho, nthreads)
 
     else:
-        argtype = as_supported_float(x.dtype)
-        do_transform = trafo
+        argtype = as_supported_real(x.dtype)
+        transform = trafo
 
     rettype = argtype
     alloc_output = generated_alloc_output(s, x.dtype, rettype)
@@ -668,7 +665,7 @@ def r2rn(args, trafo, delta, forward):
         fct = get_fct(out, axes, norm, forward, delta_)
         ortho = get_ortho(norm, orthogonalize)
         nthreads = get_nthreads(workers)
-        do_transform(x, out, axes, type, fct, ortho, nthreads)
+        transform(x, out, axes, type, fct, ortho, nthreads)
         return out
 
     return impl
@@ -752,10 +749,12 @@ def _(a, shift, axis=None):
     r_index_init = r_index
 
     r = np.empty(a.shape, dtype=a.dtype)
+    if r.size == 0:
+        return r
 
-    # This is like np.ndindex except that we maintain two index
-    # tuples in parallel; a normal one and a shifted one.
-    done = r.size == 0
+    # Like np.ndindex but maintains two index tuples
+    # in parallel; a normal one and a shifted one
+    done = False
     while not done:
         r[r_index] = a[a_index]
 

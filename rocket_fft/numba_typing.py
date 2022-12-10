@@ -91,7 +91,7 @@ class TypingChecker:
     @staticmethod
     def _int_to_ordinal(n):
         sfx = {1: 'st', 2: 'nd', 3: 'rd'}
-        i = n if (n < 20) else (n % 10)
+        i = n if n < 20 else n % 10
         return str(n) + sfx.get(i, 'th')
 
 
