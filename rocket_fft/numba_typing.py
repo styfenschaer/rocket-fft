@@ -15,13 +15,9 @@ def is_integer(arg):
 
 
 def is_integer_2tuple(arg):
-    if not isinstance(arg, types.UniTuple):
-        return False
-    if not arg.count == 2:
-        return False
-    if not isinstance(arg.dtype, types.Integer):
-        return False
-    return True
+    return (isinstance(arg, types.UniTuple)
+            and arg.count == 2
+            and isinstance(arg.dtype, types.Integer))
 
 
 def literal_integer(val):
@@ -79,7 +75,7 @@ class TypingChecker:
         for i, (key, val) in enumerate(items, start=1):
             check = self.checks.get(key)
             if check is not None:
-                txt = self._int_to_ordinal(i)
+                txt = self.get_ordinal(i)
                 check(val, fmt=txt)
         return self
 
@@ -88,11 +84,11 @@ class TypingChecker:
             self.checks[key] = check
         return self
 
-    @staticmethod
-    def _int_to_ordinal(n):
-        sfx = {1: 'st', 2: 'nd', 3: 'rd'}
-        i = n if n < 20 else n % 10
-        return str(n) + sfx.get(i, 'th')
+    @ staticmethod
+    def get_ordinal(n):
+        ordinals = ['th', 'st', 'nd', 'rd', 'th',
+                    'th', 'th', 'th', 'th', 'th']
+        return str(n) + ordinals[n % 10]
 
 
 def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
