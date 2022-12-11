@@ -140,20 +140,20 @@ class IBuilder:
         src = _tmpl.format(self.extra_args, fname)
         namespace = {}
         exec(src, globals(), namespace)
-        ifunc = namespace['_']
-        ifunc.__name__ = fname
-        return intrinsic(ifunc)
+        func = namespace['_']
+        func.__name__ = fname
+        return intrinsic(func)
 
 
-cmplx_ibuilder = IBuilder('forward', 'fct', 'nthreads')
-numba_c2c = cmplx_ibuilder('c2c')
-numba_r2c = cmplx_ibuilder('r2c')
-numba_c2r = cmplx_ibuilder('c2r')
-numba_c2c_sym = cmplx_ibuilder('c2c_sym')
+cmplx_builder = IBuilder('forward', 'fct', 'nthreads')
+numba_c2c = cmplx_builder('c2c')
+numba_r2c = cmplx_builder('r2c')
+numba_c2r = cmplx_builder('c2r')
+numba_c2c_sym = cmplx_builder('c2c_sym')
 
-real_ibuilder = IBuilder('type', 'fct', 'ortho', 'nthreads')
-numba_dst = real_ibuilder('dst')
-numba_dct = real_ibuilder('dct')
+real_builder = IBuilder('type', 'fct', 'ortho', 'nthreads')
+numba_dst = real_builder('dst')
+numba_dct = real_builder('dct')
 
 hartley_builder = IBuilder('fct', 'nthreads')
 numba_separable_hartley = hartley_builder('separable_hartley')
