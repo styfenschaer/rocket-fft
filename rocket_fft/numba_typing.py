@@ -84,7 +84,7 @@ class TypingChecker:
             self.checks[key] = check
         return self
 
-    @ staticmethod
+    @staticmethod
     def get_ordinal(n):
         ordinals = ['th', 'st', 'nd', 'rd', 'th',
                     'th', 'th', 'th', 'th', 'th']
