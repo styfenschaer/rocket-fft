@@ -104,4 +104,5 @@ setup(
         'build_ext': build_ext,
         'build': BuildCommand,
     },
+    options={"bdist_wheel": {"universal": "1"}},
 )
