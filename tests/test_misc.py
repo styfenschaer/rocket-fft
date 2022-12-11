@@ -174,8 +174,7 @@ def test_unsafe_features():
         lut = update_mapping_table(types.complex64, types.float32, real=False)
     with assert_raises(TypeError):
         lut = update_mapping_table(types.complex64, np.float32)
-    with assert_raises(TypeError):
-        lut = update_mapping_table(types.complex64, types.float32, 1)
+    lut = update_mapping_table(types.complex64, types.float32, 1)
 
     with assert_raises(TypeError):
         lut = update_mapping_table(types.float32, types.complex64, real=True)

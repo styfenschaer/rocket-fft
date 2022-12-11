@@ -36,13 +36,13 @@ class Pocketfft:
 
     @staticmethod
     def _call_cmplx(fname, builder, args):
-        fntype = ir.FunctionType(ll_void, [ll_size_t,  # ndim
+        fntype = ir.FunctionType(ll_void, (ll_size_t,  # ndim
                                            ll_voidptr,  # ain
                                            ll_voidptr,  # aout
                                            ll_voidptr,  # axes
                                            ll_bool,  # forward
                                            ll_double,  # fct
-                                           ll_size_t])  # nthreads
+                                           ll_size_t))  # nthreads
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
@@ -53,14 +53,14 @@ class Pocketfft:
 
     @staticmethod
     def _call_real(fname, builder, args):
-        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
+        fntype = ir.FunctionType(ll_void,  (ll_size_t,  # ndim
                                             ll_voidptr,  # ain
                                             ll_voidptr,  # aout
                                             ll_voidptr,  # axes
                                             ll_int64,  # type
                                             ll_double,  # fct
                                             ll_bool,  # ortho
-                                            ll_size_t])  # nthreads
+                                            ll_size_t))  # nthreads
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
@@ -69,12 +69,12 @@ class Pocketfft:
 
     @staticmethod
     def _call_hartley(fname, builder, args):
-        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
+        fntype = ir.FunctionType(ll_void,  (ll_size_t,  # ndim
                                             ll_voidptr,  # ain
                                             ll_voidptr,  # aout
                                             ll_voidptr,  # axes
                                             ll_double,  # fct
-                                            ll_size_t])  # nthreads
+                                            ll_size_t))  # nthreads
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
@@ -84,22 +84,22 @@ class Pocketfft:
     @staticmethod
     def fftpack(builder, args):
         fname = 'numba_fftpack'
-        fntype = ir.FunctionType(ll_void,  [ll_size_t,  # ndim
+        fntype = ir.FunctionType(ll_void,  (ll_size_t,  # ndim
                                             ll_voidptr,  # ain
                                             ll_voidptr,  # aout
                                             ll_voidptr,  # axes
                                             ll_bool,  # real2hermitian
                                             ll_bool,  # forward
                                             ll_double,  # fct
-                                            ll_size_t])  # nthreads
+                                            ll_size_t))  # nthreads
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 
     @staticmethod
     def good_size(builder, args):
         fname = 'numba_good_size'
-        fntype = ir.FunctionType(ll_size_t,  [ll_size_t,  # target
-                                              ll_bool])  # real
+        fntype = ir.FunctionType(ll_size_t,  (ll_size_t,  # target
+                                              ll_bool))  # real
         fn = get_or_insert_function(builder.module, fntype, fname)
         return builder.call(fn, args)
 

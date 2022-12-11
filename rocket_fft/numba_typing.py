@@ -86,8 +86,8 @@ class TypingChecker:
 
     @staticmethod
     def get_ordinal(n):
-        ordinals = ['th', 'st', 'nd', 'rd', 'th',
-                    'th', 'th', 'th', 'th', 'th']
+        ordinals = ('th', 'st', 'nd', 'rd', 'th',
+                    'th', 'th', 'th', 'th', 'th')
         return str(n) + ordinals[n % 10]
 
 
