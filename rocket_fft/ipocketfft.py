@@ -114,7 +114,7 @@ def array_as_voidptr(context, builder, ary_t, ary):
 
 
 _tmpl = """
-def _(typingctx, ain, aout, axes, {extra_args}):
+def _(typingctx, ain, aout, axes, {0}):
     def codegen(context, builder, sig, args):
         ain, aout, axes, *rest = args
         ain_t, aout_t, axes_t, *_ = sig.args
@@ -125,34 +125,42 @@ def _(typingctx, ain, aout, axes, {extra_args}):
         ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
 
         args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
-        ll_pocketfft.{ll_name}(builder, args)
+        ll_pocketfft.{1}(builder, args)
         
-    sig = void(ain, aout, axes, {extra_args})
+    sig = void(ain, aout, axes, {0})
     return sig, codegen
 """
 
 
-def _ibuild(func, args):
-    src = _tmpl.format(extra_args=args, ll_name=func)
-    namespace = {}
-    exec(src, globals(), namespace)
-    ifunc = namespace['ifunc']
-    ifunc.__name__ = func
-    return intrinsic(ifunc)
+class IBuilder:
+    def __init__(self, *extra_args):
+        self.extra_args = ', '.join(extra_args)
+
+    def __call__(self, fname):
+        src = _tmpl.format(self.extra_args, fname)
+        namespace = {}
+        exec(src, globals(), namespace)
+        ifunc = namespace['_']
+        ifunc.__name__ = fname
+        return intrinsic(ifunc)
 
 
-numba_c2c = _ibuild('c2c', 'forward, fct, nthreads')
-numba_r2c = _ibuild('r2c', 'forward, fct, nthreads')
-numba_c2r = _ibuild('c2r', 'forward, fct, nthreads')
-numba_c2c_sym = _ibuild('c2c_sym', 'forward, fct, nthreads')
+cmplx_ibuilder = IBuilder('forward', 'fct', 'nthreads')
+numba_c2c = cmplx_ibuilder('c2c')
+numba_r2c = cmplx_ibuilder('r2c')
+numba_c2r = cmplx_ibuilder('c2r')
+numba_c2c_sym = cmplx_ibuilder('c2c_sym')
 
-numba_dst = _ibuild('dst', 'type, fct, ortho, nthreads')
-numba_dct = _ibuild('dct', 'type, fct, ortho, nthreads')
+real_ibuilder = IBuilder('type', 'fct', 'ortho', 'nthreads')
+numba_dst = real_ibuilder('dst')
+numba_dct = real_ibuilder('dct')
 
-numba_separable_hartley = _ibuild('separable_hartley', 'fct, nthreads')
-numba_genuine_hartley = _ibuild('genuine_hartley', 'fct, nthreads')
+hartley_builder = IBuilder('fct', 'nthreads')
+numba_separable_hartley = hartley_builder('separable_hartley')
+numba_genuine_hartley = hartley_builder('genuine_hartley')
 
-numba_fftpack = _ibuild('fftpack', 'real2hermitian, forward, fct, nthreads')
+fftpack_builder = IBuilder('real2hermitian', 'forward', 'fct', 'nthreads')
+numba_fftpack = fftpack_builder('fftpack')
 
 
 @intrinsic
