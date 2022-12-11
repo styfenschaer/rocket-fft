@@ -105,7 +105,7 @@ class FFTBuilder:
                 self.typing_checker(**kwd)
             params = tuple(kwd.values())
             impl = func(params, *args, **kwargs)
-            self._patch_co(impl)
+            self._patch_co_varnames(impl)
             return wraps(self.header)(impl)
 
         self.built = ol_func
@@ -126,7 +126,7 @@ class FFTBuilder:
         params = self.signature.parameters.keys()
         return {key: kwd[key] for key in params}
 
-    def _patch_co(self, func):
+    def _patch_co_varnames(self, func):
         params_header = self.signature.parameters
         params_func = inspect.signature(func).parameters
         cov = list(func.__code__.co_varnames)

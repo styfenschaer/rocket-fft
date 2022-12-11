@@ -138,9 +138,8 @@ class IBuilder:
 
     def __call__(self, fname):
         src = _tmpl.format(self.extra_args, fname)
-        namespace = {}
-        exec(src, globals(), namespace)
-        func = namespace['_']
+        exec(src)
+        func = locals()['_']
         func.__name__ = fname
         return intrinsic(func)
 
