@@ -1,6 +1,8 @@
+from contextlib import contextmanager
+
 from numba import types
 
-from .overloads import _as_cmplx_lut, _as_real_lut
+from .overloads import FFTBuilder, _as_cmplx_lut, _as_real_lut
 
 
 def get_mapping_table(real):
@@ -36,3 +38,19 @@ def update_mapping_table(argty, retty, real=None):
 
     lut = get_mapping_table(real)
     lut[argty] = retty
+
+
+def _get_builder(overloaded_func):
+    entry = FFTBuilder.register.get(overloaded_func)
+    if entry is None:
+        raise ValueError(f"No FFT builder found for {overloaded_func}")
+
+    builder, _ = entry
+    return builder
+
+
+def disable_typing_check(overloaded_func):
+    builder = _get_builder(overloaded_func)
+    builder.typing_checker = None
+
+

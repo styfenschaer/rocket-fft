@@ -91,11 +91,12 @@ fft_typing = nt.TypingChecker(
 
 
 class FFTBuilder:
+    register = {}
+
     def __init__(self, header, typing_checker=None):
         self.header = header
         self.typing_checker = typing_checker
         self.built = None
-        self.register = []
 
     def __call__(self, func, *args, **kwargs):
         @wraps(self.header)
@@ -112,8 +113,8 @@ class FFTBuilder:
         return self
 
     def overload(self, func):
-        entry = (func, self.built)
-        self.register.append(entry)
+        entry = (self, self.built)
+        FFTBuilder.register[func] = entry
         overload(func)(self.built)
         return self
 

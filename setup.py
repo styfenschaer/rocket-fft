@@ -11,7 +11,7 @@ from pathlib import Path
 
 from setuptools import Extension, find_packages, setup
 
-min_python_version = (3, 6)
+min_python_version = (3, 8)
 max_python_version = (3, 10)
 
 
@@ -104,5 +104,4 @@ setup(
         'build_ext': build_ext,
         'build': BuildCommand,
     },
-    options={"bdist_wheel": {"universal": "1"}},
 )

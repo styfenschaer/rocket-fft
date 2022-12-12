@@ -12,10 +12,19 @@ from numba import TypingError, types
 from numpy.testing import assert_equal
 from pytest import raises as assert_raises
 
-from rocket_fft.unsafe import get_mapping_table, maps_to, update_mapping_table
+from rocket_fft.unsafe import (disable_typing_check, get_mapping_table,
+                               maps_to, update_mapping_table)
 
 # All functions should be cacheable and run without the GIL
 njit = partial(nb.njit, cache=True, nogil=True)
+
+
+def fft(a, n=None, axis=-1, norm=None):
+    return np.fft.fft(a, n, axis, norm)
+
+
+def fft2(a, s=None, axes=(-2, -1), norm=None):
+    return np.fft.fft2(a, s, axes, norm)
 
 
 @njit
@@ -146,7 +155,7 @@ def backup_mapping_table():
     lut_cmplx.update(lut_cmplx_bak)
 
 
-def test_unsafe_features():
+def test_unsafe_mapping():
     with assert_raises(TypeError):
         lut = get_mapping_table()
     lut1 = get_mapping_table(real=True)
@@ -193,3 +202,16 @@ def test_unsafe_features():
     lut = update_mapping_table(types.float32, types.complex64)
     d = maps_to(types.float32, real=False)
     assert d == types.complex64
+
+
+def test_unsafe_typing():
+    x = np.random.rand(1, 1)
+    with assert_raises(nb.TypingError):
+        nb.njit(fft)(x, norm=False)
+
+    with assert_raises(ValueError):
+        disable_typing_check(np.fft.fft)
+        nb.njit(fft)(x, norm=False)
+
+    with assert_raises(nb.TypingError):
+        nb.njit(fft2)(x, norm=False)
