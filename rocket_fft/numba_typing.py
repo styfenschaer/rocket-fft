@@ -66,6 +66,14 @@ class Check:
         raise TypingError(self.msg.format(fmt))
 
 
+def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
+    def impl(arg, msg):
+        check = Check(ty, as_one, as_seq, allow_none, msg)
+        return check(arg)
+
+    return impl
+
+
 class TypingChecker:
     def __init__(self, **checks):
         self.checks = checks
@@ -89,11 +97,3 @@ class TypingChecker:
         ordinals = ('th', 'st', 'nd', 'rd', 'th',
                     'th', 'th', 'th', 'th', 'th')
         return str(n) + ordinals[n % 10]
-
-
-def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
-    def impl(arg, msg):
-        check = Check(ty, as_one, as_seq, allow_none, msg)
-        return check(arg)
-
-    return impl

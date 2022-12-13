@@ -113,7 +113,7 @@ def array_as_voidptr(context, builder, ary_t, ary):
     return builder.bitcast(ptr, ll_voidptr)
 
 
-_tmpl = """
+_itmpl = """
 def _(typingctx, ain, aout, axes, {0}):
     def codegen(context, builder, sig, args):
         ain, aout, axes, *rest = args
@@ -137,7 +137,7 @@ class IBuilder:
         self.extra_args = ', '.join(extra_args)
 
     def __call__(self, fname):
-        src = _tmpl.format(self.extra_args, fname)
+        src = _itmpl.format(self.extra_args, fname)
         exec(src)
         func = locals()['_']
         func.__name__ = fname

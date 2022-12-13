@@ -40,6 +40,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #error This file requires at least C++11 support.
 #endif
 
+#ifndef POCKETFFT_NOSANITY_CHECK
+#define POCKETFFT_NOSANITY_CHECK
+#endif
+
 #ifndef POCKETFFT_CACHE_SIZE
 #define POCKETFFT_CACHE_SIZE 16
 #endif
@@ -3834,7 +3838,9 @@ namespace pocketfft
     {
       if (util::any(shape, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       cndarr<cmplx<T>> ain(data_in, shape, stride_in);
       ndarr<cmplx<T>> aout(data_out, shape, stride_out);
       general_nd<pocketfft_c<T>>(ain, aout, axes, fct, nthreads, ExecC2C{forward});
@@ -3849,7 +3855,9 @@ namespace pocketfft
         throw std::invalid_argument("invalid DCT type");
       if (util::any(shape, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       cndarr<T> ain(data_in, shape, stride_in);
       ndarr<T> aout(data_out, shape, stride_out);
       const ExecDcst exec{ortho, type, true};
@@ -3870,7 +3878,9 @@ namespace pocketfft
         throw std::invalid_argument("invalid DST type");
       if (util::any(shape, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       cndarr<T> ain(data_in, shape, stride_in);
       ndarr<T> aout(data_out, shape, stride_out);
       const ExecDcst exec{ortho, type, false};
@@ -3890,7 +3900,9 @@ namespace pocketfft
     {
       if (util::any(shape_in, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape_in, stride_in, stride_out, false, axis);
+#endif
       cndarr<T> ain(data_in, shape_in, stride_in);
       shape_t shape_out(shape_in);
       shape_out[axis] = shape_in[axis] / 2 + 1;
@@ -3906,7 +3918,9 @@ namespace pocketfft
     {
       if (util::any(shape_in, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape_in, stride_in, stride_out, false, axes);
+#endif
       r2c(shape_in, stride_in, stride_out, axes.back(), forward, data_in, data_out,
           fct, nthreads);
       if (axes.size() == 1)
@@ -3927,7 +3941,9 @@ namespace pocketfft
     {
       if (util::any(shape_out, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape_out, stride_in, stride_out, false, axis);
+#endif
       shape_t shape_in(shape_out);
       shape_in[axis] = shape_out[axis] / 2 + 1;
       cndarr<cmplx<T>> ain(data_in, shape_in, stride_in);
@@ -3946,7 +3962,9 @@ namespace pocketfft
       if (axes.size() == 1)
         return c2r(shape_out, stride_in, stride_out, axes[0], forward,
                    data_in, data_out, fct, nthreads);
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape_out, stride_in, stride_out, false, axes);
+#endif
       auto shape_in = shape_out;
       shape_in[axes.back()] = shape_out[axes.back()] / 2 + 1;
       auto nval = util::prod(shape_in);
@@ -3971,7 +3989,9 @@ namespace pocketfft
     {
       if (util::any(shape, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       cndarr<T> ain(data_in, shape, stride_in);
       ndarr<T> aout(data_out, shape, stride_out);
       general_nd<pocketfft_r<T>>(ain, aout, axes, fct, nthreads,
@@ -3985,7 +4005,9 @@ namespace pocketfft
     {
       if (util::any(shape, 0))
         return;
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       cndarr<T> ain(data_in, shape, stride_in);
       ndarr<T> aout(data_out, shape, stride_out);
       general_nd<pocketfft_r<T>>(ain, aout, axes, fct, nthreads, ExecHartley{},
@@ -4002,7 +4024,9 @@ namespace pocketfft
       if (axes.size() == 1)
         return r2r_separable_hartley(shape, stride_in, stride_out, axes, data_in,
                                      data_out, fct, nthreads);
+#ifndef POCKETFFT_NOSANITY_CHECK
       util::sanity_check(shape, stride_in, stride_out, data_in == data_out, axes);
+#endif
       shape_t tshp(shape);
       tshp[axes.back()] = tshp[axes.back()] / 2 + 1;
       arr<std::complex<T>> tdata(util::prod(tshp));

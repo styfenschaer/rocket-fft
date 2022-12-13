@@ -8,6 +8,7 @@
 
 // TODO: replace shape_t and stride_t by a shape_view and stride_view
 // TODO: Avoid code duplication where possible
+// TODO: Is sanity check really needed after all the check within Python?
 
 #ifdef _MSC_VER
 #define DLL_EXPORT extern "C" __declspec(dllexport)

@@ -179,9 +179,15 @@ def asarray(arg):
     return np.atleast_1d(a)
 
 
-@implements_jit
+@implements_jit(prefer_literal=True)
 def ndshape_and_axes(x, s, axes):
     pass
+
+
+@ndshape_and_axes.impl(s=is_nonelike, axes=literal_integer(-1))
+def _(x, s, axes):
+    # Specialization for default 1D transform
+    return s, np.array([x.ndim-1])
 
 
 @ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
@@ -308,7 +314,7 @@ _cpu_count = cpu_count()
 _default_workers = get_workers()
 
 
-@implements_jit
+@implements_jit(prefer_literal=True)
 def get_nthreads(workers):
     if is_nonelike(workers):
         global _default_workers
@@ -382,6 +388,7 @@ def generated_alloc_output(s, istype, reqtype):
 
     @implements_jit(prefer_literal=True)
     def alloc_output(x, overwrite_x):
+
         pass
 
     @alloc_output.impl(overwrite_x=literal_bool(True))
