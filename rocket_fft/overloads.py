@@ -1,6 +1,7 @@
 import inspect
 from functools import wraps
 from os import cpu_count
+from types import MappingProxyType
 
 import numpy as np
 import numpy.fft
@@ -20,7 +21,7 @@ from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
                            typing_check)
 
 # Casting/Mapping rules lookup tables
-_scipy_cmplx_lut = {
+_scipy_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
     types.complex128: types.complex128,
     types.float32: types.complex64,
@@ -35,12 +36,17 @@ _scipy_cmplx_lut = {
     types.uint64: types.complex128,
     types.bool_: types.complex128,
     types.byte: types.complex128,
-}
-_scipy_real_lut = {key: val.underlying_float
-                   for key, val in _scipy_cmplx_lut.items()}
+})
+_scipy_real_lut = MappingProxyType({
+    key: val.underlying_float for key, val in _scipy_cmplx_lut.items()
+})
 
-_numpy_cmplx_lut = {key: types.complex128 for key in _scipy_cmplx_lut.keys()}
-_numpy_real_lut = {key: types.float64 for key in _scipy_cmplx_lut.keys()}
+_numpy_cmplx_lut = MappingProxyType({
+    key: types.complex128 for key in _scipy_cmplx_lut.keys()
+})
+_numpy_real_lut = MappingProxyType({
+    key: types.float64 for key in _scipy_cmplx_lut.keys()
+})
 
 _as_cmplx_lut = None
 _as_real_lut = None
