@@ -44,7 +44,7 @@ def test_r2r():
     x = np.random.rand(42).astype(np.byte)
     y = dct(x)
     assert x is not y
-    assert y.dtype == np.float32
+    assert y.dtype == np.float64
 
     x = np.random.rand(42).astype(np.float32)
     y = dct(x, overwrite_x=True)
@@ -103,7 +103,7 @@ def test_r2c():
     x = np.random.rand(42).astype(np.int16)
     y = rfft(x)
     assert x is not y
-    assert y.dtype == np.complex64
+    assert y.dtype == np.complex128
 
     x = np.random.rand(42).astype(np.int16)
     y = rfft(x, overwrite_x=True)
@@ -147,8 +147,37 @@ def test_c2c_sym():
     x = np.random.rand(42).astype(np.bool8)
     y = fft(x)
     assert x is not y
-    assert y.dtype == np.complex64
+    assert y.dtype == np.complex128
 
     x = np.random.rand(42).astype(np.bool8)
     y = fft(x, overwrite_x=True)
     assert x is not y
+
+
+def test_scipy_like():
+    types = [
+        np.complex64,
+        np.complex128,
+        np.float32,
+        np.float64,
+        np.int8,
+        np.int16,
+        np.int32,
+        np.int64,
+        np.uint8,
+        np.uint16,
+        np.uint32,
+        np.uint64,
+        np.bool_,
+        np.byte,
+    ]
+    x = np.random.rand(42)
+
+    for ty in types:
+        dty1 = scipy.fft.fft(x.astype(ty)).dtype
+        dty2 = fft(x.astype(ty)).dtype
+        assert dty1 == dty2
+
+        dty1 = scipy.fft.dct(x.astype(ty)).dtype
+        dty2 = dct(x.astype(ty)).dtype
+        assert dty1 == dty2

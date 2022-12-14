@@ -38,13 +38,33 @@ def update_mapping_table(argty, retty, real=None):
     lut[argty] = retty
 
 
-def get_fft_builder(overloaded_func):
+def get_builder(overloaded_func):
     entry = FFTBuilder.register.get(overloaded_func)
     if entry is None:
         raise ValueError(f"No FFT builder found for {overloaded_func}")
 
     builder, _ = entry
     return builder
+
+
+def get_builders(unique=True):
+    register_values = FFTBuilder.register.values()
+    builders = map(lambda val: val[0], register_values)
+    if unique:
+        builders = set(builders)
+    return list(builders)
+
+
+def get_overloaded(builder):
+    funcs = FFTBuilder.register.keys()
+    builders = get_builders(unique=False)
+    return [f for f, b in zip(funcs, builders) if b is builder]
+
+
+def get_siblings(overloaded_func):
+    builder = get_builder(overloaded_func)
+    overloaded = get_overloaded(builder)
+    return [f for f in overloaded if not f is overloaded_func]
 
 
 _typing_checker_storage = {}

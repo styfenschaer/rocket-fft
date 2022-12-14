@@ -1,5 +1,5 @@
 import inspect
-from functools import partial, wraps
+from functools import wraps
 from os import cpu_count
 
 import numpy as np
@@ -20,25 +20,45 @@ from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
                            typing_check)
 
 # Casting/Mapping rules lookup tables
-# These rules are different from Scipy/Numpy
-_as_cmplx_lut = {
+_scipy_cmplx_lut = {
     types.complex64: types.complex64,
     types.complex128: types.complex128,
     types.float32: types.complex64,
     types.float64: types.complex128,
-    types.int8: types.complex64,
-    types.int16: types.complex64,
-    types.int32: types.complex64,
+    types.int8: types.complex128,
+    types.int16: types.complex128,
+    types.int32: types.complex128,
     types.int64: types.complex128,
-    types.uint8: types.complex64,
-    types.uint16: types.complex64,
-    types.uint32: types.complex64,
+    types.uint8: types.complex128,
+    types.uint16: types.complex128,
+    types.uint32: types.complex128,
     types.uint64: types.complex128,
-    types.bool_: types.complex64,
-    types.byte: types.complex64,
+    types.bool_: types.complex128,
+    types.byte: types.complex128,
 }
-_as_real_lut = {key: val.underlying_float
-                for key, val in _as_cmplx_lut.items()}
+_scipy_real_lut = {key: val.underlying_float
+                   for key, val in _scipy_cmplx_lut.items()}
+
+_numpy_cmplx_lut = {key: types.complex128 for key in _scipy_cmplx_lut.keys()}
+_numpy_real_lut = {key: types.float64 for key in _scipy_cmplx_lut.keys()}
+
+_as_cmplx_lut = None
+_as_real_lut = None
+
+
+def scipy_like():
+    global _as_cmplx_lut, _as_real_lut
+    _as_cmplx_lut = _scipy_cmplx_lut.copy()
+    _as_real_lut = _scipy_real_lut.copy()
+
+
+def numpy_like():
+    global _as_cmplx_lut, _as_real_lut
+    _as_cmplx_lut = _numpy_cmplx_lut.copy()
+    _as_real_lut = _numpy_real_lut.copy()
+
+
+scipy_like()
 
 
 def _as_supported_dtype(lut, dtype):
@@ -49,8 +69,12 @@ def _as_supported_dtype(lut, dtype):
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
 
-as_supported_cmplx = partial(_as_supported_dtype, _as_cmplx_lut)
-as_supported_real = partial(_as_supported_dtype, _as_real_lut)
+def as_supported_cmplx(dtype):
+    return _as_supported_dtype(_as_cmplx_lut, dtype)
+
+
+def as_supported_real(dtype):
+    return _as_supported_dtype(_as_real_lut, dtype)
 
 
 fft_typing = nt.TypingChecker(
@@ -175,7 +199,7 @@ def assert_valid_shape(shape):
 
 @register_jitable
 def asarray(arg):
-    a = np.asarray(arg)
+    a = np.asarray(arg, dtype=np.int64)
     return np.atleast_1d(a)
 
 
@@ -233,7 +257,7 @@ def _(x, s, axes):
     if s.size > x.ndim:
         raise ValueError("Shape requires more axes than are present.")
     # Axes not specified, transform last len(s) axes
-    axes = np.arange(x.ndim - s.size, x.ndim)
+    axes = np.arange(x.ndim-s.size, x.ndim)
     return s, axes
 
 
@@ -388,7 +412,6 @@ def generated_alloc_output(s, istype, reqtype):
 
     @implements_jit(prefer_literal=True)
     def alloc_output(x, overwrite_x):
-
         pass
 
     @alloc_output.impl(overwrite_x=literal_bool(True))

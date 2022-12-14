@@ -12,8 +12,9 @@ from numba import TypingError, types
 from numpy.testing import assert_equal
 from pytest import raises as assert_raises
 
-from rocket_fft.unsafe import (disable_typing_check, get_mapping_table,
-                               maps_to, update_mapping_table)
+from rocket_fft.unsafe import (disable_typing_check, enable_typing_check,
+                               get_builder, get_mapping_table, maps_to,
+                               update_mapping_table)
 
 # All functions should be cacheable and run without the GIL
 njit = partial(nb.njit, cache=True, nogil=True)
@@ -171,47 +172,57 @@ def test_unsafe_mapping():
     d = maps_to(types.complex128, real=False)
     assert d == types.complex128
     d = maps_to(types.byte, real=True)
-    assert d == types.float32
+    assert d == types.float64
     d = maps_to(types.float64, real=True)
     assert d == types.float64
     d = maps_to(types.byte, real=False)
-    assert d == types.complex64
+    assert d == types.complex128
     d = maps_to(types.float32, real=False)
     assert d == types.complex64
 
     with assert_raises(TypeError):
-        lut = update_mapping_table(types.complex64, types.float32, real=False)
+        update_mapping_table(types.complex64, types.float32, real=False)
     with assert_raises(TypeError):
-        lut = update_mapping_table(types.complex64, np.float32)
-    lut = update_mapping_table(types.complex64, types.float32, 1)
+        update_mapping_table(types.complex64, np.float32)
+    update_mapping_table(types.complex64, types.float32, 1)
 
     with assert_raises(TypeError):
-        lut = update_mapping_table(types.float32, types.complex64, real=True)
+        update_mapping_table(types.float32, types.complex64, real=True)
     update_mapping_table(types.complex64, types.float64, real=True)
     d = maps_to(types.complex64, real=True)
     assert d == types.float64
-    lut = update_mapping_table(types.complex64, types.float32)
+    update_mapping_table(types.complex64, types.float32)
     d = maps_to(types.complex64, real=True)
     assert d == types.float32
 
     with assert_raises(TypeError):
-        lut = update_mapping_table(types.complex64, types.float64, real=False)
+        update_mapping_table(types.complex64, types.float64, real=False)
     update_mapping_table(types.float64, types.complex64, real=False)
     d = maps_to(types.float64, real=False)
     assert d == types.complex64
-    lut = update_mapping_table(types.float32, types.complex64)
+    update_mapping_table(types.float32, types.complex64)
     d = maps_to(types.float32, real=False)
     assert d == types.complex64
 
 
-def test_unsafe_typing():
-    x = np.random.rand(1, 1)
-    with assert_raises(nb.TypingError):
-        nb.njit(fft)(x, norm=False)
+# def test_unsafe_typing():
+#     x = np.random.rand(1, 1)
 
-    with assert_raises(ValueError):
-        disable_typing_check(np.fft.fft)
-        nb.njit(fft)(x, norm=False)
+#     with assert_raises(nb.TypingError):
+#         nb.njit(fft)(x, norm=False)
 
-    with assert_raises(nb.TypingError):
-        nb.njit(fft2)(x, norm=False)
+#     with assert_raises(ValueError):
+#         disable_typing_check()
+#         nb.njit(fft)(x, norm=False)
+
+#     with assert_raises(nb.TypingError):
+#         enable_typing_check()
+#         nb.njit(fft2)(x, norm=False)
+
+#     with assert_raises(ValueError):
+#         disable_typing_check()
+#         nb.njit(fft2)(x, norm=False)
+
+#     overloaded_func = np.fft.fft
+#     builder = get_fft_builder(overloaded_func)
+#     assert builder.register[overloaded_func][0] is builder
