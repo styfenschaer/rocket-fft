@@ -54,7 +54,7 @@ class Overloader:
                     if check(*args):
                         return impl
                 else:
-                    if all(val(kwd[key]) for key, val in check):
+                    if all(fn(kwd[kw]) for kw, fn in check):
                         return impl
 
             raise TypingError('No implementation found for function {} with '
@@ -77,10 +77,10 @@ def implements_jit(func=None, jit_options=None, strict=True,
         jit_options = {}
 
     def wrapper(func):
-        disp = Overloader(
+        overloader = Overloader(
             func, None, jit_options=jit_options, strict=strict,
             inline=inline, prefer_literal=prefer_literal, **kwargs)
-        return disp
+        return overloader
 
     if func is not None:
         return wrapper(func)
@@ -92,7 +92,7 @@ def implements_overload(overloaded_func, jit_options=None, strict=True,
     if jit_options is None:
         jit_options = {}
 
-    disp = Overloader(
+    overloader = Overloader(
         None, overloaded_func, jit_options=jit_options, strict=strict,
         inline=inline, prefer_literal=prefer_literal, **kwargs)
-    return disp
+    return overloader

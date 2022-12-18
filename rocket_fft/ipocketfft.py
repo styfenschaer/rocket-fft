@@ -4,7 +4,7 @@ from functools import partial
 from pathlib import Path
 
 from llvmlite import ir
-from numba.core import cgutils, types
+from numba.core import types
 from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import make_array
@@ -13,8 +13,9 @@ ll_size_t = ir.IntType(64)
 ll_int64 = ir.IntType(64)
 ll_double = ir.DoubleType()
 ll_bool = ir.IntType(1)
-ll_voidptr = cgutils.voidptr_t
+ll_voidptr = ir.IntType(8).as_pointer()
 ll_void = ir.VoidType()
+
 void = types.void
 size_t = types.size_t
 

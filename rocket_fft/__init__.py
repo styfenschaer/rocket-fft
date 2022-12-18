@@ -1,4 +1,4 @@
-from .overloads import numpy_like, scipy_like
+from .overloads import numpy_like, scipy_like, rocketfft_like
 
 
 def _init_extension():

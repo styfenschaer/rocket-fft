@@ -582,3 +582,7 @@ class TestIRFFTN:
 
         # Should not raise error
         irfftn(a, axes=axes)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

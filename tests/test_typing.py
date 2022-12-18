@@ -536,3 +536,7 @@ class TestND:
             func(self.x, 1, None, (0, 1, 2), None, True, 4, (False,))
         func(self.x, orthogonalize=None)
         func(self.x, 1, None, (0, 1, 2), None, True, 4, orthogonalize=True)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

@@ -20,7 +20,7 @@ def is_integer_2tuple(arg):
             and isinstance(arg.dtype, types.Integer))
 
 
-def literal_integer(val):
+def is_literal_integer(val):
     def impl(arg):
         if not isinstance(arg, types.IntegerLiteral):
             return False
@@ -29,7 +29,7 @@ def literal_integer(val):
     return impl
 
 
-def literal_bool(val):
+def is_literal_bool(val):
     def impl(arg):
         if not isinstance(arg, types.BooleanLiteral):
             return False

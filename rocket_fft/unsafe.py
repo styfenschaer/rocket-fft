@@ -1,12 +1,14 @@
 from numba import types
 
-from .overloads import FFTBuilder, _as_cmplx_lut, _as_real_lut
+from .overloads import FFTBuilder
 
 
 def get_mapping_table(real):
     if real not in (True, False):
         raise TypeError("The 1st argument 'real' must be a boolean.")
 
+    from .overloads import _as_cmplx_lut, _as_real_lut
+    
     return _as_real_lut if real else _as_cmplx_lut
 
 
@@ -48,14 +50,20 @@ def get_builder(overloaded_func):
 
 
 def get_builders(unique=True):
-    register_values = FFTBuilder.register.values()
-    builders = map(lambda val: val[0], register_values)
+    if unique not in (True, False):
+        raise TypeError("The 1st argument 'unique' must be a boolean.")
+
+    builders = [val[0] for val in FFTBuilder.register.values()]
     if unique:
         builders = set(builders)
     return list(builders)
 
 
-def get_overloaded(builder):
+def get_overloaded_functions(builder):
+    if not isinstance(builder, FFTBuilder):
+        raise TypeError(
+            "The 1st argument 'builder' must be a FFTBuilder object.")
+
     funcs = FFTBuilder.register.keys()
     builders = get_builders(unique=False)
     return [f for f, b in zip(funcs, builders) if b is builder]
@@ -63,7 +71,7 @@ def get_overloaded(builder):
 
 def get_siblings(overloaded_func):
     builder = get_builder(overloaded_func)
-    overloaded = get_overloaded(builder)
+    overloaded = get_overloaded_functions(builder)
     return [f for f in overloaded if not f is overloaded_func]
 
 

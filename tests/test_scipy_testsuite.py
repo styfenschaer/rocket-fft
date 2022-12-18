@@ -1655,3 +1655,7 @@ class Test_DCTN_IDCTN:
 #     x = rng.rand(10)
 #     swapped_dt = x.dtype.newbyteorder('S')
 #     assert_allclose(func(x.astype(swapped_dt)), func(x))
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

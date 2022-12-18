@@ -1,5 +1,5 @@
 import inspect
-from functools import wraps
+from functools import partial, wraps
 from os import cpu_count
 from types import MappingProxyType
 
@@ -16,58 +16,66 @@ from scipy.fft import get_workers
 from . import ipocketfft as pfft
 from . import numba_typing as nt
 from .imputils import implements_jit, implements_overload, otherwise
-from .numba_typing import (is_integer, is_integer_2tuple, is_nonelike,
-                           is_not_nonelike, literal_bool, literal_integer,
+from .numba_typing import (is_integer, is_integer_2tuple, is_literal_bool,
+                           is_literal_integer, is_nonelike, is_not_nonelike,
                            typing_check)
 
-# Casting/Mapping rules lookup tables
-_scipy_cmplx_lut = MappingProxyType({
+# Type casting/mapping rules lookup tables
+_rocketfft_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
     types.complex128: types.complex128,
     types.float32: types.complex64,
     types.float64: types.complex128,
-    types.int8: types.complex128,
-    types.int16: types.complex128,
-    types.int32: types.complex128,
+    types.int8: types.complex64,
+    types.int16: types.complex64,
+    types.int32: types.complex64,
     types.int64: types.complex128,
-    types.uint8: types.complex128,
-    types.uint16: types.complex128,
-    types.uint32: types.complex128,
+    types.uint8: types.complex64,
+    types.uint16: types.complex64,
+    types.uint32: types.complex64,
     types.uint64: types.complex128,
-    types.bool_: types.complex128,
-    types.byte: types.complex128,
+    types.bool_: types.complex64,
+    types.byte: types.complex64,
 })
-_scipy_real_lut = MappingProxyType({
-    key: val.underlying_float for key, val in _scipy_cmplx_lut.items()
+_rocketfft_real_lut = MappingProxyType({
+    key: val.underlying_float for key, val in _rocketfft_cmplx_lut.items()
 })
 
 _numpy_cmplx_lut = MappingProxyType({
-    key: types.complex128 for key in _scipy_cmplx_lut.keys()
+    key: types.complex128 for key in _rocketfft_cmplx_lut.keys()
 })
 _numpy_real_lut = MappingProxyType({
-    key: types.float64 for key in _scipy_cmplx_lut.keys()
+    key: types.float64 for key in _rocketfft_cmplx_lut.keys()
+})
+
+_scipy_cmplx_lut = MappingProxyType({
+    **_numpy_cmplx_lut,
+    types.complex64: types.complex64,
+    types.float32: types.complex64,
+})
+_scipy_real_lut = MappingProxyType({
+    key: val.underlying_float for key, val in _scipy_cmplx_lut.items()
 })
 
 _as_cmplx_lut = None
 _as_real_lut = None
 
 
-def scipy_like():
+def _set_luts(real_lut, cmplx_lut):
     global _as_cmplx_lut, _as_real_lut
-    _as_cmplx_lut = _scipy_cmplx_lut.copy()
-    _as_real_lut = _scipy_real_lut.copy()
+    _as_cmplx_lut = cmplx_lut.copy()
+    _as_real_lut = real_lut.copy()
 
 
-def numpy_like():
-    global _as_cmplx_lut, _as_real_lut
-    _as_cmplx_lut = _numpy_cmplx_lut.copy()
-    _as_real_lut = _numpy_real_lut.copy()
+scipy_like = partial(_set_luts, _scipy_real_lut, _scipy_cmplx_lut)
+numpy_like = partial(_set_luts, _numpy_real_lut, _numpy_cmplx_lut)
+rocketfft_like = partial(_set_luts, _rocketfft_real_lut, _rocketfft_cmplx_lut)
+
+rocketfft_like()
 
 
-scipy_like()
-
-
-def _as_supported_dtype(lut, dtype):
+def _as_supported_dtype(dtype, real):
+    lut = _as_real_lut if real else _as_cmplx_lut
     ty = lut.get(dtype)
     if ty is not None:
         return ty
@@ -75,12 +83,8 @@ def _as_supported_dtype(lut, dtype):
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
 
-def as_supported_cmplx(dtype):
-    return _as_supported_dtype(_as_cmplx_lut, dtype)
-
-
-def as_supported_real(dtype):
-    return _as_supported_dtype(_as_real_lut, dtype)
+as_supported_cmplx = partial(_as_supported_dtype, real=False)
+as_supported_real = partial(_as_supported_dtype, real=True)
 
 
 fft_typing = nt.TypingChecker(
@@ -158,14 +162,11 @@ class FFTBuilder:
         return {key: kwd[key] for key in params}
 
     def _patch_co_varnames(self, func):
-        params_header = self.signature.parameters
-        params_func = inspect.signature(func).parameters
-        cov = list(func.__code__.co_varnames)
-        for ph, pf in zip(params_header.keys(), params_func.keys()):
-            if ph != pf:
-                idx = cov.index(pf)
-                cov[idx] = ph
-        cov = tuple(cov)
+        header_params = self.signature.parameters.keys()
+        func_params = inspect.signature(func).parameters.keys()
+        name_map = {old: new for old, new in zip(func_params, header_params)}
+        co_varnames = func.__code__.co_varnames
+        cov = tuple(name_map.get(name, name) for name in co_varnames)
         func.__code__ = func.__code__.replace(co_varnames=cov)
 
 
@@ -214,7 +215,7 @@ def ndshape_and_axes(x, s, axes):
     pass
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=literal_integer(-1))
+@ndshape_and_axes.impl(s=is_nonelike, axes=is_literal_integer(-1))
 def _(x, s, axes):
     # Specialization for default 1D transform
     return s, np.array([x.ndim-1])
@@ -306,17 +307,17 @@ def get_fct(x, axes, norm, forward, delta=None):
     pass
 
 
-@get_fct.impl(norm=is_nonelike, forward=literal_bool(True))
+@get_fct.impl(norm=is_nonelike, forward=is_literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     return 1.0
 
 
-@get_fct.impl(norm=is_nonelike, forward=literal_bool(False))
+@get_fct.impl(norm=is_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     return 1.0 / mul_axes(x, axes, delta)
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=literal_bool(True))
+@get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0
@@ -328,7 +329,7 @@ def _(x, axes, norm, forward, delta=None):
                      " 'backward', 'ortho' or 'forward'.")
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=literal_bool(False))
+@get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0 / mul_axes(x, axes, delta)
@@ -341,7 +342,7 @@ def _(x, axes, norm, forward, delta=None):
 
 
 _cpu_count = cpu_count()
-_default_workers = get_workers()
+_default_workers = None
 
 
 @implements_jit(prefer_literal=True)
@@ -420,12 +421,9 @@ def generated_alloc_output(s, istype, reqtype):
     def alloc_output(x, overwrite_x):
         pass
 
-    @alloc_output.impl(overwrite_x=literal_bool(True))
+    @alloc_output.impl(overwrite_x=is_literal_bool(False))
     def _(x, overwrite_x):
-        return x
-
-    @alloc_output.impl(overwrite_x=literal_bool(False))
-    def _(x, overwrite_x):
+        # Specialization for default case
         return np.empty(x.shape, dtype=x.dtype)
 
     @alloc_output.impl(otherwise)
@@ -587,6 +585,7 @@ def _(shape, x, s, axes):
     for i, ax in enumerate(axes):
         if ax == last_ax:
             shape = tuple_setitem(shape, last_ax, s[i])
+            break
     return shape
 
 
@@ -628,26 +627,26 @@ def get_type(type, forward):
     pass
 
 
-@get_type.impl(type=literal_integer(2), forward=literal_bool(True))
+@get_type.impl(type=is_literal_integer(2), forward=is_literal_bool(True))
 def _(type, forward):
     # Specialization for default case forward
     return 2
 
 
-@get_type.impl(type=literal_integer(2), forward=literal_bool(False))
+@get_type.impl(type=is_literal_integer(2), forward=is_literal_bool(False))
 def _(type, forward):
     # Specialization for default case backward
     return 3
 
 
-@get_type.impl(forward=literal_bool(True))
+@get_type.impl(forward=is_literal_bool(True))
 def _(type, forward):
     if type not in (1, 2, 3, 4):
         raise ValueError('Invalid type; must be one of (1, 2, 3, 4).')
     return type
 
 
-@get_type.impl(forward=literal_bool(False))
+@get_type.impl(forward=is_literal_bool(False))
 def _(type, forward):
     if type == 2:
         return 3
@@ -742,10 +741,10 @@ def roll(a, shift, axis=None):
         a, "The 1st argument 'a' must be an array.")
     typing_check(types.Integer, as_seq=True)(
         shift, ("The 2nd argument 'shift' must be a"
-                " sequences of integers or an integer."))
+                " sequence of integers or an integer."))
     typing_check(types.Integer, as_seq=True, allow_none=True)(
         axis, ("The 3rd argument 'axis' must be a"
-               " sequences of integers or an integer."))
+               " sequence of integers or an integer."))
 
 
 @roll.impl(axis=is_nonelike)
@@ -753,6 +752,7 @@ def _(a, shift, axis=None):
     r = np.empty(a.shape, dtype=a.dtype)
     if a.size == 0:
         return r
+
     sh = np.asarray(shift).sum() % a.size
     r_flat = r.ravel()
     a_flat = a.ravel()
@@ -815,7 +815,7 @@ def _check_typing_fftshift(x, axes):
         x, "The 1st argument 'x' must be an array.")
     typing_check(types.Integer, as_seq=True, allow_none=True)(
         axes, ("The 2nd argument 'axes' must be a"
-               " sequences of integers or an integer."))
+               " sequence of integers or an integer."))
 
 
 @implements_overload(np.fft.fftshift)
