@@ -1,3 +1,7 @@
+"""
+It is necessary to run test_numpy_like.py and test_scipy_like.py separately in a new interpreter to ensure the tests are executed correctly.
+"""
+
 import subprocess
 from pathlib import Path
 

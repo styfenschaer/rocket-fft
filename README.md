@@ -99,7 +99,7 @@ Rocket-FFT uses several techniques to keep compilation times low, despite the fl
 
 ## Limitations on Linux and MacOS
 
-Rocket-FFT uses a C-interface that is wrapped with `ctypes` on Linux and MacOS, due to an unresolved issue with LLVM. As a result, all functions are not cacheable. However, on Windows the functions are cached without any issues.
+Rocket-FFT uses a C-interface that is wrapped with `ctypes` on Linux and MacOS, due to an unresolved issue related to LLVM. As a result, all functions are not cacheable. However, on Windows the functions are cached without any issues.
 
 ## Low-level interface
 
