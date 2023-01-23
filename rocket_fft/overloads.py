@@ -72,9 +72,13 @@ numpy_like = partial(_set_luts, _numpy_cmplx_lut, _numpy_real_lut)
 
 def _as_supported_dtype(dtype, real):
     lut = _as_real_lut if real else _as_cmplx_lut
+    if lut is None:
+        raise RuntimeError("Type conversion lookup table not instantiated.")
+    
     ty = lut.get(dtype)
     if ty is not None:
         return ty
+    
     keys = tuple(lut.keys())
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
@@ -168,7 +172,7 @@ class FFTBuilder:
 
 @register_jitable
 def wraparound_axis(x, ax):
-    if ax >= x.ndim or ax < -x.ndim:
+    if (ax >= x.ndim) or (ax < -x.ndim):
         raise ValueError("Axis exceeds dimensionality of input.")
     if ax < 0:
         ax += x.ndim
@@ -178,7 +182,7 @@ def wraparound_axis(x, ax):
 @register_jitable
 def wraparound_axes(x, axes):
     for i, ax in enumerate(axes):
-        if ax >= x.ndim or ax < -x.ndim:
+        if (ax >= x.ndim) or (ax < -x.ndim):
             raise ValueError("Axes exceeds dimensionality of input.")
         if ax < 0:
             axes[i] += x.ndim
@@ -406,7 +410,7 @@ def generated_alloc_output(s, istype, reqtype):
     # 1. overwrite was requested (runtime check)
     # 2. array got casted (compile time check)
     # 3. the array has been zero-padded/truncated (compile time check)
-    if istype != reqtype or not is_nonelike(s):
+    if (istype != reqtype) or not is_nonelike(s):
 
         @register_jitable
         def alloc_output(x, overwrite_x):

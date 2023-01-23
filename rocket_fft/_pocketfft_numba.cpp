@@ -30,7 +30,7 @@ copy_shape(const arystruct_t *arystruct, ssize_t ndim)
 }
 
 static stride_t
-copy_stride(const arystruct_t *arystruct, ssize_t ndim)
+copy_strides(const arystruct_t *arystruct, ssize_t ndim)
 {
     stride_t res(ndim);
     for (auto i = 0; i < res.size(); i++)
@@ -61,8 +61,8 @@ numba_c2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
           bool forward, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_COMPLEX128)
     {
@@ -85,8 +85,8 @@ numba_dct(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
           int64_t type, double fct, bool ortho, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -109,8 +109,8 @@ numba_dst(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
           int64_t type, double fct, bool ortho, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -133,8 +133,8 @@ numba_r2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
           bool forward, double fct, size_t nthreads = 1)
 {
     auto shape_in = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -158,8 +158,8 @@ numba_c2c_sym(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_
 {
     using namespace pocketfft::detail;
     auto shape_in = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -197,9 +197,9 @@ DLL_EXPORT void
 numba_c2r(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
           bool forward, double fct, size_t nthreads = 1)
 {
-    auto stride_in = copy_stride(ain, ndim);
+    auto stride_in = copy_strides(ain, ndim);
     auto shape_out = copy_shape(aout, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_COMPLEX128)
     {
@@ -222,8 +222,8 @@ numba_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_
               bool real2hermitian, bool forward, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -246,8 +246,8 @@ numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
                         arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {
@@ -270,8 +270,8 @@ numba_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
                       arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_stride(ain, ndim);
-    auto stride_out = copy_stride(aout, ndim);
+    auto stride_in = copy_strides(ain, ndim);
+    auto stride_out = copy_strides(aout, ndim);
     auto axes_ = copy_array(axes);
     if (ain->itemsize == SIZEOF_DOUBLE)
     {

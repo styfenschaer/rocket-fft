@@ -10,10 +10,11 @@ from pathlib import Path
 
 from setuptools import Extension, find_packages, setup
 
-if not ((3, 8) <= sys.version_info[:2] <= (3, 10)):
-    sys.exit("Rocket-FFT requires Python 3.8 to 3.10")
+if sys.version_info[:2] not in ((3, 8), (3, 9), (3, 10)):
+    ver = '.'.join(map(str, sys.version_info[:2]))
+    sys.exit(f"Unsupported Python version {ver}; supported are 3.8, 3.9 and 3.10")
 
-    
+
 def numpy_get_include():
     import numpy as np
     return np.get_include()
@@ -51,13 +52,13 @@ class BuildCommand(distutils.command.build.build):
         self.build_base = "rocket_fft"
 
 
-with open("README.md") as f:
-    long_description = f.read()
+with open("README.md") as file:
+    long_description = file.read()
 
 
 setup(
     name="rocket-fft",
-    version="0.0.1",
+    version="0.0.2",
     description="rocket-fft extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,

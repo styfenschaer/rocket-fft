@@ -1,12 +1,12 @@
-import ctypes
 from functools import partial
-from pathlib import Path
 
 from llvmlite import ir
 from numba.core import types
 from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
-from numba.np.arrayobj import make_array
+
+# ll_array_as_voidptr is used in template string
+from .pocketfft_utils import ll_array_as_voidptr, load_pocketfft
 
 ll_size_t = ir.IntType(64)
 ll_int64 = ir.IntType(64)
@@ -17,12 +17,6 @@ ll_void = ir.VoidType()
 
 void = types.void
 size_t = types.size_t
-
-
-def load_pocketfft():
-    this_path = Path(__file__).parent
-    libpath = next(this_path.parent.glob("**/*.so"))
-    return ctypes.CDLL(str(libpath))
 
 
 def _partial(func, *args, **kargs):
@@ -129,13 +123,7 @@ class Pocketfft:
         return builder.call(fn, args)
 
 
-ll_pocketfft = Pocketfft()
-
-
-def array_as_voidptr(context, builder, ary_t, ary):
-    ary = make_array(ary_t)(context, builder, ary)
-    ptr = ary._getpointer()
-    return builder.bitcast(ptr, ll_voidptr)
+pocketfft = Pocketfft()
 
 
 _tmpl = """
@@ -145,12 +133,12 @@ def _(typingctx, ain, aout, axes, {0}):
         ain_t, aout_t, axes_t, *_ = sig.args
 
         ndim = ll_size_t(ain_t.ndim)
-        ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
-        aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
-        ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
+        ain_ptr = ll_array_as_voidptr(context, builder, ain_t, ain)
+        aout_ptr = ll_array_as_voidptr(context, builder, aout_t, aout)
+        ax_ptr = ll_array_as_voidptr(context, builder, axes_t, axes)
 
         args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
-        ll_pocketfft.{1}(builder, args)
+        pocketfft.{1}(builder, args)
         
     sig = void(ain, aout, axes, {0})
     return sig, codegen
@@ -190,7 +178,7 @@ numba_fftpack = fftpack_builder("fftpack")
 @intrinsic
 def numba_good_size(typingctx, n, real):
     def codegen(context, builder, sig, args):
-        ret = ll_pocketfft.good_size(builder, args)
+        ret = pocketfft.good_size(builder, args)
         return ret
 
     sig = size_t(n, real)

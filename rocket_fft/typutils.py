@@ -16,7 +16,7 @@ def is_integer(arg):
 
 def is_integer_2tuple(arg):
     return (isinstance(arg, types.UniTuple)
-            and arg.count == 2
+            and (arg.count == 2)
             and isinstance(arg.dtype, types.Integer))
 
 
