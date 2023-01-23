@@ -10,8 +10,8 @@ from numba.np.arrayobj import make_array
 def load_pocketfft():
     search_path = Path(__file__).parent.parent
     matches = search_path.glob("**/_pocketfft_numba.so")
-    libpath = next(matches)
-    return ctypes.CDLL(str(libpath))
+    libpath = str(next(matches))
+    return ctypes.CDLL(libpath)
 
 
 def ll_array_as_voidptr(context, builder, ary_t, ary):
