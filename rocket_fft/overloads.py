@@ -6,13 +6,11 @@ from types import MappingProxyType
 
 import numpy as np
 import numpy.fft
-import scipy.fft
 from numba import TypingError
 from numba.core import types
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
-from scipy.fft import get_workers
 
 from . import typutils as tu
 from .imputils import implements_jit, implements_overload, otherwise
@@ -20,13 +18,26 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
                        is_literal_integer, is_nonelike, is_not_nonelike,
                        typing_check)
 
-# Due to a problem with LLVM the pocketfft C-interface is 
+# Unlike NumPy, SciPy is an optional runtime 
+# dependency of Numba, which we follow.
+try:
+    import scipy.fft
+    from scipy.fft import get_workers
+
+    _scipy_installed_ = True
+except ImportError:
+    _scipy_installed_ = False
+
+    def get_workers():
+        return 1
+
+# Due to a problem with LLVM the pocketfft C-interface is
 # wrapped with ctypes on Linux and MaxOS.
 if ("linux" in sys.platform) or ("darwin" in sys.platform):
     from . import pocketfft_ctypes as pocketfft
 else:
     from . import pocketfft_llvm as pocketfft
-from . import pocketfft_llvm as pocketfft
+
 # Type casting/mapping rules lookup tables
 _scipy_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
@@ -74,11 +85,11 @@ def _as_supported_dtype(dtype, real):
     lut = _as_real_lut if real else _as_cmplx_lut
     if lut is None:
         raise RuntimeError("Type conversion lookup table not instantiated.")
-    
+
     ty = lut.get(dtype)
     if ty is not None:
         return ty
-    
+
     keys = tuple(lut.keys())
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
@@ -504,6 +515,7 @@ scipy_c1d_builder = FFTBuilder(_scipy_c1d, typing_checker=fft_typing)
 scipy_c2d_builder = FFTBuilder(_scipy_c2d, typing_checker=fft_typing)
 scipy_cnd_builder = FFTBuilder(_scipy_cnd, typing_checker=fft_typing)
 
+
 numpy_c1d_builder(c2cn, forward=True).overload(numpy.fft.fft)
 numpy_c2d_builder(c2cn, forward=True).overload(numpy.fft.fft2)
 numpy_cnd_builder(c2cn, forward=True).overload(numpy.fft.fftn)
@@ -511,12 +523,13 @@ numpy_c1d_builder(c2cn, forward=False).overload(numpy.fft.ifft)
 numpy_c2d_builder(c2cn, forward=False).overload(numpy.fft.ifft2)
 numpy_cnd_builder(c2cn, forward=False).overload(numpy.fft.ifftn)
 
-scipy_c1d_builder(c2cn, forward=True).overload(scipy.fft.fft)
-scipy_c2d_builder(c2cn, forward=True).overload(scipy.fft.fft2)
-scipy_cnd_builder(c2cn, forward=True).overload(scipy.fft.fftn)
-scipy_c1d_builder(c2cn, forward=False).overload(scipy.fft.ifft)
-scipy_c2d_builder(c2cn, forward=False).overload(scipy.fft.ifft2)
-scipy_cnd_builder(c2cn, forward=False).overload(scipy.fft.ifftn)
+if _scipy_installed_:
+    scipy_c1d_builder(c2cn, forward=True).overload(scipy.fft.fft)
+    scipy_c2d_builder(c2cn, forward=True).overload(scipy.fft.fft2)
+    scipy_cnd_builder(c2cn, forward=True).overload(scipy.fft.fftn)
+    scipy_c1d_builder(c2cn, forward=False).overload(scipy.fft.ifft)
+    scipy_c2d_builder(c2cn, forward=False).overload(scipy.fft.ifft2)
+    scipy_cnd_builder(c2cn, forward=False).overload(scipy.fft.ifftn)
 
 
 @register_jitable
@@ -554,12 +567,13 @@ numpy_c2d_builder(r2cn, forward=True).overload(numpy.fft.rfft2)
 numpy_cnd_builder(r2cn, forward=True).overload(numpy.fft.rfftn)
 numpy_c1d_builder(r2cn, forward=False).overload(numpy.fft.ihfft)
 
-scipy_c1d_builder(r2cn, forward=True).overload(scipy.fft.rfft)
-scipy_c2d_builder(r2cn, forward=True).overload(scipy.fft.rfft2)
-scipy_cnd_builder(r2cn, forward=True).overload(scipy.fft.rfftn)
-scipy_c1d_builder(r2cn, forward=False).overload(scipy.fft.ihfft)
-scipy_c2d_builder(r2cn, forward=False).overload(scipy.fft.ihfft2)
-scipy_cnd_builder(r2cn, forward=False).overload(scipy.fft.ihfftn)
+if _scipy_installed_:
+    scipy_c1d_builder(r2cn, forward=True).overload(scipy.fft.rfft)
+    scipy_c2d_builder(r2cn, forward=True).overload(scipy.fft.rfft2)
+    scipy_cnd_builder(r2cn, forward=True).overload(scipy.fft.rfftn)
+    scipy_c1d_builder(r2cn, forward=False).overload(scipy.fft.ihfft)
+    scipy_c2d_builder(r2cn, forward=False).overload(scipy.fft.ihfft2)
+    scipy_cnd_builder(r2cn, forward=False).overload(scipy.fft.ihfftn)
 
 
 @register_jitable
@@ -615,12 +629,13 @@ numpy_c2d_builder(c2rn, forward=False).overload(numpy.fft.irfft2)
 numpy_cnd_builder(c2rn, forward=False).overload(numpy.fft.irfftn)
 numpy_c1d_builder(c2rn, forward=True).overload(numpy.fft.hfft)
 
-scipy_c1d_builder(c2rn, forward=False).overload(scipy.fft.irfft)
-scipy_c2d_builder(c2rn, forward=False).overload(scipy.fft.irfft2)
-scipy_cnd_builder(c2rn, forward=False).overload(scipy.fft.irfftn)
-scipy_c1d_builder(c2rn, forward=True).overload(scipy.fft.hfft)
-scipy_c2d_builder(c2rn, forward=True).overload(scipy.fft.hfft2)
-scipy_cnd_builder(c2rn, forward=True).overload(scipy.fft.hfftn)
+if _scipy_installed_:
+    scipy_c1d_builder(c2rn, forward=False).overload(scipy.fft.irfft)
+    scipy_c2d_builder(c2rn, forward=False).overload(scipy.fft.irfft2)
+    scipy_cnd_builder(c2rn, forward=False).overload(scipy.fft.irfftn)
+    scipy_c1d_builder(c2rn, forward=True).overload(scipy.fft.hfft)
+    scipy_c2d_builder(c2rn, forward=True).overload(scipy.fft.hfft2)
+    scipy_cnd_builder(c2rn, forward=True).overload(scipy.fft.hfftn)
 
 
 @implements_jit(prefer_literal=True)
@@ -722,17 +737,18 @@ scipy_r1d_builder = FFTBuilder(_scipy_r1d, typing_checker=fft_typing)
 scipy_rnd_builder = FFTBuilder(_scipy_rnd, typing_checker=fft_typing)
 
 
-_common_dct = dict(trafo=pocketfft.numba_dct, delta=-1)
-scipy_r1d_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dct)
-scipy_rnd_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dctn)
-scipy_r1d_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idct)
-scipy_rnd_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idctn)
+if _scipy_installed_:
+    _common_dct = dict(trafo=pocketfft.numba_dct, delta=-1)
+    scipy_r1d_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dct)
+    scipy_rnd_builder(r2rn, **_common_dct, forward=True).overload(scipy.fft.dctn)
+    scipy_r1d_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idct)
+    scipy_rnd_builder(r2rn, **_common_dct, forward=False).overload(scipy.fft.idctn)
 
-_common_dst = dict(trafo=pocketfft.numba_dst, delta=1)
-scipy_r1d_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dst)
-scipy_rnd_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dstn)
-scipy_r1d_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idst)
-scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
+    _common_dst = dict(trafo=pocketfft.numba_dst, delta=1)
+    scipy_r1d_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dst)
+    scipy_rnd_builder(r2rn, **_common_dst, forward=True).overload(scipy.fft.dstn)
+    scipy_r1d_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idst)
+    scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 
 @implements_overload(np.roll)
@@ -910,16 +926,17 @@ def rfftfreq(n, d=1.0):
     return impl
 
 
-@overload(scipy.fft.next_fast_len)
-def next_fast_len(target, real):
-    typing_check(types.Integer)(
-        target, "The 1st argument 'target' must be an integer.")
-    typing_check(types.Boolean)(
-        real, "The 2nd argument 'real' must be a boolean.")
+if _scipy_installed_:
+    @overload(scipy.fft.next_fast_len)
+    def next_fast_len(target, real):
+        typing_check(types.Integer)(
+            target, "The 1st argument 'target' must be an integer.")
+        typing_check(types.Boolean)(
+            real, "The 2nd argument 'real' must be a boolean.")
 
-    def impl(target, real):
-        if target < 0:
-            raise ValueError("Target cannot be negative.")
-        return pocketfft.numba_good_size(target, real)
+        def impl(target, real):
+            if target < 0:
+                raise ValueError("Target cannot be negative.")
+            return pocketfft.numba_good_size(target, real)
 
-    return impl
+        return impl

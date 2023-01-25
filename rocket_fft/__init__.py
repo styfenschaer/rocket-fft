@@ -1,6 +1,6 @@
 from .overloads import numpy_like, pocketfft, scipy_like
 
-scipy_like()
+__version__ = "0.0.3"
 
 c2c = pocketfft.numba_c2c
 r2c = pocketfft.numba_r2c
@@ -13,8 +13,12 @@ genuine_hartley = pocketfft.numba_genuine_hartley
 fftpack = pocketfft.numba_fftpack
 good_size = pocketfft.numba_good_size
 
-del pocketfft
-
 
 def _init_extension():
-    pass
+    try:
+        import scipy
+        scipy_like()
+    except ImportError:
+        numpy_like()
+
+

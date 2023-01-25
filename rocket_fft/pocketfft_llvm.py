@@ -16,9 +16,9 @@ ll_voidptr = ir.IntType(8).as_pointer()
 ll_void = ir.VoidType()
 
 void = types.void
-size_t = types.size_t
+size_t = types.int64
 
-dll = load_pocketfft()
+
 def _partial(func, *args, **kargs):
     func = func.__func__
     return partial(func, *args, **kargs)

@@ -1,19 +1,20 @@
 # rocket-fft
 Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. Rocket-FFT takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 🚀
 
-Rocket-FFT has been tested against both the [SciPy](https://scipy.org/) and [Numpy](https://numpy.org/) test suites, plus some additional typing tests. Therefore, it is considered safe to use, but the author still welcomes bug reports to help improve the project. 
+Rocket-FFT has been tested against both the [SciPy](https://scipy.org/) and [NumPy](https://numpy.org/) test suites, plus some additional typing tests. Therefore, it is considered safe to use, but the author still welcomes bug reports to help improve the project. 
 
 ## Getting started
 The easiest way to get Rocket-FFT is to:
 ```
 pip install rocket-fft
 ```
-Alternatively, you can build it yourself:
+Alternatively, you can build it from source:
 ```
 git clone https://github.com/styfenschaer/rocket-fft.git
-pip install ./rocket-fft
+cd rocket-fft
+python setup.py install
 ``` 
-The latter will require a C++ compiler to be installed on your system.
+The latter requires a C++ compiler compatible with your Python installation.
 
 Rocket-FFT uses `setuptools` entry points to register itself as an extension of Numba, so there is no need for additional imports. Once installed successfully, the following will work:
 ```python
@@ -28,7 +29,7 @@ a = np.array([2, 7, 1, 8, 2, 8, 1, 8])
 jit_fft(a)
 ```
 
-## Supported Numpy functions
+## Supported NumPy functions
 The whole `numpy.fft` module is supported, which contains all the functions listed below:
 - [x] `numpy.fft.fft`
 - [x] `numpy.fft.ifft`
@@ -52,7 +53,8 @@ The whole `numpy.fft` module is supported, which contains all the functions list
 \*Rocket-FFT follows SciPy's approach of not allowing duplicate axes
 
 ## Supported SciPy functions
-Most of the `scipy.fft` module is supported as well, including:
+SciPy is an optional dependency of Numba and therefore also for Rocket-FFT. 
+If SciPy is installed, you get support for most of the `scipy.fft` module, including:
 - [x] `scipy.fft.fft`
 - [x] `scipy.fft.ifft`
 - [x] `scipy.fft.fft2`
@@ -89,13 +91,15 @@ Most of the `scipy.fft` module is supported as well, including:
 - [x] `scipy.fft.next_fast_len`
 
 ## Type conversion
-By default, Rocket-FFT follows SciPy's approach to type conversion. However, if you would like to use Numpy's approach instead, you can do so by calling the `numpy_like` function from the `rocket_fft` namespace:
+If SciPy is installed, Rocket-FFT follows SciPy's approach to type conversion, otherwise it follows NumPy's approach. You can change the type conversion by calling the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
 ```python
 from rocket_fft import numpy_like, scipy_like
 
 numpy_like()
+scipy_like()
 ```
-You can switch back to the SciPy approach by calling the `scipy_like` function. Keep in mind that these changes must be made before the internal functions of Rocket-FFT are compiled, as the type conversion rule is frozen upon the first compilation.
+Keep in mind that these changes must be made before the internal functions of Rocket-FFT are compiled, as the type conversion rule is frozen upon the first compilation.
+Both functions can be used regardless of whether SciPy is installed, since they do not rely on the package itself.
 
 ## Compilation time
 Rocket-FFT employs multiple strategies to achieve both flexibility in function signatures similar to `scipy.fft` and `numpy.fft`, while minimizing compilation times.
@@ -105,28 +109,28 @@ One of the key approaches is to generate and assemble specialized functions base
 Rocket-FFT uses a C interface to the PocketFFT C++ library. On Linux and MacOS, the C interface functions are accessed via the Python built-in `ctypes` module due to an unresolved issue with LLVM. This fallback solution results in all function not being cachable, which means that `numba.njit(cache=True)` does not work. On Windows the C interface is accessed differently and therefore all functions can be cached.
 
 ## Low-level interface
-If you don't need the convenience of the flexible signatures provided by SciPy and Numpy, you can use the low-level interface to the PocketFFT library instead. Using the low-level interface can significantly reduce compilation times and has slightly lower overhead. Additionally, it offers some additional functions that are not available through the SciPy and Numpy interfaces. It is an option to consider if you prioritize speed on small transforms and have a good understanding of how to use FFT. You can import the low-level interface functions from the `rocket_fft` namespace:
+If you don't need the convenience of the flexible signatures provided by SciPy and NumPy, you can use the low-level interface to the PocketFFT library instead. Using the low-level interface can significantly reduce compilation times and has slightly lower overhead. Additionally, it offers some additional functions that are not available through the SciPy and NumPy interfaces. It is an option to consider if you prioritize speed on small transforms and have a good understanding of how to use FFT. You can import the low-level interface functions from `rocket_fft`:
 ```python
 from rocket_fft import c2c, dct, ...
 ```
 The low-level interface provides the following functions:
 ```python
-from numpy import complex64, complex128, float32, float64, int64, ndarray
+from numpy import bool8, complex64, complex128, float32, float64, int64
 
 # Note that single and double precision can't be mixed
 complex_array = ndarray[complex64] | ndarray[complex128]
 real_array = ndarray[float32] | ndarray[float64]
 
-def c2c(ain: complex_array, aout: complex_array, axes: ndarray[int64], forward: bool, fct: float64, nthreads: int64) -> None: ...
-def r2c(ain: real_array, aout: complex_array, axes: ndarray[int64], forward: bool, fct: float64, nthreads: int64) -> None: ...
-def c2r(ain: complex_array, aout: real_array, axes: ndarray[int64], forward: bool, fct: float64, nthreads: int64) -> None: ...
+def c2c(ain: complex_array, aout: complex_array, axes: ndarray[int64], forward: bool8, fct: float64, nthreads: int64) -> None: ...
+def r2c(ain: real_array, aout: complex_array, axes: ndarray[int64], forward: bool8, fct: float64, nthreads: int64) -> None: ...
+def c2r(ain: complex_array, aout: real_array, axes: ndarray[int64], forward: bool8, fct: float64, nthreads: int64) -> None: ...
 # Like c2c but on real-valued input array and thus using symmetry
-def c2c_sym(ain: real_array, aout: complex_array, axes: ndarray[int64], forward: bool, fct: float64, nthreads: int64) -> None: ...
-def dst(ain: real_array, aout: real_array, axes: ndarray[int64], type: int64, fct: float64, ortho: bool, nthreads: int64) -> None: ...
-def dct(ain: real_array, aout: real_array, axes: ndarray[int64], type: int64, fct: float64, ortho: bool, nthreads: int64) -> None: ...
+def c2c_sym(ain: real_array, aout: complex_array, axes: ndarray[int64], forward: bool8, fct: float64, nthreads: int64) -> None: ...
+def dst(ain: real_array, aout: real_array, axes: ndarray[int64], type: int64, fct: float64, ortho: bool8, nthreads: int64) -> None: ...
+def dct(ain: real_array, aout: real_array, axes: ndarray[int64], type: int64, fct: float64, ortho: bool8, nthreads: int64) -> None: ...
 def separable_hartley(ain: real_array, aout: real_array, axes: ndarray[int64], fct: float64, nthreads: int64) -> None: ...
 def genuine_hartley(ain: real_array, aout: real_array, axes: ndarray[int64], fct: float64, nthreads: int64) -> None: ...
-def fftpack(ain: real_array, aout: real_array, axes: ndarray[int64], real2hermitian: bool, forward: bool, fct: float64, nthreads: int64) -> None: ...
-def good_size(target: int64, real: bool) -> int64: ...
+def fftpack(ain: real_array, aout: real_array, axes: ndarray[int64], real2hermitian: bool8, forward: bool8, fct: float64, nthreads: int64) -> None: ...
+def good_size(target: int64, real: bool8) -> int64: ...
 ```
-It's important to note that the low-level interface does not provide the same level of safety and convenience as SciPy and Numpy. There is no safety net, and it is up to the user to ensure proper usage. You may even need to refer to the original [PocketFFT](https://github.com/hayguen/pocketfft) C++ implementation to understand how to use the functions properly. 
+It's important to note that the low-level interface does not provide the same level of safety and convenience as SciPy and NumPy. There is no safety net, and it is up to the user to ensure proper usage. You may even need to refer to the original [PocketFFT](https://github.com/hayguen/pocketfft) C++ implementation to understand how to use the functions properly. 
