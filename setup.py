@@ -85,7 +85,7 @@ setup(
             "init = rocket_fft:_init_extension",
         ],
     },
-    install_requires=["numba==0.55.0"],
+    install_requires=["numba==0.56.0"],
     license="BSD",
     ext_modules=[
         CTypesExtension(
