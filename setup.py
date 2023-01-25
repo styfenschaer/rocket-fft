@@ -68,7 +68,6 @@ class BuildCommand(distutils.command.build.build):
 with open("README.md") as file:
     long_description = file.read()
 
-
 setup(
     name="rocket-fft",
     version=get_version("rocket_fft/__init__.py"),
@@ -80,6 +79,8 @@ setup(
     url="https://github.com/styfenschaer/rocket-fft",
     download_url="https://github.com/styfenschaer/rocket-fft",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={"rocket_fft": ["__init__.pyi"]},
     entry_points={
         "numba_extensions": [
             "init = rocket_fft:_init_extension",
@@ -105,7 +106,7 @@ setup(
     classifiers =[ 
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 3", 
-        "License :: OSI Approved :: MIT License", 
+        "License :: OSI Approved :: BSD License", 
         "Operating System :: OS Independent", 
         "Topic :: Scientific/Engineering",
     ], 
