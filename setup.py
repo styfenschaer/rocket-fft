@@ -15,6 +15,19 @@ if sys.version_info[:2] not in ((3, 8), (3, 9), (3, 10)):
     sys.exit(f"Unsupported Python version {ver}; supported are 3.8, 3.9 and 3.10")
 
 
+def read(rel_path):
+    this_path = Path(__file__).parent
+    with open(this_path / rel_path) as file:
+        return file.read()
+
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith("__version__"):
+            return line.split("=")[-1].strip()[1:-1]
+    raise RuntimeError("Unable to find version string.")
+
+
 def numpy_get_include():
     import numpy as np
     return np.get_include()
@@ -58,7 +71,7 @@ with open("README.md") as file:
 
 setup(
     name="rocket-fft",
-    version="0.0.2",
+    version=get_version("rocket_fft/__init__.py"),
     description="rocket-fft extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,
@@ -72,7 +85,7 @@ setup(
             "init = rocket_fft:_init_extension",
         ],
     },
-    install_requires=["scipy", "numba", "numpy"],
+    install_requires=["numba>=0.56.0"],
     license="BSD",
     ext_modules=[
         CTypesExtension(
@@ -89,4 +102,15 @@ setup(
         "build_ext": build_ext,
         "build": BuildCommand,
     },
+    classifiers =[ 
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3", 
+        "License :: OSI Approved :: MIT License", 
+        "Operating System :: OS Independent", 
+        "Topic :: Scientific/Engineering",
+    ], 
+    keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"], 
+    extras_require={
+        "dev" : ["scipy>=1.7.2", "pytest>=6.2.5"]
+    }
 )
