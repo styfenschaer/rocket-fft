@@ -3,6 +3,8 @@ from typing import Union
 from numpy import complex64, complex128, float32, float64, int64
 from numpy.typing import NDArray
 
+
+# Use Union for Python 3.8/3.9 support
 complex_array = Union[NDArray[complex64], NDArray[complex128]]
 real_array = Union[NDArray[float32], NDArray[float64]]
 
