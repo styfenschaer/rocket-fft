@@ -1,6 +1,5 @@
 """
-Run all tests separately, because test_numpy_like.py and 
-test_scipy_like.py cannot be run together with the other tests.
+test_numpy_like.py and test_scipy_like.py must be run seperately
 """
 
 import subprocess

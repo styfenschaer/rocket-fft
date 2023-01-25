@@ -85,7 +85,7 @@ setup(
             "init = rocket_fft:_init_extension",
         ],
     },
-    install_requires=["numba==0.56.0"],
+    install_requires=["numba>=0.56.0"],
     license="BSD",
     ext_modules=[
         CTypesExtension(
@@ -111,6 +111,6 @@ setup(
     ], 
     keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"], 
     extras_require={
-        "dev" : ["scipy>=1.7.2", "pytest"]
+        "dev" : ["scipy>=1.7.2", "pytest>=6.2.5"]
     }
 )

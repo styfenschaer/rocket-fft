@@ -91,7 +91,8 @@ If SciPy is installed, you get support for most of the `scipy.fft` module, inclu
 - [x] `scipy.fft.next_fast_len`
 
 ## Type conversion
-If SciPy is installed, Rocket-FFT follows SciPy's approach to type conversion, otherwise it follows NumPy's approach. You can change the type conversion by calling the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
+If SciPy is installed, Rocket-FFT follows SciPy's approach to type conversion, otherwise it follows NumPy's approach. 
+You can change the type conversion by calling the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
 ```python
 from rocket_fft import numpy_like, scipy_like
 
