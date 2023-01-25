@@ -1,5 +1,5 @@
 # rocket-fft
-Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. Rocket-FFT takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket 🚀.
+Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. Rocket-FFT takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 🚀
 
 Rocket-FFT has been tested against both the [SciPy](https://scipy.org/) and [Numpy](https://numpy.org/) test suites, plus some additional typing tests. Therefore, it is considered safe to use, but the author still welcomes bug reports to help improve the project. 
 
@@ -24,7 +24,7 @@ import numpy as np
 def jit_fft(x):
     return np.fft.fft(x)
 
-a = np.array([3, 1, 4, 1, 5, 9, 2, 6])
+a = np.array([2, 7, 1, 8, 2, 8, 1, 8])
 jit_fft(a)
 ```
 
@@ -105,7 +105,7 @@ One of the key approaches is to generate and assemble specialized functions base
 Rocket-FFT uses a C interface to the PocketFFT C++ library. On Linux and MacOS, the C interface functions are accessed via the Python built-in `ctypes` module due to an unresolved issue with LLVM. This fallback solution results in all function not being cachable, which means that `numba.njit(cache=True)` does not work. On Windows the C interface is accessed differently and therefore all functions can be cached.
 
 ## Low-level interface
-If you don't need the convenience of the flexible signatures provided by SciPy and Numpy, you can use the low-level interface to the PocketFFT library instead. Using the low-level interface can significantly reduce compilation times and has slightly lower overhead. Additionally, it offers some additional functions that are not available through the Scipy and Numpy interfaces. It is an option to consider if you prioritize speed on small transforms and have a good understanding of how to use FFT. You can import the low-level interface functions from the `rocket_fft` namespace:
+If you don't need the convenience of the flexible signatures provided by SciPy and Numpy, you can use the low-level interface to the PocketFFT library instead. Using the low-level interface can significantly reduce compilation times and has slightly lower overhead. Additionally, it offers some additional functions that are not available through the SciPy and Numpy interfaces. It is an option to consider if you prioritize speed on small transforms and have a good understanding of how to use FFT. You can import the low-level interface functions from the `rocket_fft` namespace:
 ```python
 from rocket_fft import c2c, dct, ...
 ```

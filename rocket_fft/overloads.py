@@ -22,7 +22,7 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 
 # Due to a problem with LLVM the pocketfft C-interface is 
 # wrapped with ctypes on Linux and MaxOS.
-if ("linux" in sys.platform) or ("darwin" in sys.platform):
+if "linux" in sys.platform:
     from . import pocketfft_ctypes as pocketfft
 else:
     from . import pocketfft_llvm as pocketfft

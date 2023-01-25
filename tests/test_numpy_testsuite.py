@@ -24,7 +24,7 @@ np.longcomplex = np.complex128
 np.longdouble = np.float64
 np.longfloat = np.float64
 
-if ("linux" in sys.platform) or ("darwin" in sys.platform):
+if "linux" in sys.platform:
     # All functions should run without the GIL but are not cacheable
     njit = partial(nb.njit, cache=False, nogil=True)
 else:

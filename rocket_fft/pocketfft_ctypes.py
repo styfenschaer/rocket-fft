@@ -1,5 +1,4 @@
 import ctypes
-from functools import partialmethod
 
 from numba import generated_jit
 
@@ -24,10 +23,10 @@ class Pocketfft:
         ]
         return func
 
-    c2c = partialmethod(_get_cmplx, "numba_c2c")
-    r2c = partialmethod(_get_cmplx, "numba_r2c")
-    c2r = partialmethod(_get_cmplx, "numba_c2r")
-    c2c_sym = partialmethod(_get_cmplx, "numba_c2c_sym")
+    c2c = property(lambda self: self._get_cmplx("numba_c2c"))
+    r2c = property(lambda self: self._get_cmplx("numba_r2c"))
+    c2r = property(lambda self: self._get_cmplx("numba_c2r"))
+    c2c_sym = property(lambda self: self._get_cmplx("numba_c2c_sym"))
 
     def _get_real(self, fname):
         func = getattr(self.dll, fname)
@@ -43,8 +42,8 @@ class Pocketfft:
         ]
         return func
 
-    dct = partialmethod(_get_real, "numba_dct")
-    dst = partialmethod(_get_real, "numba_dst")
+    dct = property(lambda self: self._get_real("numba_dct"))
+    dst = property(lambda self: self._get_real("numba_dst"))
 
     def _get_hartley(self, fname):
         func = getattr(self.dll, fname)
@@ -58,9 +57,10 @@ class Pocketfft:
         ]
         return func
 
-    separable_hartley = partialmethod(_get_hartley, "numba_separable_hartley")
-    genuine_hartley = partialmethod(_get_hartley, "numba_genuine_hartley")
+    separable_hartley = property(lambda self: self._get_hartley("numba_separable_hartley"))
+    genuine_hartley = property(lambda self: self._get_hartley("numba_genuine_hartley"))
 
+    @property
     def fftpack(self):
         fftpack = self.dll.numba_fftpack
         fftpack.argtypes = [
@@ -75,6 +75,7 @@ class Pocketfft:
         ]
         return fftpack
 
+    @property
     def good_size(self):
         good_size = self.dll.numba_good_size
         good_size.argtypes = [
@@ -90,7 +91,7 @@ pocketfft = Pocketfft()
 
 _tmpl = """
 def _(ain, aout, axes, {0}):
-    func = pocketfft.{1}()
+    func = pocketfft.{1}
     ndim = ain.ndim 
 
     def impl(ain, aout, axes, {0}):
@@ -132,4 +133,4 @@ numba_genuine_hartley = hartley_builder("genuine_hartley")
 fftpack_builder = Builder("real2hermitian", "forward", "fct", "nthreads")
 numba_fftpack = fftpack_builder("fftpack")
 
-numba_good_size = pocketfft.good_size()
+numba_good_size = pocketfft.good_size

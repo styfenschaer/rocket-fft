@@ -58,7 +58,7 @@ with open("README.md") as file:
 
 setup(
     name="rocket-fft",
-    version="0.0.2",
+    version="0.0.3",
     description="rocket-fft extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,

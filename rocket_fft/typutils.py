@@ -87,8 +87,7 @@ class TypingChecker:
         return self
 
     def register(self, **kwargs):
-        for key, check in kwargs.items():
-            self.checks[key] = check
+        self.checks.update(kwargs)
         return self
 
     @staticmethod
