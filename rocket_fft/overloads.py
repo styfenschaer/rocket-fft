@@ -26,7 +26,7 @@ if ("linux" in sys.platform) or ("darwin" in sys.platform):
     from . import pocketfft_ctypes as pocketfft
 else:
     from . import pocketfft_llvm as pocketfft
-
+from . import pocketfft_llvm as pocketfft
 # Type casting/mapping rules lookup tables
 _scipy_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
