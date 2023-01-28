@@ -11,7 +11,7 @@ from pathlib import Path
 from setuptools import Extension, find_packages, setup
 
 if sys.version_info[:2] not in ((3, 8), (3, 9), (3, 10)):
-    ver = '.'.join(map(str, sys.version_info[:2]))
+    ver = ".".join(map(str, sys.version_info[:2]))
     sys.exit(f"Unsupported Python version {ver}; supported are 3.8, 3.9 and 3.10")
 
 
@@ -103,15 +103,23 @@ setup(
         "build_ext": build_ext,
         "build": BuildCommand,
     },
-    classifiers =[ 
+    classifiers=[
         "Development Status :: 3 - Alpha",
-        "Programming Language :: Python :: 3", 
-        "License :: OSI Approved :: BSD License", 
-        "Operating System :: OS Independent", 
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Education",
         "Topic :: Scientific/Engineering",
-    ], 
-    keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"], 
+        "Topic :: Software Development",
+    ],
+    keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"],
     extras_require={
-        "dev" : ["scipy>=1.7.2", "pytest>=6.2.5"]
+        "dev": ["scipy>=1.7.2", "pytest>=6.2.5"]
     }
 )

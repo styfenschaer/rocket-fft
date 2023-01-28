@@ -18,8 +18,7 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
                        is_literal_integer, is_nonelike, is_not_nonelike,
                        typing_check)
 
-# Unlike NumPy, SciPy is an optional runtime 
-# dependency of Numba, which we follow.
+# SciPy is an optional runtime, just like for Numba
 try:
     import scipy.fft
     from scipy.fft import get_workers

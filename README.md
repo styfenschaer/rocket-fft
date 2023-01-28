@@ -1,18 +1,26 @@
-# rocket-fft
+# Rocket-FFT
+[![PyPI version](https://img.shields.io/pypi/v/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
+[![License](https://img.shields.io/pypi/l/rocket-fft?color=%2376519B)](https://opensource.org/licenses/BSD-3-Clause)
+[![python](https://img.shields.io/pypi/pyversions/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
+[![status](https://img.shields.io/pypi/status/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
+[![downloads](https://img.shields.io/pypi/dm/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
+
+<img src="assets/fourier.gif" width="300" />
+
 Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. Rocket-FFT takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 🚀
 
-Rocket-FFT has been tested against both the [SciPy](https://scipy.org/) and [NumPy](https://numpy.org/) test suites, plus some additional typing tests. Therefore, it is considered safe to use, but the author still welcomes bug reports to help improve the project. 
+Rocket-FFT has been tested against both the [SciPy](https://scipy.org/) and [NumPy](https://numpy.org/) test suites, and more. Therefore, it is considered safe to use, but the author still welcomes bug reports to help improve the project. 
 
 ## Getting started
 The easiest way to get Rocket-FFT is to:
 ```
-pip install rocket-fft
+$ pip install rocket-fft
 ```
 Alternatively, you can build it from source:
 ```
-git clone https://github.com/styfenschaer/rocket-fft.git
-cd rocket-fft
-python setup.py install
+$ git clone https://github.com/styfenschaer/rocket-fft.git
+$ cd rocket-fft
+$ python setup.py install
 ``` 
 The latter requires a C++ compiler compatible with your Python installation.
 
