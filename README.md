@@ -5,7 +5,7 @@
 [![status](https://img.shields.io/pypi/status/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
 [![downloads](https://img.shields.io/pypi/dm/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
 
-<img src="https://github.com/styfenschaer/rocket-fft/tree/v0.1.0/assets/fourier.gif" width="300" />
+<img src="https://github.com/styfenschaer/rocket-fft/blob/v0.1.0/assets/fourier.gif" width="300" />
 
 Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. It takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 🚀
 
