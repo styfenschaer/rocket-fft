@@ -4,6 +4,7 @@ https://github.com/himbeles/ctypes-example
 """
 
 import distutils.command.build
+import re
 import sys
 from distutils.command.build_ext import build_ext as build_ext_orig
 from pathlib import Path
@@ -11,21 +12,18 @@ from pathlib import Path
 from setuptools import Extension, find_packages, setup
 
 if sys.version_info[:2] not in ((3, 8), (3, 9), (3, 10)):
-    ver = ".".join(map(str, sys.version_info[:2]))
-    sys.exit(f"Unsupported Python version {ver}; supported are 3.8, 3.9 and 3.10")
-
-
-def read(rel_path):
-    this_path = Path(__file__).parent
-    with open(this_path / rel_path) as file:
-        return file.read()
+    version = ".".join(map(str, sys.version_info[:2]))
+    msg = "Unsupported Python version {}; supported are 3.8, 3.9 and 3.10"
+    sys.exit(msg.format(version))
 
 
 def get_version(rel_path):
-    for line in read(rel_path).splitlines():
-        if line.startswith("__version__"):
-            return line.split("=")[-1].strip()[1:-1]
-    raise RuntimeError("Unable to find version string.")
+    this_path = Path(__file__).parent
+    with open(this_path / rel_path) as file:
+        matches = re.search(r'__version__ = "(.*?)"', file.read())
+
+    version = matches.group(1)
+    return version
 
 
 def numpy_get_include():
@@ -68,9 +66,10 @@ class BuildCommand(distutils.command.build.build):
 with open("README.md") as file:
     long_description = file.read()
 
+
 setup(
     name="rocket-fft",
-    version=get_version("rocket_fft/__init__.py"),
+    version=get_version("rocket_fft/_version.py"),
     description="rocket-fft extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,
@@ -79,8 +78,6 @@ setup(
     url="https://github.com/styfenschaer/rocket-fft",
     download_url="https://github.com/styfenschaer/rocket-fft",
     packages=find_packages(),
-    include_package_data=True,
-    package_data={"rocket_fft": ["__init__.pyi"]},
     entry_points={
         "numba_extensions": [
             "init = rocket_fft:_init_extension",
@@ -105,18 +102,16 @@ setup(
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "License :: OSI Approved :: BSD License",
         "Operating System :: OS Independent",
+        "Topic :: Scientific/Engineering",
+        "Topic :: Software Development",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
-        "Topic :: Scientific/Engineering",
-        "Topic :: Software Development",
     ],
     keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"],
     extras_require={

@@ -1,5 +1,4 @@
 import inspect
-import sys
 from functools import partial, wraps
 from os import cpu_count
 from types import MappingProxyType
@@ -12,13 +11,15 @@ from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
 
+from . import pocketfft
 from . import typutils as tu
 from .imputils import implements_jit, implements_overload, otherwise
 from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
                        is_literal_integer, is_nonelike, is_not_nonelike,
                        typing_check)
 
-# SciPy is an optional runtime, just like for Numba
+# Unlike NumPy, SciPy is an optional runtime 
+# dependency of Numba, which we follow.
 try:
     import scipy.fft
     from scipy.fft import get_workers
@@ -30,12 +31,6 @@ except ImportError:
     def get_workers():
         return 1
 
-# Due to a problem with LLVM the pocketfft C-interface is
-# wrapped with ctypes on Linux and MaxOS.
-if ("linux" in sys.platform) or ("darwin" in sys.platform):
-    from . import pocketfft_ctypes as pocketfft
-else:
-    from . import pocketfft_llvm as pocketfft
 
 # Type casting/mapping rules lookup tables
 _scipy_cmplx_lut = MappingProxyType({

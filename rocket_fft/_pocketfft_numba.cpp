@@ -218,7 +218,7 @@ numba_c2r(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+numba_r2r_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
               bool real2hermitian, bool forward, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
@@ -242,7 +242,7 @@ numba_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_
 }
 
 DLL_EXPORT void
-numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
+numba_r2r_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
                         arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
@@ -266,7 +266,7 @@ numba_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
 }
 
 DLL_EXPORT void
-numba_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
+numba_r2r_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
                       arystruct_t *axes, double fct, size_t nthreads = 1)
 {
     auto shape = copy_shape(ain, ndim);
