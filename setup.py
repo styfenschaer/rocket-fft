@@ -1,20 +1,17 @@
-"""
-Partially adopted from:
-https://github.com/himbeles/ctypes-example
-"""
-
-import distutils.command.build
+import platform
 import re
 import sys
-from distutils.command.build_ext import build_ext as build_ext_orig
+from distutils.ccompiler import new_compiler
+from distutils.command.build_ext import build_ext as build_ext_distutils
+from distutils.errors import CompileError
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
 
-if sys.version_info[:2] not in ((3, 8), (3, 9), (3, 10)):
-    version = ".".join(map(str, sys.version_info[:2]))
-    msg = "Unsupported Python version {}; supported are 3.8, 3.9 and 3.10"
-    sys.exit(msg.format(version))
+py_version = "{}.{}".format(*sys.version_info[:2])
+if py_version not in ("3.8", "3.9", "3.10"):
+    sys.exit("Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
 
 
 def get_version(rel_path):
@@ -36,41 +33,41 @@ def numba_get_include():
     return Path(nb.__file__).parent
 
 
-class CTypesExtension(Extension):
-    pass
+def pthread_available():
+    with NamedTemporaryFile(mode="w", suffix=".cpp", delete=False) as file:
+        file.write("#include <pthread.h>\nint main(){return 0;}")
+    try:
+        new_compiler().compile([file.name])
+        return True
+    except CompileError:
+        return False
 
 
-class build_ext(build_ext_orig):
-    def build_extension(self, ext):
-        self._ctypes = isinstance(ext, CTypesExtension)
-        return super().build_extension(ext)
-
+class build_ext(build_ext_distutils):
     def get_export_symbols(self, ext):
-        if self._ctypes:
-            return ext.export_symbols
-        return super().get_export_symbols(ext)
-
-    def get_ext_filename(self, ext_name):
-        if self._ctypes:
-            return ext_name + ".so"
-
-        return super().get_ext_filename(ext_name)
-
-
-class BuildCommand(distutils.command.build.build):
-    def initialize_options(self):
-        distutils.command.build.build.initialize_options(self)
-        self.build_base = "rocket_fft"
+        return ext.export_symbols
 
 
 with open("README.md") as file:
     long_description = file.read()
 
 
+define_macros = [
+    ("POCKETFFT_NO_SANITYCHECK", None),
+    ("POCKETFFT_CACHE_SIZE", "16"),
+]
+if pthread_available():
+    define_macros.append(("POCKETFFT_PTHREADS", None))
+
+if platform.system() == "Windows":
+    extra_compile_args = ["/Ox", "/Wall"]
+else:
+    extra_compile_args = ["-std=c++11", "-O3", "-Wall", "-march=native"]
+
 setup(
     name="rocket-fft",
     version=get_version("rocket_fft/_version.py"),
-    description="rocket-fft extends Numba by scipy.fft and numpy.fft",
+    description="Rocket-FFT extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,
     author="Styfen Schär",
@@ -78,6 +75,8 @@ setup(
     url="https://github.com/styfenschaer/rocket-fft",
     download_url="https://github.com/styfenschaer/rocket-fft",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={"rocket_fft": ["*.pyi"]},
     entry_points={
         "numba_extensions": [
             "init = rocket_fft:_init_extension",
@@ -86,10 +85,11 @@ setup(
     install_requires=["numba>=0.56.0"],
     license="BSD",
     ext_modules=[
-        CTypesExtension(
+        Extension(
             "rocket_fft/_pocketfft_numba",
             sources=["rocket_fft/_pocketfft_numba.cpp"],
-            extra_compile_args=["-std=c++11"],
+            define_macros=define_macros,
+            extra_compile_args=extra_compile_args,
         ),
     ],
     include_dirs=[
@@ -98,7 +98,6 @@ setup(
     ],
     cmdclass={
         "build_ext": build_ext,
-        "build": BuildCommand,
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
