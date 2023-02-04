@@ -12,58 +12,31 @@
 #define DLL_EXPORT extern "C"
 #endif
 
-using pocketfft::shape_t;
-using pocketfft::stride_t;
-
 #define SIZEOF_COMPLEX128 16
-#define SIZEOF_DOUBLE 8
-// Patch for Python 3.10 
-#define ssize_t Py_ssize_t 
+#define SIZEOF_FLOAT64 8
 
-static shape_t
-copy_shape(const arystruct_t *arystruct, ssize_t ndim)
-{
-    shape_t res(ndim);
-    for (auto i = 0; i < res.size(); i++)
-        res[i] = arystruct->shape_and_strides[i];
-    return res;
-}
+using pocketfft::axes_view_t;
+using pocketfft::shape_view_t;
+using pocketfft::stride_view_t;
+using pocketfft::detail::ndarr;
+using pocketfft::detail::rev_iter;
+using pocketfft::detail::util;
 
-static stride_t
-copy_strides(const arystruct_t *arystruct, ssize_t ndim)
+DLL_EXPORT uint64_t
+numba_good_size(uint64_t target, bool real)
 {
-    stride_t res(ndim);
-    for (auto i = 0; i < res.size(); i++)
-        res[i] = arystruct->shape_and_strides[ndim + i];
-    return res;
-}
-
-static shape_t
-copy_array(const arystruct_t *arystruct)
-{
-    auto data = reinterpret_cast<size_t *>(arystruct->data);
-    shape_t res(arystruct->nitems);
-    for (auto i = 0; i < res.size(); i++)
-        res[i] = data[i];
-    return res;
-}
-
-DLL_EXPORT size_t
-numba_good_size(size_t target, bool real)
-{
-    using pocketfft::detail::util;
     return real ? util::good_size_real(target)
                 : util::good_size_cmplx(target);
 }
 
 DLL_EXPORT void
-numba_c2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-          bool forward, double fct, size_t nthreads = 1)
+numba_c2c(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+          bool forward, double fct, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
     if (ain->itemsize == SIZEOF_COMPLEX128)
     {
         auto data_in = reinterpret_cast<std::complex<double> *>(ain->data);
@@ -81,14 +54,14 @@ numba_c2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_dct(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-          int64_t type, double fct, bool ortho, size_t nthreads = 1)
+numba_dct(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+          uint64_t type, double fct, bool ortho, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<double *>(aout->data);
@@ -105,14 +78,14 @@ numba_dct(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_dst(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-          int64_t type, double fct, bool ortho, size_t nthreads = 1)
+numba_dst(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+          uint64_t type, double fct, bool ortho, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<double *>(aout->data);
@@ -129,14 +102,14 @@ numba_dst(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_r2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-          bool forward, double fct, size_t nthreads = 1)
+numba_r2c(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+          bool forward, double fct, uint64_t nthreads = 1)
 {
-    auto shape_in = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape_in(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<std::complex<double> *>(aout->data);
@@ -153,15 +126,14 @@ numba_r2c(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_c2c_sym(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-              bool forward, double fct, size_t nthreads = 1)
+numba_c2c_sym(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+              bool forward, double fct, uint64_t nthreads = 1)
 {
-    using namespace pocketfft::detail;
-    auto shape_in = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape_in(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<std::complex<double> *>(aout->data);
@@ -194,13 +166,13 @@ numba_c2c_sym(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_
 }
 
 DLL_EXPORT void
-numba_c2r(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-          bool forward, double fct, size_t nthreads = 1)
+numba_c2r(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+          bool forward, double fct, uint64_t nthreads = 1)
 {
-    auto stride_in = copy_strides(ain, ndim);
-    auto shape_out = copy_shape(aout, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    shape_view_t shape_out(aout->shape_and_strides, ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
     if (ain->itemsize == SIZEOF_COMPLEX128)
     {
         auto data_in = reinterpret_cast<std::complex<double> *>(ain->data);
@@ -218,14 +190,14 @@ numba_c2r(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *a
 }
 
 DLL_EXPORT void
-numba_r2r_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
-              bool real2hermitian, bool forward, double fct, size_t nthreads = 1)
+numba_r2r_fftpack(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout, arystruct_t *axes,
+                  bool real2hermitian, bool forward, double fct, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<double *>(aout->data);
@@ -242,14 +214,14 @@ numba_r2r_fftpack(size_t ndim, const arystruct_t *ain, arystruct_t *aout, arystr
 }
 
 DLL_EXPORT void
-numba_r2r_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
-                        arystruct_t *axes, double fct, size_t nthreads = 1)
+numba_r2r_separable_hartley(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout,
+                            arystruct_t *axes, double fct, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<double *>(aout->data);
@@ -266,14 +238,14 @@ numba_r2r_separable_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *ao
 }
 
 DLL_EXPORT void
-numba_r2r_genuine_hartley(size_t ndim, const arystruct_t *ain, arystruct_t *aout,
-                      arystruct_t *axes, double fct, size_t nthreads = 1)
+numba_r2r_genuine_hartley(uint64_t ndim, const arystruct_t *ain, arystruct_t *aout,
+                          arystruct_t *axes, double fct, uint64_t nthreads = 1)
 {
-    auto shape = copy_shape(ain, ndim);
-    auto stride_in = copy_strides(ain, ndim);
-    auto stride_out = copy_strides(aout, ndim);
-    auto axes_ = copy_array(axes);
-    if (ain->itemsize == SIZEOF_DOUBLE)
+    shape_view_t shape(ain->shape_and_strides, ndim);
+    stride_view_t stride_in(&ain->shape_and_strides[ndim], ndim);
+    stride_view_t stride_out(&aout->shape_and_strides[ndim], ndim);
+    axes_view_t axes_(axes->data, axes->nitems);
+    if (ain->itemsize == SIZEOF_FLOAT64)
     {
         auto data_in = reinterpret_cast<double *>(ain->data);
         auto data_out = reinterpret_cast<double *>(aout->data);
