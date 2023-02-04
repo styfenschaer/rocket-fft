@@ -1,14 +1,13 @@
 from . import pocketfft
 from ._version import __version__
-from .overloads import numpy_like, scipy_like
+from .overloads import _scipy_installed_, numpy_like, scipy_like
 
-try:
-    import scipy
+if _scipy_installed_:
     scipy_like()
-except ImportError:
+else:
     numpy_like()
-        
-        
+
+
 c2c = pocketfft.numba_c2c
 r2c = pocketfft.numba_r2c
 c2r = pocketfft.numba_c2r
