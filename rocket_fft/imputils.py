@@ -51,12 +51,11 @@ class Overloader:
 
             kwd = inspect.getcallargs(self.header, *args)
             for check, impl in zip(self.checks, self.impls):
-                if not isinstance(check, tuple):
+                if callable(check):
                     if check(*args):
                         return impl
-                else:
-                    if all(fn(kwd[kw]) for kw, fn in check):
-                        return impl
+                elif all(fn(kwd[kw]) for kw, fn in check):
+                    return impl
 
             raise TypingError("No implementation found for function {} with "
                               "arguments {}.".format(self.header.__name__, args))
