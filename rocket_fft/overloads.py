@@ -18,8 +18,7 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
                        is_literal_integer, is_nonelike, is_not_nonelike,
                        typing_check)
 
-# Unlike NumPy, SciPy is an optional runtime 
-# dependency of Numba, which we follow.
+# Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
     from scipy.fft import get_workers
@@ -28,11 +27,12 @@ try:
 except ImportError:
     _scipy_installed_ = False
 
+    # TODO: Implement proper solution
     def get_workers():
         return 1
 
 
-# Type casting/mapping rules lookup tables
+# Lookup tables for type conversion
 _scipy_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
     types.complex128: types.complex128,
@@ -241,7 +241,7 @@ def _(x, s, axes):
     ax1 = wraparound_axis(x, ax1)
     ax2 = wraparound_axis(x, ax2)
     if ax1 == ax2:
-        ValueError("Both axes must be unique.")
+        raise ValueError("Both axes must be unique.")
     axes = np.array([ax1, ax2])
     return s, axes
 
@@ -287,23 +287,23 @@ def _(x, s, axes):
 
 
 @implements_jit
-def mul_axes(x, axes, delta=None):
+def mul_axes(shape, axes, delta=None):
     pass
 
 
 @mul_axes.impl(delta=is_nonelike)
-def _(x, axes, delta=None):
+def _(shape, axes, delta=None):
     n = 1.0
     for ax in axes:
-        n *= x.shape[ax]
+        n *= shape[ax]
     return n
 
 
 @mul_axes.impl(otherwise)
-def _(x, axes, delta=None):
+def _(shape, axes, delta=None):
     n = 1.0
     for ax in axes:
-        n *= 2.0 * (x.shape[ax] + delta)
+        n *= 2.0 * (shape[ax] + delta)
     return n
 
 
@@ -319,7 +319,7 @@ def _(x, axes, norm, forward, delta=None):
 
 @get_fct.impl(norm=is_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
-    return 1.0 / mul_axes(x, axes, delta)
+    return 1.0 / mul_axes(x.shape, axes, delta)
 
 
 @get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(True))
@@ -327,9 +327,9 @@ def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0
     elif norm == "ortho":
-        return 1.0 / np.sqrt(mul_axes(x, axes, delta))
+        return 1.0 / np.sqrt(mul_axes(x.shape, axes, delta))
     elif norm == "forward":
-        return 1.0 / mul_axes(x, axes, delta)
+        return 1.0 / mul_axes(x.shape, axes, delta)
     raise ValueError("Invalid norm value; should be"
                      " 'backward', 'ortho' or 'forward'.")
 
@@ -337,9 +337,9 @@ def _(x, axes, norm, forward, delta=None):
 @get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
-        return 1.0 / mul_axes(x, axes, delta)
+        return 1.0 / mul_axes(x.shape, axes, delta)
     elif norm == "ortho":
-        return 1.0 / np.sqrt(mul_axes(x, axes, delta))
+        return 1.0 / np.sqrt(mul_axes(x.shape, axes, delta))
     elif norm == "forward":
         return 1.0
     raise ValueError("Invalid norm value; should be"
@@ -416,7 +416,6 @@ def generated_alloc_output(s, istype, reqtype):
     # 2. array got casted (compile time check)
     # 3. the array has been zero-padded/truncated (compile time check)
     if (istype != reqtype) or not is_nonelike(s):
-
         @register_jitable
         def alloc_output(x, overwrite_x):
             return x
