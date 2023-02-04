@@ -9,7 +9,8 @@ import numba as nb
 import numpy as np
 import pytest
 from helpers import numba_cache_cleanup
-from numpy.testing import assert_
+from numba import TypingError
+from numpy.testing import assert_, assert_raises
 
 # Only test the functions that are not used in the SciPy or NumPy interface
 # c2c is needed for comparison
@@ -66,7 +67,6 @@ def _l2error(a, b):
     return np.sqrt(np.sum(np.abs(a-b)**2)/np.sum(np.abs(a)**2))
 
 
-
 @pytest.mark.parametrize("shp", shapes2D+shapes3D)
 def test_genuine_hartley(shp):
     a = np.random.rand(*shp) - 0.5
@@ -91,8 +91,7 @@ def test_hartley_identity(shp):
 
     v1 = jit_r2r_separable_hartley(
         jit_r2r_separable_hartley(a, aout, axes, fct, nthreads),
-        aout, axes, fct, nthreads,
-    ) / a.size
+        aout, axes, fct, nthreads) / a.size
     assert_(_l2error(a, v1) < 1e-15)
 
 
@@ -104,20 +103,15 @@ def test_genuine_hartley_identity(shp):
     fct = 1.0
     nthreads = 1
 
-    v1 = jit_r2r_genuine_hartley(
-        jit_r2r_genuine_hartley(a, aout, axes, fct, nthreads),
-        aout, axes, fct, nthreads
-    ) / a.size
+    v1 = jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
+        a, aout, axes, fct, nthreads), aout, axes, fct, nthreads) / a.size
     assert_(_l2error(a, v1) < 1e-15)
 
     v1 = a.copy()
     fct = 1 / np.float64(np.prod(shp)**0.5)
 
-    assert_(
-        jit_r2r_genuine_hartley(
-            jit_r2r_genuine_hartley(v1, v1, axes, fct, nthreads),
-            v1, axes, fct, nthreads
-        ) is v1)
+    assert_(jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
+        v1, v1, axes, fct, nthreads), v1, axes, fct, nthreads) is v1)
     assert_(_l2error(a, v1) < 1e-15)
 
 
@@ -134,15 +128,14 @@ def test_genuine_hartley_2D(shp, axes):
     for ax in axes:
         fct2 /= shp[ax]
 
-    aout = jit_r2r_genuine_hartley(
-        jit_r2r_genuine_hartley(a, aout, axes, fct, nthreads),
-        aout, axes, fct2, nthreads)
+    aout = jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
+        a, aout, axes, fct, nthreads), aout, axes, fct2, nthreads)
     assert_(_l2error(aout, a) < 1e-15)
 
 
 @pytest.mark.parametrize("len", (3, 4, 5, 6, 7, 8, 9, 10))
 @pytest.mark.parametrize("dtype", dtypes)
-def testfftpack_extra(len, dtype):
+def test_fftpack_extra(len, dtype):
     rng = np.random.default_rng(42)
 
     a1 = (rng.random(len) - 0.5).astype(dtype)
@@ -156,11 +149,11 @@ def testfftpack_extra(len, dtype):
     nthreads = 1
 
     if len != 3:
-        return 
-    
+        return
+
     eps = tol[dtype]
-    test = jit_r2r_fftpack(a1, out1, axes, True, False, fct, nthreads) 
-    ref = jit_c2c(a2, out2, axes, False, fct, nthreads) 
+    test = jit_r2r_fftpack(a1, out1, axes, True, False, fct, nthreads)
+    ref = jit_c2c(a2, out2, axes, False, fct, nthreads)
 
     out1 = np.empty_like(a1)
     out2 = np.empty_like(a2)
@@ -168,3 +161,31 @@ def testfftpack_extra(len, dtype):
     test = jit_r2r_fftpack(test, out1, axes, False, True, fct, nthreads)
     ref = jit_c2c(ref, out2, axes, True, fct, nthreads)
     _assert_close(ref, test, eps)
+
+
+@pytest.mark.parametrize("forward", (1, 1.0, np.int8(1), np.uint8(1)))
+@pytest.mark.parametrize("fct", (np.int64(1), np.int32(1)))
+@pytest.mark.parametrize("nthreads", (True, 1.0))
+def test_low_level_typing_raise(forward, fct, nthreads):
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array([0], dtype=np.uint64)
+    
+    with assert_raises(Exception):
+        jit_c2c(a, a, axes, forward, fct, nthreads)
+
+
+@pytest.mark.parametrize("axes_type", (np.int64(1), np.uint64(1),
+                                       np.int32(1), np.uint32(1),
+                                       np.int16(1), np.uint16(1),
+                                       np.int8(1), np.uint8(1),
+                                       np.float64(1), np.float32(1),))
+@pytest.mark.parametrize("forward", (np.bool8(False), np.bool8(1), True))
+@pytest.mark.parametrize("fct", (np.float32(1.0), np.float64(1.0)))
+@pytest.mark.parametrize("nthreads", (np.int64(1), np.uint64(1),
+                                      np.int32(1), np.uint32(1),
+                                      np.int16(1), np.uint16(1),
+                                      np.int8(1), np.uint8(1)))
+def test_low_level_typing_noraise(axes_type, forward, fct, nthreads):
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array([0], dtype=axes_type)
+    jit_c2c(a, a, axes, forward, fct, nthreads)
