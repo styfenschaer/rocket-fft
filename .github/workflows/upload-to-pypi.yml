@@ -2,7 +2,8 @@ name: Upload package to Pypi
 
 on:
   push:
-    branches: [main]
+    branches:    
+      - '**'     
 
 jobs:
   make_sdist:
