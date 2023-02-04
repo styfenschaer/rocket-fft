@@ -8,7 +8,7 @@ def c2c(
     aout: Union[NDArray[complex64], NDArray[complex128]],
     axes: NDArray[int64],
     forward: bool8,
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
@@ -19,7 +19,7 @@ def r2c(
     aout: Union[NDArray[complex64], NDArray[complex128]],
     axes: NDArray[int64],
     forward: bool8,
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
@@ -30,7 +30,7 @@ def c2r(
     aout: Union[NDArray[float32], NDArray[float64]],
     axes: NDArray[int64],
     forward: bool8,
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
@@ -41,7 +41,7 @@ def c2c_sym(
     aout: Union[NDArray[complex64], NDArray[complex128]],
     axes: NDArray[int64],
     forward: bool8,
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Similar to c2c, but takes a real-valued input array. 
@@ -55,7 +55,7 @@ def dst(
     aout: Union[NDArray[float32], NDArray[float64]],
     axes: NDArray[int64],
     type: int64,
-    fct: float64,
+    fct: Union[float32, float64],
     ortho: bool8,
     nthreads: int64
 ) -> None:
@@ -67,7 +67,7 @@ def dct(
     aout: Union[NDArray[float32], NDArray[float64]],
     axes: NDArray[int64],
     type: int64,
-    fct: float64,
+    fct: Union[float32, float64],
     ortho: bool8,
     nthreads: int64
 ) -> None:
@@ -78,7 +78,7 @@ def r2r_separable_hartley(
     ain: Union[NDArray[float32], NDArray[float64]],
     aout: Union[NDArray[float32], NDArray[float64]],
     axes: NDArray[int64],
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
@@ -88,7 +88,7 @@ def r2r_genuine_hartley(
     ain: Union[NDArray[float32], NDArray[float64]],
     aout: Union[NDArray[float32], NDArray[float64]],
     axes: NDArray[int64],
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
@@ -100,10 +100,15 @@ def r2r_fftpack(
     axes: NDArray[int64],
     real2hermitian: bool8,
     forward: bool8,
-    fct: float64,
+    fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
     """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+
+
+separable_hartley = r2r_separable_hartley
+genuine_hartley = r2r_genuine_hartley
+fftpack = r2r_fftpack
 
 
 def good_size(target: int64, real: bool8) -> int64:
@@ -112,12 +117,10 @@ def good_size(target: int64, real: bool8) -> int64:
 
 def scipy_like() -> None:
     """Use SciPy-like type conversion. 
-
     - Conversion to real type:\\
     float32 -> float32\\
     complex64 -> float32\\
     other -> float64  
-
     - Conversion to complex type:\\
     float32 -> complex64\\
     complex64 -> complex64\\
@@ -127,15 +130,8 @@ def scipy_like() -> None:
 
 def numpy_like() -> None:
     """Use NumPy-like type conversion. 
-
     - Conversion to real type:\\
     any -> float64  
-
     - Conversion to complex type:\\
     any -> complex128  
     """
-
-
-separable_hartley = r2r_separable_hartley
-genuine_hartley = r2r_genuine_hartley
-fftpack = r2r_fftpack
