@@ -1,6 +1,7 @@
 from . import pocketfft
 from ._version import __version__
-from .overloads import _scipy_installed_, numpy_like, scipy_like
+from .overloads import (_scipy_installed_, get_workers, numpy_like, scipy_like,
+                        set_workers)
 
 if _scipy_installed_:
     scipy_like()

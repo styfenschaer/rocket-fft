@@ -163,15 +163,52 @@ def test_fftpack_extra(len, dtype):
     _assert_close(ref, test, eps)
 
 
+@pytest.mark.parametrize("axes_shape", ((1, 1), (1, 1, -1), ()))
+def test_low_level_typing_raise1(axes_shape):
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array(0, dtype=np.uint64).reshape(axes_shape)
+
+    with assert_raises(Exception):
+        jit_c2c(a, a, axes, True, 1.0, 1)
+
+
 @pytest.mark.parametrize("forward", (1, 1.0, np.int8(1), np.uint8(1)))
-@pytest.mark.parametrize("fct", (np.int64(1), np.int32(1)))
-@pytest.mark.parametrize("nthreads", (True, 1.0))
-def test_low_level_typing_raise(forward, fct, nthreads):
+def test_low_level_typing_raise2(forward):
     a = np.random.rand(42).astype(np.complex128)
     axes = np.array([0], dtype=np.uint64)
-    
+
     with assert_raises(Exception):
-        jit_c2c(a, a, axes, forward, fct, nthreads)
+        jit_c2c(a, a, axes, forward, 1.0, 1)
+
+
+@pytest.mark.parametrize("fct", (np.int64(1), np.int32(1)))
+def test_low_level_typing_raise3(fct):
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array([0], dtype=np.uint64)
+
+    with assert_raises(Exception):
+        jit_c2c(a, a, axes, True, fct, 1)
+
+
+@pytest.mark.parametrize("nthreads", (True, 1.0))
+def test_low_level_typing_raise4(nthreads):
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array([0], dtype=np.uint64)
+
+    with assert_raises(Exception):
+        jit_c2c(a, a, axes, True, 1.0, nthreads)
+
+
+def test_low_level_typing_raise5():
+    a = np.random.rand(42).astype(np.complex128)
+    axes = np.array([0], dtype=np.uint64)
+
+    with assert_raises(Exception):
+        jit_c2c(a.reshape(1, 1), a, axes, True, 1.0, 1)
+    with assert_raises(Exception):
+        jit_c2c(a, a.reshape(1, 1), axes, True, 1.0, 1)
+    with assert_raises(Exception):
+        jit_c2c(a.reshape(1, 1, 1), a.reshape(1, 1), axes, True, 1.0, 1)
 
 
 @pytest.mark.parametrize("axes_type", (np.int64(1), np.uint64(1),

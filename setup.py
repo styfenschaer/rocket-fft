@@ -11,16 +11,13 @@ from setuptools import Extension, find_packages, setup
 
 py_version = "{}.{}".format(*sys.version_info[:2])
 if py_version not in ("3.8", "3.9", "3.10"):
-    sys.exit("Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
+    sys.exit(
+        "Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
 
 
 def get_version(rel_path):
-    this_path = Path(__file__).parent
-    with open(this_path / rel_path) as file:
-        matches = re.search(r'__version__ = "(.*?)"', file.read())
-
-    version = matches.group(1)
-    return version
+    with open(Path(__file__).parent / rel_path) as file:
+        return re.search(r'__version__ = "(.*?)"', file.read())[1]
 
 
 def numpy_get_include():
@@ -34,13 +31,14 @@ def numba_get_include():
 
 
 def pthread_available():
-    with NamedTemporaryFile(mode="w", suffix=".cpp", delete=False) as file:
-        file.write("#include <pthread.h>\nint main(){return 0;}")
-    try:
-        new_compiler().compile([file.name])
-        return True
-    except CompileError:
-        return False
+    with NamedTemporaryFile(mode="w", suffix=".cpp") as file:
+        src = "#include <pthread.h>\nint main(){ return 0; }"
+        file.write(src)
+        try:
+            new_compiler().compile([file.name])
+            return True
+        except CompileError:
+            return False
 
 
 class build_ext(build_ext_distutils):
@@ -62,7 +60,7 @@ if pthread_available():
 if platform.system() == "Windows":
     extra_compile_args = ["/Ox", "/Wall"]
 else:
-    extra_compile_args = ["-std=c++11", "-O3", "-Wall", "-march=native"]
+    extra_compile_args = ["-std=c++11", "-O3", "-Wall"]
 
 setup(
     name="rocket-fft",
