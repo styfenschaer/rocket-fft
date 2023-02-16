@@ -3,6 +3,7 @@ from typing import Union
 from numpy import bool8, complex64, complex128, float32, float64, int64
 from numpy.typing import NDArray
 
+
 def c2c(
     ain: Union[NDArray[complex64], NDArray[complex128]],
     aout: Union[NDArray[complex64], NDArray[complex128]],
@@ -135,3 +136,11 @@ def numpy_like() -> None:
     - Conversion to complex type:\\
     any -> complex128  
     """
+
+
+def get_workers() -> int:
+    """Returns the default number of workers used."""
+
+
+def set_workers(workers: int) -> None:
+    """Sets the default number of workers used."""
