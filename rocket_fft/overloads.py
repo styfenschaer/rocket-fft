@@ -21,15 +21,9 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
-    from scipy.fft import get_workers
-
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
-
-    # TODO: Implement proper solution
-    def get_workers():
-        return 1
 
 
 # Lookup tables for type conversion
@@ -347,14 +341,29 @@ def _(x, axes, norm, forward, delta=None):
 
 
 _cpu_count = cpu_count()
-_default_workers = None
+_default_workers = 1
+
+
+# Public API
+def get_workers():
+    return _default_workers
+
+
+# Public API
+def set_workers(workers):
+    if workers < 1:
+        raise ValueError("Number of workers cannot be negative")
+    if workers > _cpu_count:
+        raise ValueError("Number of workers exceeds "
+                         f"CPU count of {_cpu_count}")
+    
+    global _default_workers
+    _default_workers = workers
 
 
 @implements_jit(prefer_literal=True)
 def get_nthreads(workers):
-    if is_nonelike(workers):
-        global _default_workers
-        _default_workers = get_workers()
+    pass
 
 
 @get_nthreads.impl(workers=is_nonelike)
@@ -849,7 +858,7 @@ def _(x, axes=None):
 
 @fftshift.impl(otherwise)
 def _(x, axes=None):
-    shift = x.shape[: len(axes)]
+    shift = x.shape[:len(axes)]
     for i, ax in enumerate(axes):
         shift = tuple_setitem(shift, i, x.shape[ax] // 2)
     return np.roll(x, shift, axes)
@@ -878,7 +887,7 @@ def _(x, axes=None):
 
 @ifftshift.impl(otherwise)
 def _(x, axes=None):
-    shift = x.shape[: len(axes)]
+    shift = x.shape[:len(axes)]
     for i, ax in enumerate(axes):
         shift = tuple_setitem(shift, i, -(x.shape[ax] // 2))
     return np.roll(x, shift, axes)
