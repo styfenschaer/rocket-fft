@@ -227,7 +227,7 @@ def test_low_level_typing_noraise(axes_type, forward, fct, nthreads):
     jit_c2c(a, a, axes, forward, fct, nthreads)
 
 
-@nb.jit
+@nb.njit
 def jit_good_size(n, real):
     return good_size(n, real)
 
