@@ -13,7 +13,7 @@ from numpy.testing import assert_, assert_raises
 
 # Only test the functions that are not used in the SciPy or NumPy interface
 # c2c is needed for comparison
-from rocket_fft import (c2c, r2r_fftpack, r2r_genuine_hartley,
+from rocket_fft import (c2c, good_size, r2r_fftpack, r2r_genuine_hartley,
                         r2r_separable_hartley)
 
 # All functions should be cacheable and run without the GIL
@@ -225,3 +225,29 @@ def test_low_level_typing_noraise(axes_type, forward, fct, nthreads):
     a = np.random.rand(42).astype(np.complex128)
     axes = np.array([0], dtype=axes_type)
     jit_c2c(a, a, axes, forward, fct, nthreads)
+
+
+@nb.jit
+def jit_good_size(n, real):
+    return good_size(n, real)
+
+
+@pytest.mark.parametrize("real", (1.0, 1j))
+@pytest.mark.parametrize("n", (1.0, 1j))
+def test_good_size_raise(n, real):
+    with assert_raises(Exception):
+        jit_good_size(n, real)
+
+
+@pytest.mark.parametrize("real", (True,
+                                  np.int8(42), np.uint8(42),
+                                  np.int16(42), np.uint16(42),
+                                  np.int32(42), np.uint32(42),
+                                  np.int64(42), np.uint64(42)))
+@pytest.mark.parametrize("n", (True,
+                               np.int8(42), np.uint8(42),
+                               np.int16(42), np.uint16(42),
+                               np.int32(42), np.uint32(42),
+                               np.int64(42), np.uint64(42)))
+def test_good_size_noraise(n, real):
+    jit_good_size(n, real)
