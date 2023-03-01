@@ -230,8 +230,16 @@ numba_r2r_fftpack = fftpack_builder("r2r_fftpack")
 
 @intrinsic
 def numba_good_size(typingctx, n, real):
+    if not isinstance(n, (types.Integer, types.Boolean)):
+        raise TypingError("The first argument 'n' must be an integer")
+    if not isinstance(real, (types.Integer, types.Boolean)):
+        raise TypingError("The second argument 'real' must be a boolean")
+    
     def codegen(context, builder, sig, args):
-        ret = ll_pocketfft.good_size(builder, args)
+        n, real = args 
+        n = builder.zext(n, ll_uint64)
+        real = builder.trunc(real, ll_bool)
+        ret = ll_pocketfft.good_size(builder, (n, real))
         return ret
 
     sig = uint64(n, real)

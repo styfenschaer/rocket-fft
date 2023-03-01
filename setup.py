@@ -32,8 +32,12 @@ def numba_get_include():
 
 def pthread_available():
     with NamedTemporaryFile(mode="w", suffix=".cpp") as file:
+<<<<<<< HEAD
         src = "#include <pthread.h>\nint main(){ return 0; }"
         file.write(src)
+=======
+        file.write("#include <pthread.h>\nint main(){return 0;}")
+>>>>>>> main
         try:
             new_compiler().compile([file.name])
             return True
