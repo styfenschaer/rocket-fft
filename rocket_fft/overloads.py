@@ -352,17 +352,10 @@ def get_workers():
 # Public API
 def set_workers(workers):
     if workers < 1:
-<<<<<<< HEAD
-        raise ValueError("Number of workers cannot be negative")
-    if workers > _cpu_count:
-        raise ValueError("Number of workers exceeds "
-                         f"CPU count of {_cpu_count}")
-=======
         raise ValueError("Number of workers cannot be smaller than one.")
     if workers > _cpu_count:
         raise ValueError("Number of workers exceeds "
                          f"CPU count of {_cpu_count}.")
->>>>>>> main
     
     global _default_workers
     _default_workers = workers

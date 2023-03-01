@@ -194,7 +194,6 @@ def test_low_level_typing_raise4(nthreads):
     a = np.random.rand(42).astype(np.complex128)
     axes = np.array([0], dtype=np.uint64)
 
-<<<<<<< HEAD
     with assert_raises(Exception):
         jit_c2c(a, a, axes, True, 1.0, nthreads)
 
@@ -208,21 +207,6 @@ def test_low_level_typing_raise5():
     with assert_raises(Exception):
         jit_c2c(a, a.reshape(1, 1), axes, True, 1.0, 1)
     with assert_raises(Exception):
-=======
-    with assert_raises(Exception):
-        jit_c2c(a, a, axes, True, 1.0, nthreads)
-
-
-def test_low_level_typing_raise5():
-    a = np.random.rand(42).astype(np.complex128)
-    axes = np.array([0], dtype=np.uint64)
-
-    with assert_raises(Exception):
-        jit_c2c(a.reshape(1, 1), a, axes, True, 1.0, 1)
-    with assert_raises(Exception):
-        jit_c2c(a, a.reshape(1, 1), axes, True, 1.0, 1)
-    with assert_raises(Exception):
->>>>>>> main
         jit_c2c(a.reshape(1, 1, 1), a.reshape(1, 1), axes, True, 1.0, 1)
 
 
@@ -241,8 +225,6 @@ def test_low_level_typing_noraise(axes_type, forward, fct, nthreads):
     a = np.random.rand(42).astype(np.complex128)
     axes = np.array([0], dtype=axes_type)
     jit_c2c(a, a, axes, forward, fct, nthreads)
-<<<<<<< HEAD
-=======
 
 
 @nb.njit
@@ -269,4 +251,3 @@ def test_good_size_raise(n, real):
                                np.int64(42), np.uint64(42)))
 def test_good_size_noraise(n, real):
     jit_good_size(n, real)
->>>>>>> main
