@@ -43,6 +43,8 @@ def is_not_nonelike(arg):
 
 
 class Check:
+    __slots__ = ("ty", "as_one", "as_seq", "allow_none", "msg")
+    
     def __init__(self, ty, as_one=True, as_seq=False, allow_none=False, msg=None):
         self.ty = ty
         self.as_one = as_one
@@ -74,6 +76,8 @@ def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
 
 
 class TypingChecker:
+    __slots__ = ("checks")
+    
     def __init__(self, **checks):
         self.checks = checks
 

@@ -124,6 +124,8 @@ fft_typing = tu.TypingChecker(
 
 
 class FFTBuilder:
+    __slots__ = ("header", "typing_checker", "built")
+    
     register = {}
 
     def __init__(self, header, typing_checker=None):

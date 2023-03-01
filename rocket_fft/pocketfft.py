@@ -39,6 +39,8 @@ def load_pocketfft():
 
 
 class Pocketfft:
+    __slots__ = ("dll")
+    
     def __init__(self):
         self.dll = load_pocketfft()
 
@@ -145,6 +147,8 @@ def array_as_voidptr(context, builder, ary_t, ary):
 
 
 class LLTypeConverter:
+    __slots__ = ("builder", "int_type", "float_type")
+    
     def __init__(self, builder, int_type, float_type):
         self.builder = builder
         self.int_type = int_type
@@ -199,6 +203,8 @@ def _(typingctx, ain, aout, axes, {0}):
 
 
 class Builder:
+    __slots__ = ("extra_args")
+    
     def __init__(self, *extra_args):
         self.extra_args = ", ".join(extra_args)
 
