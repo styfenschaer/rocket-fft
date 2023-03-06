@@ -75,4 +75,5 @@ def main(n_iter):
         
 
 if __name__ == "__main__":
-    main(int(sys.argv[1]))
+    n_iter_default = 5
+    main(int(sys.argv[1]) if len(sys.argv) > 1 else n_iter_default)

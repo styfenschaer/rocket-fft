@@ -5,7 +5,7 @@
 [![status](https://img.shields.io/pypi/status/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
 [![downloads](https://img.shields.io/pypi/dm/rocket-fft?color=%2376519B)](https://pypi.org/project/rocket-fft/)
 
-![](https://raw.githubusercontent.com/styfenschaer/rocket-fft/release0.1.4/assets/fourier.gif)
+![](https://raw.githubusercontent.com/styfenschaer/rocket-fft/release0.1.5/assets/fourier.gif)
 
 Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. It takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 
 
@@ -59,7 +59,7 @@ The whole `numpy.fft` module is supported, which contains all the functions list
 \*Rocket-FFT follows SciPy's approach of not allowing duplicate axes
 
 ## Supported SciPy Functions
-If you have SciPy installed, you will have support for most of the `scipy.fft` module, including:
+If you have SciPy installed, you will also have support for the `scipy.fft` module, including:
 - [x] `scipy.fft.fft`
 - [x] `scipy.fft.ifft`
 - [x] `scipy.fft.fft2`
@@ -86,13 +86,13 @@ If you have SciPy installed, you will have support for most of the `scipy.fft` m
 - [x] `scipy.fft.idst`
 - [x] `scipy.fft.dstn`
 - [x] `scipy.fft.idstn`
-- [ ] `scipy.fft.fht`
-- [ ] `scipy.fft.ifht`
+- [x] `scipy.fft.fht`
+- [x] `scipy.fft.ifht`
 - [x] `scipy.fft.fftshift`
 - [x] `scipy.fft.ifftshift`
 - [x] `scipy.fft.fftfreq`
 - [x] `scipy.fft.ifftfreq`
-- [ ] `scipy.fft.fhtoffset`
+- [x] `scipy.fft.fhtoffset`
 - [x] `scipy.fft.next_fast_len`
 
 ## Type Conversion

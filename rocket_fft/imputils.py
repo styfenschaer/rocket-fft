@@ -10,6 +10,8 @@ def otherwise(*args):
 
 
 class Overloader:
+    __slots__ = ("header", "overl", "checks", "impls", "preprocs", "options")
+    
     def __init__(self, header=None, overl=None, **options):
         self.header = header
         self.overl = overl

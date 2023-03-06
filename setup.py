@@ -88,6 +88,10 @@ setup(
             define_macros=define_macros,
             extra_compile_args=extra_compile_args,
         ),
+        Extension(
+            "rocket_fft/_special_helpers",
+            sources=["rocket_fft/_special_helpers.c"],
+        ),
     ],
     include_dirs=[
         numpy_get_include(),
