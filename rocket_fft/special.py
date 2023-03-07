@@ -2,7 +2,7 @@ from functools import partial
 
 from llvmlite import binding, ir
 from numba import TypingError, generated_jit, types, vectorize
-from numba.core.cgutils import alloca_once_value, get_or_insert_function
+from numba.core.cgutils import get_or_insert_function
 from numba.extending import get_cython_function_address as _gcfa
 from numba.extending import intrinsic
 
@@ -20,9 +20,10 @@ ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
 
 
-def __pyx_fuse_0loggamma_wrapped(builder, real, imag, real_out, imag_out):
-    fnty = ir.FunctionType(ll_void, (ll_longlong, ll_double, ll_double,ll_double_ptr,ll_double_ptr))
-    fname = "__pyx_fuse_0loggamma_call_by_address2"
+def __pyx_fuse_0loggamma(builder, real, imag, real_out, imag_out):
+    arg_types = (ll_longlong, ll_double, ll_double, ll_double_ptr, ll_double_ptr)
+    fnty = ir.FunctionType(ll_void, arg_types)
+    fname = "__pyx_fuse_0loggamma_call_by_address"
     fn = get_or_insert_function(builder.module, fnty, fname)
     addr = get_special_function_address("__pyx_fuse_0loggamma")
     real = builder.fpext(real, ll_double)
@@ -38,19 +39,16 @@ def _intr_complex_loggamma(typingctx, z):
         raise TypingError("Argument 'z' must be a complex")
 
     def codegen(context, builder, sig, args):
-        [z] = args
-        real = builder.extract_value(z, 0)
-        imag = builder.extract_value(z, 1)
-        real_out_ptr = builder.alloca(ll_double)
-        imag_out_ptr = builder.alloca(ll_double)
-        __pyx_fuse_0loggamma_wrapped(builder, real, imag, real_out_ptr, imag_out_ptr)
+        real = builder.extract_value(args[0], 0)
+        imag = builder.extract_value(args[0], 1)
+        real_out = builder.alloca(ll_double)
+        imag_out = builder.alloca(ll_double)
+        __pyx_fuse_0loggamma(builder, real, imag, real_out, imag_out)
         zout = builder.alloca(ll_complex128)
         zout_real = builder.gep(zout, [ll_int32(0), ll_int32(0)])
         zout_imag = builder.gep(zout, [ll_int32(0), ll_int32(1)])
-        real_out = builder.load(real_out_ptr)
-        imag_out = builder.load(imag_out_ptr)
-        builder.store(real_out, zout_real)
-        builder.store(imag_out, zout_imag)
+        builder.store(builder.load(real_out), zout_real)
+        builder.store(builder.load(imag_out), zout_imag)
         return builder.load(zout)
 
     sig = types.complex128(z)
