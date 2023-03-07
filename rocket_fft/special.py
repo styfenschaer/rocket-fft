@@ -18,66 +18,6 @@ ll_longlong = ir.IntType(64)
 ll_double = ir.DoubleType()
 ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
-# ll_complex128_ptr = ll_complex128.as_pointer()
-
-
-# def __pyx_fuse_0loggamma_wrapped4(builder, zin, zout):
-#     fnty = ir.FunctionType(
-#         ll_void, 
-#         (
-#             ll_longlong, # addr
-#             ll_complex128, # real
-#             ll_complex128_ptr, # imag
-#            )
-#     )
-#     fname = "__pyx_fuse_0loggamma_call_by_address4"
-#     fn = get_or_insert_function(builder.module, fnty, fname)
-#     addr = get_special_function_address("__pyx_fuse_0loggamma")
-#     # real = builder.fpext(real, ll_double)
-#     # imag = builder.fpext(imag, ll_double)
-#     # zout = builder.bitcast(zout, ll_double_ptr)
-#     builder.call(fn, [ll_longlong(addr), zin, zout])
-
-
-# @intrinsic
-# def _intr_complex_loggamma4(typingctx, zin):
-#     if not isinstance(zin, types.Complex):
-#         raise TypingError("Argument 'z' must be a complex")
-
-#     def codegen(context, builder, sig, args):
-#         zout = builder.alloca(ll_complex128)
-#         __pyx_fuse_0loggamma_wrapped4(builder, args[0], zout)
-#         return builder.load(zout)
-
-#     sig = types.complex128(zin)
-#     return sig, codegen
-
-
-# def __pyx_fuse_0loggamma_wrapped3(builder, real, imag, zout):
-#     fnty = ir.FunctionType(ll_void, (ll_longlong, ll_double, ll_double, ll_double_ptr))
-#     fname = "__pyx_fuse_0loggamma_call_by_address3"
-#     fn = get_or_insert_function(builder.module, fnty, fname)
-#     addr = get_special_function_address("__pyx_fuse_0loggamma")
-#     real = builder.fpext(real, ll_double)
-#     imag = builder.fpext(imag, ll_double)
-#     zout = builder.bitcast(zout, ll_double_ptr)
-#     builder.call(fn, [ll_longlong(addr), real, imag, zout])
-
-
-# @intrinsic
-# def _intr_complex_loggamma3(typingctx, z):
-#     if not isinstance(z, types.Complex):
-#         raise TypingError("Argument 'z' must be a complex")
-
-#     def codegen(context, builder, sig, args):
-#         real = builder.extract_value(args[0], 0)
-#         imag = builder.extract_value(args[0], 1)
-#         zout = builder.alloca(ll_complex128)
-#         __pyx_fuse_0loggamma_wrapped3(builder, real, imag, zout)
-#         return builder.load(zout)
-
-#     sig = types.complex128(z)
-#     return sig, codegen
 
 
 def __pyx_fuse_0loggamma_wrapped(builder, real, imag, real_out, imag_out):
@@ -115,37 +55,6 @@ def _intr_complex_loggamma(typingctx, z):
 
     sig = types.complex128(z)
     return sig, codegen
-
-
-# def __pyx_fuse_0loggamma_wrapped(builder, real, imag):
-#     fnty = ir.FunctionType(ll_double_ptr, (ll_longlong, ll_double, ll_double))
-#     fname = "__pyx_fuse_0loggamma_call_by_address"
-#     fn = get_or_insert_function(builder.module, fnty, fname)
-#     addr = get_special_function_address("__pyx_fuse_0loggamma")
-#     real = builder.fpext(real, ll_double)
-#     imag = builder.fpext(imag, ll_double)
-#     return builder.call(fn, [ll_longlong(addr), real, imag])
-
-
-# def complex128_from_pointer(builder, ptr):
-#     ptr = builder.bitcast(ptr, ll_complex128_ptr)
-#     return builder.load(ptr)
-
-
-# @intrinsic
-# def _intr_complex_loggamma(typingctx, z):
-#     if not isinstance(z, types.Complex):
-#         raise TypingError("Argument 'z' must be a complex")
-
-#     def codegen(context, builder, sig, args):
-#         real = builder.extract_value(args[0], 0)
-#         imag = builder.extract_value(args[0], 1)
-#         ret_ptr = __pyx_fuse_0loggamma_wrapped(builder, real, imag)
-#         ret = complex128_from_pointer(builder, ret_ptr)
-#         return ret
-
-#     sig = types.complex128(z)
-#     return sig, codegen
 
 
 @intrinsic
