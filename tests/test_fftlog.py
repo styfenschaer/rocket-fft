@@ -129,16 +129,14 @@ def test_fht_identity(n, bias, offset, optimal):
 
 class Buffer:
     def __init__(self):
-        self.string = None
+        self.written = False
 
-    def write(self, msg):
-        if self.string is None:
-            self.string = ""
-        self.string += msg
+    def write(self, *args, **kwargs):
+        self.written = True
 
 
 def test_fht_special_cases():
-    # NOTE: We cannot't warn yet so we check if something is printed
+    # NOTE: We can't warn about singularity so we check if something is printed
 
     rng = np.random.RandomState(3491349965)
 
@@ -153,7 +151,7 @@ def test_fht_special_cases():
     buf = Buffer()
     with redirect_stdout(buf):
         fht(a, dln, mu, bias=bias)
-        assert buf.string is None, "fht warned about a well-defined transform"
+        assert not buf.written, "fht warned about a well-defined transform"
     # assert not record, "fht warned about a well-defined transform"
 
     # case 2: xp not in M, xm in M => well-defined transform
@@ -162,7 +160,7 @@ def test_fht_special_cases():
     buf = Buffer()
     with redirect_stdout(buf):
         fht(a, dln, mu, bias=bias)
-        assert buf.string is None, "fht warned about a well-defined transform"
+        assert not buf.written, "fht warned about a well-defined transform"
     # assert not record, "fht warned about a well-defined transform"
 
     # case 3: xp in M, xm not in M => singular transform
@@ -171,7 +169,7 @@ def test_fht_special_cases():
     buf = Buffer()
     with redirect_stdout(buf):
         fht(a, dln, mu, bias=bias)
-        assert buf.string is not None, "fht did not warn about a singular transform"
+        assert buf.written, "fht did not warn about a singular transform"
     # assert record, "fht did not warn about a singular transform"
 
     # case 4: xp not in M, xm in M => singular inverse transform
@@ -180,7 +178,7 @@ def test_fht_special_cases():
     buf = Buffer()
     with redirect_stdout(buf):
         ifht(a, dln, mu, bias=bias)
-        assert buf.string is not None, "ifht did not warn about a singular transform"
+        assert buf.written, "ifht did not warn about a singular transform"
     # assert record, "ifht did not warn about a singular transform"
 
 

@@ -11,7 +11,7 @@ from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
 
-from . import pocketfft
+from . import pocketfft, special
 from . import typutils as tu
 from .imputils import implements_jit, implements_overload, otherwise
 from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
@@ -21,7 +21,6 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
-    from . import special 
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
@@ -905,7 +904,6 @@ fftfreq_typing = tu.TypingChecker(
 )
 
 
-
 @overload(np.fft.fftfreq)
 def fftfreq(n, d=1.0):
     fftfreq_typing(n=n, d=d)
@@ -936,164 +934,166 @@ def rfftfreq(n, d=1.0):
     return impl
 
 
-if _scipy_installed_:
-    @overload(scipy.fft.next_fast_len)
-    def next_fast_len(target, real):
-        typing_check(types.Integer)(
-            target, "The 1st argument 'target' must be an integer.")
-        typing_check(types.Boolean)(
-            real, "The 2nd argument 'real' must be a boolean.")
+def next_fast_len(target, real):
+    typing_check(types.Integer)(
+        target, "The 1st argument 'target' must be an integer.")
+    typing_check(types.Boolean)(
+        real, "The 2nd argument 'real' must be a boolean.")
 
-        def impl(target, real):
-            if target < 0:
-                raise ValueError("Target cannot be negative.")
-            return pocketfft.numba_good_size(target, real)
+    def impl(target, real):
+        if target < 0:
+            raise ValueError("Target cannot be negative.")
+        return pocketfft.numba_good_size(target, real)
 
-        return impl
+    return impl
+
+# The following functions are adopted from SciPy:
+# https://github.com/scipy/scipy/blob/main/scipy/fft/_fftlog.py
     
-    # The following functions are adopted from SciPy:
-    # https://github.com/scipy/scipy/blob/main/scipy/fft/_fftlog.py
-        
-    fht_typing = tu.TypingChecker(
-        a=tu.Check(
-            types.Array,
-            msg="The {} argument 'a' must be an array."),
-        A=tu.Check(
-            types.Array,
-            msg="The {} argument 'A' must be an array."),
-        dln=tu.Check(
-            types.Number, 
-            msg="The {} argument 'dln' must be a scalar."),
-        mu=tu.Check(
-            types.Number, 
-            msg="The {} argument 'mu' must be a scalar."),
-        initial=tu.Check(
-            types.Number, 
-            msg="The {} argument 'initial' must be a scalar."),
-        bias=tu.Check(
-            types.Number, 
-            msg="The {} argument 'bias' must be a scalar."),
-        offset=tu.Check(
-            types.Number, 
-            msg="The {} argument 'offset' must be a scalar."),
+fht_typing = tu.TypingChecker(
+    a=tu.Check(
+        types.Array,
+        msg="The {} argument 'a' must be an array."),
+    A=tu.Check(
+        types.Array,
+        msg="The {} argument 'A' must be an array."),
+    dln=tu.Check(
+        types.Number, 
+        msg="The {} argument 'dln' must be a scalar."),
+    mu=tu.Check(
+        types.Number, 
+        msg="The {} argument 'mu' must be a scalar."),
+    initial=tu.Check(
+        types.Number, 
+        msg="The {} argument 'initial' must be a scalar."),
+    bias=tu.Check(
+        types.Number, 
+        msg="The {} argument 'bias' must be a scalar."),
+    offset=tu.Check(
+        types.Number, 
+        msg="The {} argument 'offset' must be a scalar."),
     )
 
 
-    @register_jitable
-    def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
-        lnkr = offset
-        q = bias
+@register_jitable
+def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
+    lnkr = offset
+    q = bias
+    xp = (mu+1+q)/2
+    xm = (mu+1-q)/2
+    y = np.linspace(0, np.pi*(n//2)/(n*dln), n//2+1)
+    u = np.empty(n//2+1, dtype=np.complex128)
+    v = np.empty(n//2+1, dtype=np.complex128)
+    u[:] = xm + y*1j
+    special.loggamma(u, v)
+    u.real[:] = xp
+    special.loggamma(u, u)
+    y *= 2*(np.log(2) - lnkr)
+    u = np.exp((u.real - v.real + np.log(2)*q) + (u.imag + v.imag + y)*1j)
+    u.imag[-1] = 0
+    if not np.isfinite(u[0]):
+        u[0] = 2**q * special.poch(xm, xp-xm)
+    return u
+
+
+def fhtoffset(dln, mu, initial=0.0, bias=0.0):
+    fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
+    
+    def impl(dln, mu, initial=0.0, bias=0.0):
+        dln = np.float64(dln)
+        mu = np.float64(mu)
+        lnkr = np.float64(initial)
+        q = np.float64(bias)
+        
         xp = (mu+1+q)/2
         xm = (mu+1-q)/2
-        y = np.linspace(0, np.pi*(n//2)/(n*dln), n//2+1)
-        u = np.empty(n//2+1, dtype=np.complex128)
-        v = np.empty(n//2+1, dtype=np.complex128)
-        u[:] = xm + y*1j
-        special.loggamma(u, v)
-        u.real[:] = xp
-        special.loggamma(u, u)
-        y *= 2*(np.log(2) - lnkr)
-        u = np.exp((u.real - v.real + np.log(2)*q) + (u.imag + v.imag + y)*1j)
-        u.imag[-1] = 0
-        if not np.isfinite(u[0]):
-            u[0] = 2**q * special.poch(xm, xp-xm)
-        return u
-    
-        
-    @overload(scipy.fft.fhtoffset)
-    def fhtoffset(dln, mu, initial=0.0, bias=0.0):
-        fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
-        
-        def impl(dln, mu, initial=0.0, bias=0.0):
-            dln = np.float64(dln)
-            mu = np.float64(mu)
-            lnkr = np.float64(initial)
-            q = np.float64(bias)
-            
-            xp = (mu+1+q)/2
-            xm = (mu+1-q)/2
-            y = np.pi/(2*dln)
-            zp = special.loggamma(xp + 1j*y)
-            zm = special.loggamma(xm + 1j*y)
-            arg = (np.log(2) - lnkr)/dln + (zp.imag + zm.imag)/np.pi
-            return lnkr + (arg - np.round(arg))*dln
+        y = np.pi/(2*dln)
+        zp = special.loggamma(xp + 1j*y)
+        zm = special.loggamma(xm + 1j*y)
+        arg = (np.log(2) - lnkr)/dln + (zp.imag + zm.imag)/np.pi
+        return lnkr + (arg - np.round(arg))*dln
 
-        return impl
+    return impl
     
     
-    @register_jitable
-    def _fhtq(a, u, inverse=False):
-        n = np.shape(a)[-1]
-        if np.isinf(u[0]) and not inverse:
-            # TODO: Is there a better solution for dealing with warnings?
-            print('WARNING: singular transform; consider changing the bias')
-            u = u.copy()
-            u[0] = 0
-        elif (u[0] == 0) and inverse:
-            print('WARNING: singular inverse transform; consider changing the bias')
-            u = u.copy()
-            u[0] = np.inf
-        A = np.fft.rfft(a)
-        if not inverse:
-            A *= u
-        else:
-            A /= u.conj()
-        A = np.fft.irfft(A, n)
-        A = A[..., ::-1]
+@register_jitable
+def _fhtq(a, u, inverse=False):
+    n = a.shape[-1]
+    if np.isinf(u[0]) and not inverse:
+        # TODO: Is there a better solution for dealing with warnings?
+        print('WARNING: singular transform; consider changing the bias')
+        u = u.copy()
+        u[0] = 0
+    elif (u[0] == 0) and inverse:
+        print('WARNING: singular inverse transform; consider changing the bias')
+        u = u.copy()
+        u[0] = np.inf
+    A = np.fft.rfft(a)
+    if not inverse:
+        A *= u
+    else:
+        A /= u.conj()
+    A = np.fft.irfft(A, n)
+    A = A[..., ::-1]
+    return A
+
+
+def fht(a, dln, mu, offset=0.0, bias=0.0):
+    fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
+    
+    if isinstance(a.dtype, types.Complex):
+        raise TypingError("The 1st argument 'a' must be a real array.")
+    
+    def impl(a, dln, mu, offset=0.0, bias=0.0):
+        a = np.asarray(a, dtype=np.float64)
+        dln = np.float64(dln)
+        mu = np.float64(mu)
+        offset = np.float64(offset)
+        bias = np.float64(bias)
+        
+        n = a.hape[-1]
+        if bias != 0:
+            j_c = (n-1)/2
+            j = np.arange(n)
+            a = a * np.exp(-bias*(j - j_c)*dln)
+        u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+        A = _fhtq(a, u)
+        if bias != 0:
+            A *= np.exp(-bias*((j - j_c)*dln + offset))
         return A
+
+    return impl
+
+
+def ifht(A, dln, mu, offset=0.0, bias=0.0):
+    fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
+
+    if isinstance(A.dtype, types.Complex):
+        raise TypingError("The 1st argument 'A' must be a real array.")
     
+    def impl(A, dln, mu, offset=0.0, bias=0.0):
+        A = np.asarray(A, dtype=np.float64)
+        dln = np.float64(dln)
+        mu = np.float64(mu)
+        offset = np.float64(offset)
+        bias = np.float64(bias)
+        
+        n = A.shape[-1]
+        if bias != 0:
+            j_c = (n-1)/2
+            j = np.arange(n)
+            A = A * np.exp(bias*((j - j_c)*dln + offset))
+        u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+        a = _fhtq(A, u, inverse=True)
+        if bias != 0:
+            a /= np.exp(-bias*(j - j_c)*dln)
+        return a
     
-    @overload(scipy.fft.fht)
-    def fht(a, dln, mu, offset=0.0, bias=0.0):
-        fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
-        
-        if isinstance(a.dtype, types.Complex):
-            raise TypingError("The 1st argument 'a' must be a real array.")
-        
-        def impl(a, dln, mu, offset=0.0, bias=0.0):
-            a = np.asarray(a, dtype=np.float64)
-            dln = np.float64(dln)
-            mu = np.float64(mu)
-            offset = np.float64(offset)
-            bias = np.float64(bias)
-            
-            n = np.shape(a)[-1]
-            if bias != 0:
-                j_c = (n-1)/2
-                j = np.arange(n)
-                a = a * np.exp(-bias*(j - j_c)*dln)
-            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
-            A = _fhtq(a, u)
-            if bias != 0:
-                A *= np.exp(-bias*((j - j_c)*dln + offset))
-            return A
-
-        return impl
+    return impl
 
 
-    @overload(scipy.fft.ifht)
-    def ifht(A, dln, mu, offset=0.0, bias=0.0):
-        fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
-
-        if isinstance(A.dtype, types.Complex):
-            raise TypingError("The 1st argument 'A' must be a real array.")
-        
-        def impl(A, dln, mu, offset=0.0, bias=0.0):
-            A = np.asarray(A, dtype=np.float64)
-            dln = np.float64(dln)
-            mu = np.float64(mu)
-            offset = np.float64(offset)
-            bias = np.float64(bias)
-            
-            n = np.shape(A)[-1]
-            if bias != 0:
-                j_c = (n-1)/2
-                j = np.arange(n)
-                A = A * np.exp(bias*((j - j_c)*dln + offset))
-            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
-            a = _fhtq(A, u, inverse=True)
-            if bias != 0:
-                a /= np.exp(-bias*(j - j_c)*dln)
-            return a
-        
-        return impl
+if _scipy_installed_:
+    overload(scipy.fft.next_fast_len)(next_fast_len)
+    overload(scipy.fft.fhtoffset)(fhtoffset)
+    overload(scipy.fft.fht)(fht)
+    overload(scipy.fft.ifht)(ifht)

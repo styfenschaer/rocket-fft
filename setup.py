@@ -9,11 +9,13 @@ from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
 
-py_version = "{}.{}".format(*sys.version_info[:2])
-if py_version not in ("3.8", "3.9", "3.10"):
-    sys.exit(
-        "Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
+py_versions_supported = ("3.8", "3.9", "3.10")
 
+
+py_version = "{}.{}".format(*sys.version_info[:2])
+if py_version not in py_versions_supported:
+    sys.exit("Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
+        
 
 def get_version(rel_path):
     with open(Path(__file__).parent / rel_path) as file:
@@ -60,6 +62,7 @@ if platform.system() == "Windows":
     extra_compile_args = ["/Ox", "/Wall"]
 else:
     extra_compile_args = ["-std=c++11", "-O3", "-Wall"]
+
 
 setup(
     name="rocket-fft",
