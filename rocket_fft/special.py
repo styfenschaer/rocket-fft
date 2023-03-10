@@ -22,17 +22,17 @@ def __pyx_fuse_0loggamma(builder, real, imag, real_out, imag_out):
     fname = "__pyx_fuse_0loggamma"
     addr = get_helpers_function_address(fname)
     binding.add_symbol(fname, addr)
-    
+
     arg_types = (ll_double, ll_double, ll_double_ptr, ll_double_ptr)
     fnty = ir.FunctionType(ll_void, arg_types)
     fn = get_or_insert_function(builder.module, fnty, fname)
-    
+
     real = builder.fpext(real, ll_double)
     imag = builder.fpext(imag, ll_double)
     real_out = builder.bitcast(real_out, ll_double_ptr)
     imag_out = builder.bitcast(imag_out, ll_double_ptr)
     builder.call(fn, [real, imag, real_out, imag_out])
-    
+
 
 @intrinsic
 def _complex_loggamma(typingctx, z):
@@ -65,10 +65,10 @@ def _real_loggamma(typingctx, z):
         fname = "__pyx_fuse_1loggamma"
         addr = get_special_function_address(fname)
         binding.add_symbol(fname, addr)
-        
+
         fnty = ir.FunctionType(ll_double, (ll_double,))
         fn = get_or_insert_function(builder.module, fnty, fname)
-        
+
         z = builder.fpext(args[0], ll_double)
         return builder.call(fn, [z])
 
@@ -96,10 +96,10 @@ def _poch(typingctx, z, m):
         fname = "poch"
         addr = get_special_function_address(fname)
         binding.add_symbol(fname, addr)
-        
+
         fnty = ir.FunctionType(ll_double, (ll_double, ll_double))
         fn = get_or_insert_function(builder.module, fnty, fname)
-        
+
         z = builder.fpext(args[0], ll_double)
         m = builder.fpext(args[1], ll_double)
         return builder.call(fn, [z, m])
@@ -107,12 +107,12 @@ def _poch(typingctx, z, m):
     sig = types.double(z, m)
     return sig, codegen
 
-    
+
 @vectorize
 def loggamma(z):
     return _loggamma(z)
 
-    
+
 @vectorize
 def poch(z, m):
     return _poch(z, m)

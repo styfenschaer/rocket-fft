@@ -1051,7 +1051,7 @@ def fht(a, dln, mu, offset=0.0, bias=0.0):
         offset = np.float64(offset)
         bias = np.float64(bias)
         
-        n = a.hape[-1]
+        n = a.shape[-1]
         if bias != 0:
             j_c = (n-1)/2
             j = np.arange(n)

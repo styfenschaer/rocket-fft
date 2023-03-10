@@ -2,7 +2,7 @@ cimport numpy
 cimport scipy.special.cython_special
 
 
-cdef api __pyx_fuse_0loggamma(double real, double imag, double *real_out, double *imag_out):
+cdef api void __pyx_fuse_0loggamma(double real, double imag, double *real_out, double *imag_out):
     cdef double complex zin, zout
 
     zin.real = real
