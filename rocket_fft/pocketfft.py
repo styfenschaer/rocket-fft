@@ -127,7 +127,7 @@ def array_as_voidptr(context, builder, ary_t, ary):
     return builder.bitcast(ptr, ll_voidptr)
 
 
-def cast_types(builder, args):
+def ll_cast(builder, args):
     args = list(args)
     for index, arg in enumerate(args):
         if isinstance(arg.type, ir.IntType) and (arg.type.width != 1):
@@ -167,7 +167,7 @@ def _(typingctx, ain, aout, axes, {0}):
         ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
 
         args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
-        Pocketfft.{1}(builder, cast_types(builder, args))
+        Pocketfft.{1}(builder, ll_cast(builder, args))
 
     sig = void(ain, aout, axes, {0})
     return sig, codegen

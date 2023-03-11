@@ -29,4 +29,5 @@ good_size = pocketfft.numba_good_size
 
 
 def _init_extension():
-    ...
+    from .special import delayed_vectorize
+    delayed_vectorize()

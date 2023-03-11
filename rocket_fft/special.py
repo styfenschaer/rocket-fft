@@ -1,14 +1,20 @@
-from functools import partial
+import ctypes
 
-from llvmlite import binding, ir
+from llvmlite import ir
 from numba import TypingError, generated_jit, types, vectorize
 from numba.core.cgutils import get_or_insert_function
-from numba.extending import get_cython_function_address as _gcfa
 from numba.extending import intrinsic
 
-get_special_function_address = partial(_gcfa, "scipy.special.cython_special")
-get_helpers_function_address = partial(_gcfa, "rocket_fft._special_helpers")
+from .extutils import get_extension_path, load_extension_library
 
+special_helpers_module = "_special_helpers"
+load_extension_library(special_helpers_module)
+
+lib_path = get_extension_path(special_helpers_module)
+dll = ctypes.PyDLL(lib_path)
+
+import_special_functions = dll.import_special_functions
+import_special_functions()
 
 ll_void = ir.VoidType()
 ll_int32 = ir.IntType(32)
@@ -18,11 +24,8 @@ ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
 
 
-def __pyx_fuse_0loggamma(builder, real, imag, real_out, imag_out):
-    fname = "__pyx_fuse_0loggamma"
-    addr = get_helpers_function_address(fname)
-    binding.add_symbol(fname, addr)
-
+def _call_cmplx_loggamma(builder, real, imag, real_out, imag_out):
+    fname = "numba_cmplx_loggamma"
     arg_types = (ll_double, ll_double, ll_double_ptr, ll_double_ptr)
     fnty = ir.FunctionType(ll_void, arg_types)
     fn = get_or_insert_function(builder.module, fnty, fname)
@@ -44,7 +47,7 @@ def _complex_loggamma(typingctx, z):
         imag = builder.extract_value(args[0], 1)
         real_out = builder.alloca(ll_double)
         imag_out = builder.alloca(ll_double)
-        __pyx_fuse_0loggamma(builder, real, imag, real_out, imag_out)
+        _call_cmplx_loggamma(builder, real, imag, real_out, imag_out)
         zout = builder.alloca(ll_complex128)
         zout_real = builder.gep(zout, [ll_int32(0), ll_int32(0)])
         zout_imag = builder.gep(zout, [ll_int32(0), ll_int32(1)])
@@ -62,10 +65,7 @@ def _real_loggamma(typingctx, z):
         raise TypingError("Argument 'z' must be a float")
 
     def codegen(context, builder, sig, args):
-        fname = "__pyx_fuse_1loggamma"
-        addr = get_special_function_address(fname)
-        binding.add_symbol(fname, addr)
-
+        fname = "numba_real_loggamma"
         fnty = ir.FunctionType(ll_double, (ll_double,))
         fn = get_or_insert_function(builder.module, fnty, fname)
 
@@ -93,10 +93,7 @@ def _poch(typingctx, z, m):
         raise TypingError("Second argument 'm' must be a float")
 
     def codegen(context, builder, sig, args):
-        fname = "poch"
-        addr = get_special_function_address(fname)
-        binding.add_symbol(fname, addr)
-
+        fname = "numba_poch"
         fnty = ir.FunctionType(ll_double, (ll_double, ll_double))
         fn = get_or_insert_function(builder.module, fnty, fname)
 
@@ -108,11 +105,30 @@ def _poch(typingctx, z, m):
     return sig, codegen
 
 
-@vectorize
+loggamma_sigs = [
+    "float64(float32)",
+    "float64(float64)",
+    "complex128(complex64)",
+    "complex128(complex128)",
+]
+
 def loggamma(z):
     return _loggamma(z)
 
 
-@vectorize
+poch_sigs = [
+    "float64(float32, float32)",
+    "float64(float64, float32)",
+    "float64(float32, float64)",
+    "float64(float64, float64)",
+]
+
 def poch(z, m):
     return _poch(z, m)
+
+
+def delayed_vectorize():
+    global loggamma, poch 
+    
+    loggamma = vectorize(loggamma_sigs)(loggamma)
+    poch = vectorize(poch_sigs)(poch)

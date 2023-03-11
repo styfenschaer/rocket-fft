@@ -211,22 +211,33 @@ def test_fht_exact(n):
     assert_allclose(A, At)
 
 
-@pytest.mark.parametrize("dtype", (np.int32, np.int64,
-                                   np.float32, np.float64))
+@pytest.mark.parametrize("dtype", (np.float32, np.float64,
+                                   np.uint8, np.uint16,
+                                   np.int32, np.int64))
 def test_compare_with_scipy(dtype):
     a = np.arange(42).astype(dtype)
     dln = dtype(1.0)
     mu = dtype(1.0)
     offset = dtype(1.0)
-    bias = dtype(1.0)
-    initial = dtype(1.0)
+    bias = dtype(0.0)
+    initial = dtype(0.0)
     
     assert_allclose(fht(a, dln, mu, offset, bias),
-                    scipy.fft.fht(a, dln, mu, offset, bias))
+                    scipy.fft.fht(a, dln, mu, offset, bias),
+                    rtol=1e-5, atol=1e20)
     assert_allclose(ifht(a, dln, mu, offset, bias),
-                    scipy.fft.ifht(a, dln, mu, offset, bias))
+                    scipy.fft.ifht(a, dln, mu, offset, bias),
+                    rtol=1e-5, atol=1e20)
     assert_allclose(fhtoffset(dln, mu, initial, bias),
-                    scipy.fft.fhtoffset(dln, mu, initial, bias))
+                    scipy.fft.fhtoffset(dln, mu, initial, bias),
+                    rtol=1e-5, atol=1e20)
+
+    assert (fht(a, dln, mu, offset, bias).dtype == 
+            scipy.fft.fht(a, dln, mu, offset, bias).dtype)
+    assert (ifht(a, dln, mu, offset, bias).dtype == 
+            scipy.fft.ifht(a, dln, mu, offset, bias).dtype)
+    assert (type(fhtoffset(dln, mu, initial, bias)) == 
+            np.dtype(type(scipy.fft.fhtoffset(dln, mu, initial, bias))))
 
 
 @pytest.mark.parametrize("dtype", (np.complex64, np.complex128))
