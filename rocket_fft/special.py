@@ -129,11 +129,9 @@ def poch(z, m):
     return _poch(z, m)
 
 
-def add_signatures(disable_compile):
+def add_signatures():
     for func, signatures in ((loggamma, loggamma_sigs), 
                              (poch, poch_sigs)):
         for sig in signatures:
             func.add(sig)
-            
-        if disable_compile:
-            func.disable_compile()
+

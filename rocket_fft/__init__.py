@@ -30,4 +30,4 @@ good_size = pocketfft.numba_good_size
 
 def _init_extension():
     from .special import add_signatures
-    add_signatures(disable_compile=True)
+    add_signatures()
