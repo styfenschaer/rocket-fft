@@ -8,20 +8,9 @@ import scipy.fft
 
 njit = nb.njit(cache=True, nogil=True)
 
-njit(lambda: None)()
-
-
-@njit
-def fft(a):
-    return scipy.fft.fft(a)
-    
-@njit
-def dct(a):
-    return scipy.fft.dct(a)
-    
-@njit
-def fht(a):
-    return scipy.fft.fht(a, 1.0, 1.0)
+fft = njit(lambda a: scipy.fft.fft(a))
+dct = njit(lambda a: scipy.fft.dct(a))
+fht = njit(lambda a: scipy.fft.fht(a, 1.0, 1.0))
     
 a = np.ones(42) * 1j
     
