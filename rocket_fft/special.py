@@ -112,6 +112,7 @@ loggamma_sigs = [
     "complex128(complex128)",
 ]
 
+@vectorize
 def loggamma(z):
     return _loggamma(z)
 
@@ -123,12 +124,16 @@ poch_sigs = [
     "float64(float64, float64)",
 ]
 
+@vectorize
 def poch(z, m):
     return _poch(z, m)
 
 
-def delayed_vectorize():
-    global loggamma, poch 
-    
-    loggamma = vectorize(loggamma_sigs)(loggamma)
-    poch = vectorize(poch_sigs)(poch)
+def add_signatures(disable_compile):
+    for func, signatures in ((loggamma, loggamma_sigs), 
+                             (poch, poch_sigs)):
+        for sig in signatures:
+            func.add(sig)
+            
+        if disable_compile:
+            func.disable_compile()

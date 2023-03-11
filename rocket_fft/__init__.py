@@ -29,5 +29,5 @@ good_size = pocketfft.numba_good_size
 
 
 def _init_extension():
-    from .special import delayed_vectorize
-    delayed_vectorize()
+    from .special import add_signatures
+    add_signatures(disable_compile=True)
