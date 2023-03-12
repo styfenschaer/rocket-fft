@@ -15,11 +15,11 @@ typedef struct
     double imag;
 } complex;
 
-typedef complex (*cmplx_loggamma_type)(complex);
+typedef complex (*complex_loggamma_type)(complex);
 typedef double (*real_loggamma_type)(double);
 typedef double (*poch_type)(double, double);
 
-void *cmplx_loggamma_ptr = NULL;
+void *complex_loggamma_ptr = NULL;
 void *real_loggamma_ptr = NULL;
 void *poch_ptr = NULL;
 
@@ -61,20 +61,20 @@ import_cython_function(const char *module_name, const char *function_name)
 }
 
 DLL_EXPORT void
-import_special_functions()
+init_special_functions()
 {
     std::lock_guard<std::mutex> lock(import_mutex);
     char *module_name = "scipy.special.cython_special";
-    cmplx_loggamma_ptr = import_cython_function(module_name, "__pyx_fuse_0loggamma");
+    complex_loggamma_ptr = import_cython_function(module_name, "__pyx_fuse_0loggamma");
     real_loggamma_ptr = import_cython_function(module_name, "__pyx_fuse_1loggamma");
     poch_ptr = import_cython_function(module_name, "poch");
 }
 
 DLL_EXPORT void
-numba_cmplx_loggamma(double real, double imag, double *real_out, double *imag_out)
+numba_complex_loggamma(double real, double imag, double *real_out, double *imag_out)
 {
     complex zin = {real, imag};
-    complex zout = ((cmplx_loggamma_type)cmplx_loggamma_ptr)(zin);
+    complex zout = ((complex_loggamma_type)complex_loggamma_ptr)(zin);
     real_out[0] = zout.real;
     imag_out[0] = zout.imag;
 }

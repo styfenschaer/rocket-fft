@@ -31,87 +31,32 @@ import numpy as np
 def jit_fft(x):
     return np.fft.fft(x)
 
-a = np.array([2, 7, 1, 8, 2, 8, 1, 8])
+a = np.array([1, 6, 1, 8, 0, 3, 3, 9])
 jit_fft(a)
 ```
 
-## Supported NumPy Functions
-The whole `numpy.fft` module is supported, which contains all the functions listed below:
-- [x] `numpy.fft.fft`
-- [x] `numpy.fft.ifft`
-- [x] `numpy.fft.fft2`*
-- [x] `numpy.fft.ifft2`*
-- [x] `numpy.fft.fftn`*
-- [x] `numpy.fft.ifftn`*
-- [x] `numpy.fft.rfft`
-- [x] `numpy.fft.irfft`
-- [x] `numpy.fft.rfft2`
-- [x] `numpy.fft.irfft2`
-- [x] `numpy.fft.rfftn`
-- [x] `numpy.fft.irfftn`
-- [x] `numpy.fft.hfft`
-- [x] `numpy.fft.ihfft`
-- [x] `numpy.fft.fftfreq`
-- [x] `numpy.fft.rfftfreq`
-- [x] `numpy.fft.fftshift`
-- [x] `numpy.fft.ifftshift`
+## Performance Tip
+Rocket-FFT makes extensive use of Numba's polymorphic dispatching to achieve both flexible function signatures similar to SciPy and NumPy, and low compilation times. Compilation takes only a few hundred milliseconds in most cases. Calls with default arguments follow a fast path and compile fastest.
 
-\*Rocket-FFT follows SciPy's approach of not allowing duplicate axes
+## NumPy-like and SciPy-like interfaces
+NumPy and SciPy show subtle differences in how they convert types<sup>1</sup> and handle the `axes` argument in some functions<sup>2</sup>. Rocket-FFT implements both ways and lets its users choose between them.
 
-## Supported SciPy Functions
-If you have SciPy installed, you will also have support for the `scipy.fft` module, including:
-- [x] `scipy.fft.fft`
-- [x] `scipy.fft.ifft`
-- [x] `scipy.fft.fft2`
-- [x] `scipy.fft.ifft2`
-- [x] `scipy.fft.fftn`
-- [x] `scipy.fft.ifftn`
-- [x] `scipy.fft.rfft`
-- [x] `scipy.fft.irfft`
-- [x] `scipy.fft.rfft2`
-- [x] `scipy.fft.irfft2`
-- [x] `scipy.fft.rfftn`
-- [x] `scipy.fft.irfftn`
-- [x] `scipy.fft.hfft`
-- [x] `scipy.fft.ihfft`
-- [x] `scipy.fft.hfft2`
-- [x] `scipy.fft.ihfft2`
-- [x] `scipy.fft.hfftn`
-- [x] `scipy.fft.ihfftn`
-- [x] `scipy.fft.dct`
-- [x] `scipy.fft.dct2`
-- [x] `scipy.fft.dctn`
-- [x] `scipy.fft.idctn`
-- [x] `scipy.fft.dst`
-- [x] `scipy.fft.idst`
-- [x] `scipy.fft.dstn`
-- [x] `scipy.fft.idstn`
-- [x] `scipy.fft.fht`
-- [x] `scipy.fft.ifht`
-- [x] `scipy.fft.fftshift`
-- [x] `scipy.fft.ifftshift`
-- [x] `scipy.fft.fftfreq`
-- [x] `scipy.fft.ifftfreq`
-- [x] `scipy.fft.fhtoffset`
-- [x] `scipy.fft.next_fast_len`
-
-## Type Conversion
-If SciPy is installed, Rocket-FFT follows SciPy's approach to type conversion, otherwise it follows NumPy's approach. 
-You can change the type conversion rule by calling the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
+You can set the interface by using the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
 ```python
 from rocket_fft import numpy_like, scipy_like
 
 numpy_like()
 ```
-Both functions can be used regardless of whether SciPy is installed.
-Note that this change is irreversible after the compilation of Rocket-FFT's internal functions.
+Both functions can be used regardless of whether SciPy is installed<sup>3</sup>. By default, Rocket-FFT uses the SciPy-like interface if SciPy is installed, and the NumPy-like interface otherwise. Note that the interface cannot be changed after the compilation of Rocket-FFT's internals.
 
-## Performance Tip
-Rocket-FFT achieves both, flexibility in function signatures similar to `scipy.fft` and `numpy.fft` and low compilation times.
-Compilation takes a few hundred milliseconds in most cases. Calls with default arguments are treated specially and compile fastest.
+<sup>1</sup>NumPy converts all types to either `float64` or `complex128` whereas SciPy takes a more fine-grained approach
+<br/>
+<sup>2</sup>NumPy allows duplicate axes in `fft2`, `ifft2`, `fftn` and `ifftn`, whereas SciPy doesn't
+<br/>
+<sup>3</sup>SciPy is an optional runtime dependency
 
 ## Low-Level Interface
-Rocket-FFT also provides a low-level interface to the PocketFFT library. Using the low-level interface can significantly reduce compile time, minimize overhead and give more flexibility to the user. It also provides some functions that are not available through the SciPy and NumPy interfaces. You can import the functions of the low-level interface from the `rocket_fft` namespace:
+Rocket-FFT also provides a low-level interface to the PocketFFT library. Using the low-level interface can significantly reduce compile time, minimize overhead and give more flexibility to the user. It also provides some functions that are not available through the SciPy-like and NumPy-like interfaces. You can import its functions from the `rocket_fft` namespace:
 ```python
 from rocket_fft import c2c, dct, ...
 ```
@@ -128,4 +73,5 @@ def r2r_genuine_hartley(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | NDAr
 def r2r_fftpack(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | NDArray[f8], axes: NDArray[i8], real2hermitian: b1, forward: b1, fct: f4 | f8, nthreads: i8) -> None: ...
 def good_size(target: i8, real: b1) -> i8: ...
 ```
-Note that the low-level interface does not provide the same level of safety and convenience as the SciPy and NumPy interfaces. There is no safety net, and it is up to the user to ensure proper usage. You may want to look at the original [PocketFFT](https://github.com/hayguen/pocketfft) C++ implementation before using it.
+Note that the low-level interface provides a lower level of safety and convenience compared to the SciPy-like and NumPy-like interfaces. 
+There is almost no safety net, and it is up to the user to ensure proper usage. You may want to consult the original [PocketFFT](https://github.com/hayguen/pocketfft) C++ implementation before using it.

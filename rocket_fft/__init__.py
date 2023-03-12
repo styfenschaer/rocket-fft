@@ -29,5 +29,6 @@ good_size = pocketfft.numba_good_size
 
 
 def _init_extension():
-    from .special import add_signatures
-    add_signatures()
+    if _scipy_installed_:
+        from .special import add_signatures
+        add_signatures()

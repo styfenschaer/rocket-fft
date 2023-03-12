@@ -5,16 +5,16 @@ from numba import TypingError, generated_jit, types, vectorize
 from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 
-from .extutils import get_extension_path, load_extension_library
+from .extutils import get_extension_path, load_extension_library_permanently
 
 special_helpers_module = "_special_helpers"
-load_extension_library(special_helpers_module)
+load_extension_library_permanently(special_helpers_module)
 
 lib_path = get_extension_path(special_helpers_module)
 dll = ctypes.PyDLL(lib_path)
 
-import_special_functions = dll.import_special_functions
-import_special_functions()
+init_special_functions = dll.init_special_functions
+init_special_functions()
 
 ll_void = ir.VoidType()
 ll_int32 = ir.IntType(32)
@@ -24,8 +24,8 @@ ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
 
 
-def _call_cmplx_loggamma(builder, real, imag, real_out, imag_out):
-    fname = "numba_cmplx_loggamma"
+def _call_complex_loggamma(builder, real, imag, real_out, imag_out):
+    fname = "numba_complex_loggamma"
     arg_types = (ll_double, ll_double, ll_double_ptr, ll_double_ptr)
     fnty = ir.FunctionType(ll_void, arg_types)
     fn = get_or_insert_function(builder.module, fnty, fname)
@@ -47,7 +47,7 @@ def _complex_loggamma(typingctx, z):
         imag = builder.extract_value(args[0], 1)
         real_out = builder.alloca(ll_double)
         imag_out = builder.alloca(ll_double)
-        _call_cmplx_loggamma(builder, real, imag, real_out, imag_out)
+        _call_complex_loggamma(builder, real, imag, real_out, imag_out)
         zout = builder.alloca(ll_complex128)
         zout_real = builder.gep(zout, [ll_int32(0), ll_int32(0)])
         zout_imag = builder.gep(zout, [ll_int32(0), ll_int32(1)])
@@ -105,33 +105,31 @@ def _poch(typingctx, z, m):
     return sig, codegen
 
 
-loggamma_sigs = [
+_loggamma_sigs = (
     "float64(float32)",
     "float64(float64)",
     "complex128(complex64)",
     "complex128(complex128)",
-]
+)
 
 @vectorize
 def loggamma(z):
     return _loggamma(z)
 
 
-poch_sigs = [
+_poch_sigs = (
     "float64(float32, float32)",
     "float64(float64, float32)",
     "float64(float32, float64)",
     "float64(float64, float64)",
-]
+)
 
 @vectorize
 def poch(z, m):
     return _poch(z, m)
 
 
-def add_signatures():
-    for func, signatures in ((loggamma, loggamma_sigs), 
-                             (poch, poch_sigs)):
-        for sig in signatures:
-            func.add(sig)
+def add_signatures(loggamma_sigs=None, poch_sigs=None):
+    list(map(loggamma.add, loggamma_sigs or _loggamma_sigs))
+    list(map(poch.add, poch_sigs or _poch_sigs))
 

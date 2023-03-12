@@ -4,6 +4,27 @@ import sys
 
 import numpy as np
 
+# src = """
+# from time import perf_counter
+# import numpy as np 
+# import numba as nb 
+# import scipy.fft
+# nb.njit(lambda: None)()
+
+# @nb.njit
+# def func(a):
+#     return scipy.fft.fft(a)
+    
+# a = np.ones(1, dtype=np.complex64)
+    
+# tic = perf_counter()
+# func(a)
+# toc = perf_counter() 
+# elapsed = toc - tic
+
+# print(elapsed)
+# """
+
 src = """
 from time import perf_counter
 import numpy as np 
@@ -13,9 +34,9 @@ nb.njit(lambda: None)()
 
 @nb.njit
 def func(a):
-    return scipy.fft.fft(a)
+    return scipy.fft.fht(a, 1.0, 1.0)
     
-a = np.ones(1, dtype=np.complex64)
+a = np.ones(1)
     
 tic = perf_counter()
 func(a)
@@ -24,7 +45,6 @@ elapsed = toc - tic
 
 print(elapsed)
 """
-
 
 # src = """
 # from time import perf_counter
@@ -75,5 +95,4 @@ def main(n_iter):
         
 
 if __name__ == "__main__":
-    n_iter_default = 5
-    main(int(sys.argv[1]) if len(sys.argv) > 1 else n_iter_default)
+    main(int(sys.argv[1]) if len(sys.argv) > 1 else 5)

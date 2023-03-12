@@ -127,9 +127,9 @@ def scipy_like() -> None:
     `complex64` -> `complex64`\\
     `Other` -> `complex128`  
     
-    Handle axes like SciPy does. 
-    Passing duplicate axes throws an error in:
-    - `fft2`, `fftn`, `ifft2`, `ifft`
+    Handle the `axes` argument in the same way as SciPy. 
+    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn` 
+    functions will result in an error.
     """
 
 
@@ -140,9 +140,9 @@ def numpy_like() -> None:
     - Conversion to complex type:\\
     `Any` -> `complex128`  
     
-    Handle axes like NumPy does. 
-    Passing duplicate axes is allowed in:
-    - `fft2`, `fftn`, `ifft2`, `ifft`
+    Handle the `axes` argument in the same way as NumPy. 
+    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn` 
+    functions is allowed
     """
 
 
@@ -151,4 +151,6 @@ def get_workers() -> int:
 
 
 def set_workers(workers: int) -> None:
-    """Sets the default number of workers used."""
+    """Sets the default number of workers used.
+    This change cannot be undone after compilation of Rocket-FFT's internals.
+    """

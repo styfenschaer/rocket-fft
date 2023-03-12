@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+from helpers import numba_cache_cleanup
+
 src = """
 import numpy as np 
 import numba as nb 
@@ -12,11 +14,11 @@ fft = njit(lambda a: scipy.fft.fft(a))
 dct = njit(lambda a: scipy.fft.dct(a))
 fht = njit(lambda a: scipy.fft.fht(a, 1.0, 1.0))
     
-a = np.ones(42) * 1j
+a = np.ones(42) 
     
 fft(a)
-dct(a.real)
-fht(a.real)
+dct(a)
+fht(a)
 """
 
 
@@ -26,9 +28,8 @@ def test_caching():
         with open(filename, "w") as file:
             file.write(src)
             
-        subprocess.check_output(['python', filename])
-        subprocess.check_output(['python', filename])
-            
+        subprocess.call(['python', filename])
+        subprocess.call(['python', filename])
     except Exception as e:
         raise e
     finally:

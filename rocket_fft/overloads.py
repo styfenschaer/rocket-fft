@@ -11,7 +11,7 @@ from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
 
-from . import pocketfft, special
+from . import pocketfft
 from . import typutils as tu
 from .imputils import implements_jit, implements_overload, otherwise
 from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
@@ -21,6 +21,7 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
+    from . import special
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
@@ -975,160 +976,162 @@ def next_fast_len(target, real):
 
     return impl
 
-# The following functions are adopted from SciPy:
-# https://github.com/scipy/scipy/blob/main/scipy/fft/_fftlog.py
-    
-fht_typing = tu.TypingChecker(
-    a=tu.Check(
-        types.Array,
-        msg="The {} argument '{}' must be an array."),
-    A=tu.Check(
-        types.Array,
-        msg="The {} argument '{}' must be an array."),
-    dln=tu.Check(
-        types.Number, 
-        msg="The {} argument '{}' must be a scalar."),
-    mu=tu.Check(
-        types.Number, 
-        msg="The {} argument '{}' must be a scalar."),
-    initial=tu.Check(
-        types.Number, 
-        msg="The {} argument '{}' must be a scalar."),
-    bias=tu.Check(
-        types.Number, 
-        msg="The {} argument '{}' must be a scalar."),
-    offset=tu.Check(
-        types.Number, 
-        msg="The {} argument '{}' must be a scalar."),
-    )
-
-
-@register_jitable
-def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
-    lnkr = offset
-    q = bias
-    xp = (mu+1+q)/2
-    xm = (mu+1-q)/2
-    y = np.linspace(0, np.pi*(n//2)/(n*dln), n//2+1)
-    u = np.empty(n//2+1, dtype=np.complex128)
-    v = np.empty(n//2+1, dtype=np.complex128)
-    u[:] = xm + y*1j
-    special.loggamma(u, v)
-    u.real[:] = xp
-    special.loggamma(u, u)
-    y *= 2*(np.log(2) - lnkr)
-    u = np.exp((u.real - v.real + np.log(2)*q) + (u.imag + v.imag + y)*1j)
-    u.imag[-1] = 0
-    if not np.isfinite(u[0]):
-        u[0] = 2**q * special.poch(xm, xp-xm)
-    return u
-
-
-def fhtoffset(dln, mu, initial=0.0, bias=0.0):
-    fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
-    
-    def impl(dln, mu, initial=0.0, bias=0.0):
-        lnkr = initial
-        q = bias
-        
-        xp = (mu+1+q)/2
-        xm = (mu+1-q)/2
-        y = np.pi/(2*dln)
-        zp = special.loggamma(xp + 1j*y)
-        zm = special.loggamma(xm + 1j*y)
-        arg = (np.log(2) - lnkr)/dln + (zp.imag + zm.imag)/np.pi
-        return lnkr + (arg - np.round(arg))*dln
-
-    return impl
-    
-    
-@register_jitable
-def _fhtq(a, u):
-    if np.isinf(u[0]):
-        # TODO: Is there a better solution for dealing with warnings?
-        print('WARNING: singular transform; consider changing the bias')
-        u = u.copy()
-        u[0] = 0
-    A = np.fft.rfft(a) 
-    A *= u
-    A = np.fft.irfft(A, a.shape[-1])
-    return A[..., ::-1]
-
-
-@register_jitable
-def _ifhtq(a, u):
-    if u[0] == 0:
-        # TODO: Is there a better solution for dealing with warnings?
-        print('WARNING: singular inverse transform; consider changing the bias')
-        u = u.copy()
-        u[0] = np.inf
-    A = np.fft.rfft(a) 
-    A /= u.conj()
-    A = np.fft.irfft(A, a.shape[-1])
-    return A[..., ::-1]
-
-
-def fht(a, dln, mu, offset=0.0, bias=0.0):
-    fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
-    
-    dtype = _scipy_real_lut.get(a.dtype)
-    if isinstance(dtype, types.Complex):
-        raise TypingError("The 1st argument 'a' must be a real array.")
-
-    def impl(a, dln, mu, offset=0.0, bias=0.0):
-        a = np.asarray(a, dtype=dtype)
-        dln = dtype(dln)
-        mu = dtype(mu)
-        offset = dtype(offset)
-        bias = dtype(bias)
-        
-        n = a.shape[-1]
-        if bias != 0:
-            j_c = (n-1)/2
-            j = np.arange(n)
-            a = a * np.exp(-bias*(j - j_c)*dln)
-            a = np.asarray(a, dtype=dtype)
-        u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
-        A = _fhtq(a, u)
-        if bias != 0:
-            A *= np.exp(-bias*((j - j_c)*dln + offset))
-        return A
-    
-    return impl
-
-
-def ifht(A, dln, mu, offset=0.0, bias=0.0):
-    fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
-
-    dtype = _scipy_real_lut.get(A.dtype)
-    if isinstance(dtype, types.Complex):
-        raise TypingError("The 1st argument 'A' must be a real array.")
-
-    def impl(A, dln, mu, offset=0.0, bias=0.0):
-        A = np.asarray(A, dtype=dtype)
-        dln = dtype(dln)
-        mu = dtype(mu)
-        offset = dtype(offset)
-        bias = dtype(bias)
-        
-        n = A.shape[-1]
-        if bias != 0:
-            j_c = (n-1)/2
-            j = np.arange(n)
-            A = A * np.exp(bias*((j - j_c)*dln + offset))
-            A = np.asarray(A, dtype=dtype)
-        u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
-        a = _ifhtq(A, u)
-        if bias != 0:
-            a /= np.exp(-bias*(j - j_c)*dln)
-        return a
-    
-    return impl
-
 
 if _scipy_installed_:
     overload(scipy.fft.next_fast_len)(next_fast_len)
-    overload(scipy.fft.fhtoffset)(fhtoffset)
-    overload(scipy.fft.fht)(fht)
-    overload(scipy.fft.ifht)(ifht)
+    
+# The following functions are adopted from SciPy:
+# https://github.com/scipy/scipy/blob/main/scipy/fft/_fftlog.py
+# These function cannot be used without SciPy as they require
+# scipy.special.cython_special to work.
+    
+if _scipy_installed_:
+    fht_typing = tu.TypingChecker(
+        a=tu.Check(
+            types.Array,
+            msg="The {} argument '{}' must be an array."),
+        A=tu.Check(
+            types.Array,
+            msg="The {} argument '{}' must be an array."),
+        dln=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        mu=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        initial=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        bias=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        offset=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        )
 
+
+    @register_jitable
+    def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
+        lnkr = offset
+        q = bias
+        xp = (mu+1+q)/2
+        xm = (mu+1-q)/2
+        y = np.linspace(0, np.pi*(n//2)/(n*dln), n//2+1)
+        u = np.empty(n//2+1, dtype=np.complex128)
+        v = np.empty(n//2+1, dtype=np.complex128)
+        u[:] = xm + y*1j
+        special.loggamma(u, v)
+        u.real[:] = xp
+        special.loggamma(u, u)
+        y *= 2*(np.log(2) - lnkr)
+        u = np.exp((u.real - v.real + np.log(2)*q) + (u.imag + v.imag + y)*1j)
+        u.imag[-1] = 0
+        if not np.isfinite(u[0]):
+            u[0] = 2**q * special.poch(xm, xp-xm)
+        return u
+
+
+    @overload(scipy.fft.fhtoffset)
+    def fhtoffset(dln, mu, initial=0.0, bias=0.0):
+        fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
+        
+        def impl(dln, mu, initial=0.0, bias=0.0):
+            lnkr = initial
+            q = bias
+            
+            xp = (mu+1+q)/2
+            xm = (mu+1-q)/2
+            y = np.pi/(2*dln)
+            zp = special.loggamma(xp + 1j*y)
+            zm = special.loggamma(xm + 1j*y)
+            arg = (np.log(2) - lnkr)/dln + (zp.imag + zm.imag)/np.pi
+            return lnkr + (arg - np.round(arg))*dln
+
+        return impl
+        
+        
+    @register_jitable
+    def _fhtq(a, u):
+        if np.isinf(u[0]):
+            # TODO: Is there a better solution for dealing with warnings?
+            print('WARNING: singular transform; consider changing the bias')
+            u = u.copy()
+            u[0] = 0
+        A = np.fft.rfft(a) 
+        A *= u
+        A = np.fft.irfft(A, a.shape[-1])
+        return A[..., ::-1]
+
+
+    @register_jitable
+    def _ifhtq(a, u):
+        if u[0] == 0:
+            # TODO: Is there a better solution for dealing with warnings?
+            print('WARNING: singular inverse transform; consider changing the bias')
+            u = u.copy()
+            u[0] = np.inf
+        A = np.fft.rfft(a) 
+        A /= u.conj()
+        A = np.fft.irfft(A, a.shape[-1])
+        return A[..., ::-1]
+
+
+    @overload(scipy.fft.fht)
+    def fht(a, dln, mu, offset=0.0, bias=0.0):
+        fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
+        
+        dtype = _scipy_real_lut.get(a.dtype)
+        if isinstance(dtype, types.Complex):
+            raise TypingError("The 1st argument 'a' must be a real array.")
+
+        def impl(a, dln, mu, offset=0.0, bias=0.0):
+            a = np.asarray(a, dtype=dtype)
+            dln = dtype(dln)
+            mu = dtype(mu)
+            offset = dtype(offset)
+            bias = dtype(bias)
+            
+            n = a.shape[-1]
+            if bias != 0:
+                j_c = (n-1)/2
+                j = np.arange(n)
+                a = a * np.exp(-bias*(j - j_c)*dln)
+                a = np.asarray(a, dtype=dtype)
+            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+            A = _fhtq(a, u)
+            if bias != 0:
+                A *= np.exp(-bias*((j - j_c)*dln + offset))
+            return A
+        
+        return impl
+
+
+    @overload(scipy.fft.ifht)
+    def ifht(A, dln, mu, offset=0.0, bias=0.0):
+        fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
+
+        dtype = _scipy_real_lut.get(A.dtype)
+        if isinstance(dtype, types.Complex):
+            raise TypingError("The 1st argument 'A' must be a real array.")
+
+        def impl(A, dln, mu, offset=0.0, bias=0.0):
+            A = np.asarray(A, dtype=dtype)
+            dln = dtype(dln)
+            mu = dtype(mu)
+            offset = dtype(offset)
+            bias = dtype(bias)
+            
+            n = A.shape[-1]
+            if bias != 0:
+                j_c = (n-1)/2
+                j = np.arange(n)
+                A = A * np.exp(bias*((j - j_c)*dln + offset))
+                A = np.asarray(A, dtype=dtype)
+            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+            a = _ifhtq(A, u)
+            if bias != 0:
+                a /= np.exp(-bias*(j - j_c)*dln)
+            return a
+        
+        return impl

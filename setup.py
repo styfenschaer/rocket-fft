@@ -14,7 +14,8 @@ py_versions_supported = ("3.8", "3.9", "3.10")
 
 py_version = "{}.{}".format(*sys.version_info[:2])
 if py_version not in py_versions_supported:
-    sys.exit("Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
+    sys.exit(f"Unsupported Python version {py_version};"
+             f" must be one of {py_versions_supported}")
 
 
 def get_version(rel_path):

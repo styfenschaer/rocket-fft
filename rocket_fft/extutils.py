@@ -13,7 +13,6 @@ def get_extension_path(lib_name):
     return lib_path
 
 
-def load_extension_library(lib_name):
+def load_extension_library_permanently(lib_name):
     lib_path = get_extension_path(lib_name)
     load_library_permanently(lib_path)
-    
