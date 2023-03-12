@@ -21,11 +21,28 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
+    from . import special
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
 
+# SciPy and NumPy differ in when they convert types and handle duplicate axes.
+# These functions mimic their behavior. They must be called before the compilation
+# of our internals, otherwise they have no effect. After compilation, the changes 
+# are ireversible. 
 
+# Public API
+def numpy_like():
+    _set_luts(_numpy_cmplx_lut, _numpy_real_lut)
+    _set_assert_unique_axes(_numpy_assert_unique_axes)
+ 
+ 
+ # Public API
+def scipy_like():
+    _set_luts(_scipy_cmplx_lut, _scipy_real_lut)
+    _set_assert_unique_axes(_scipy_assert_unique_axes)   
+    
+    
 # Lookup tables for type conversion
 _scipy_cmplx_lut = MappingProxyType({
     types.complex64: types.complex64,
@@ -65,10 +82,6 @@ def _set_luts(cmplx_lut, real_lut):
     _as_real_lut = real_lut.copy()
 
 
-scipy_like = partial(_set_luts, _scipy_cmplx_lut, _scipy_real_lut)
-numpy_like = partial(_set_luts, _numpy_cmplx_lut, _numpy_real_lut)
-
-
 def _as_supported_dtype(dtype, real):
     lut = _as_real_lut if real else _as_cmplx_lut
     if lut is None:
@@ -89,37 +102,37 @@ as_supported_real = partial(_as_supported_dtype, real=True)
 fft_typing = tu.TypingChecker(
     a=tu.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'a' must be an array."),
+        msg="The {} argument '{}' must be an array."),
     x=tu.Check(
         types.Array, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'x' must be an array."),
+        msg="The {} argument '{}' must be an array."),
     n=tu.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'n' must be an integer."),
+        msg="The {} argument '{}' must be an integer."),
     s=tu.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 's' must be a sequence of integers."),
+        msg="The {} argument '{}' must be a sequence of integers."),
     axis=tu.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axis' must be an integer."),
+        msg="The {} argument '{}' must be an integer."),
     axes=tu.Check(
         types.Integer, as_one=True, as_seq=True, allow_none=True,
-        msg="The {} argument 'axes' must be a sequence of integers."),
+        msg="The {} argument '{}' must be a sequence of integers."),
     norm=tu.Check(
         types.UnicodeType, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'norm' must be a string."),
+        msg="The {} argument '{}' must be a string."),
     type=tu.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'type' must be an integer."),
+        msg="The {} argument '{}' must be an integer."),
     overwrite_x=tu.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=False,
-        msg="The {} argument 'overwrite_x' must be a boolean."),
+        msg="The {} argument '{}' must be a boolean."),
     workers=tu.Check(
         types.Integer, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'workers' must be an integer."),
+        msg="The {} argument '{}' must be an integer."),
     orthogonalize=tu.Check(
         types.Boolean, as_one=True, as_seq=False, allow_none=True,
-        msg="The {} argument 'orthogonalize' must be a boolean."),
+        msg="The {} argument '{}' must be a boolean."),
 )
 
 
@@ -188,15 +201,30 @@ def wraparound_axes(x, axes):
         if ax < 0:
             axes[i] += x.ndim
 
+# NumPy allows passing duplicate axes for fft2, fftn, ifft2 and ifft
+# while SciPy doesn't
 
 @register_jitable(locals={"slots": types.UniTuple(types.byte, 32)})
-def assert_unique_axes(axes):
+def _scipy_assert_unique_axes(axes):
     slots = (0,) * 32  # maximum ndim of ndarray
     for ax in axes:
         if slots[ax] != 0:
             raise ValueError("All axes must be unique.")
         slots = tuple_setitem(slots, ax, 1)
 
+
+@register_jitable
+def _numpy_assert_unique_axes(axes):
+    pass
+
+
+assert_unique_axes = None
+
+
+def _set_assert_unique_axes(impl):
+    global assert_unique_axes
+    assert_unique_axes = impl
+    
 
 @register_jitable
 def assert_valid_shape(shape):
@@ -236,8 +264,7 @@ def _(x, s, axes):
     ax1, ax2 = axes
     ax1 = wraparound_axis(x, ax1)
     ax2 = wraparound_axis(x, ax2)
-    if ax1 == ax2:
-        raise ValueError("Both axes must be unique.")
+    assert_unique_axes((ax1, ax2))
     axes = np.array([ax1, ax2])
     return s, axes
 
@@ -491,22 +518,17 @@ class HeaderOnlyError(NotImplementedError):
 def _numpy_c1d(a, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Numpy complex 1D header cannot be called!")
 
-
 def _numpy_c2d(a, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Numpy complex 2D header cannot be called!")
-
 
 def _numpy_cnd(a, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Numpy complex ND header cannot be called!")
 
-
 def _scipy_c1d(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Scipy complex 1D header cannot be called!")
 
-
 def _scipy_c2d(x, s=None, axes=(-2, -1), norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Scipy complex 2D header cannot be called!")
-
 
 def _scipy_cnd(x, s=None, axes=None, norm=None, overwrite_x=False, workers=None):
     raise HeaderOnlyError("Scipy complex ND header cannot be called!")
@@ -731,7 +753,6 @@ def _scipy_r1d(x, type=2, n=None, axis=-1, norm=None,
                overwrite_x=False, workers=None, orthogonalize=None):
     raise HeaderOnlyError("Scipy real 1D header cannot be called!")
 
-
 def _scipy_rnd(x, type=2, s=None, axes=None, norm=None,
                overwrite_x=False, workers=None, orthogonalize=None):
     raise HeaderOnlyError("Scipy real ND header cannot be called!")
@@ -772,7 +793,11 @@ def _(a, shift, axis=None):
     r = np.empty(a.shape, dtype=a.dtype)
     if a.size == 0:
         return r
-
+    
+    if a.size == 1:
+        r[0] = a[0]
+        return r
+    
     sh = np.asarray(shift).sum() % a.size
     r_flat = r.ravel()
     a_flat = a.ravel()
@@ -830,16 +855,19 @@ def _(a, shift, axis=None):
     return r
 
 
-def _check_typing_fftshift(x, axes):
-    typing_check(types.Array)(x, "The 1st argument 'x' must be an array.")
-    typing_check(types.Integer, as_seq=True, allow_none=True)(
-        axes, ("The 2nd argument 'axes' must be a"
-               " sequence of integers or an integer."))
+fftshift_typing = tu.TypingChecker(
+    x=tu.Check(
+        types.Array,
+        msg="The {} argument '{}' must be an array."),
+    axes=tu.Check(
+        types.Integer, as_seq=True, allow_none=True,
+        msg="The {} argument '{}' must be a sequence of integers or an integer."),
+)
 
 
 @implements_overload(np.fft.fftshift)
 def fftshift(x, axes=None):
-    _check_typing_fftshift(x, axes)
+    fftshift_typing(x=x, axes=axes)
 
 
 @fftshift.impl(axes=is_nonelike)
@@ -868,7 +896,7 @@ def _(x, axes=None):
 
 @implements_overload(np.fft.ifftshift)
 def ifftshift(x, axes=None):
-    _check_typing_fftshift(x, axes)
+    fftshift_typing(x=x, axes=axes)
 
 
 @ifftshift.impl(axes=is_nonelike)
@@ -895,14 +923,19 @@ def _(x, axes=None):
     return np.roll(x, shift, axes)
 
 
-def _check_typing_fftfreq(n, d):
-    typing_check(types.Integer)(n, "The 1st argument 'n' must be an integer.")
-    typing_check(types.Number)(d, "The 2nd argument 'd' must be a scalar.")
+fftfreq_typing = tu.TypingChecker(
+    n=tu.Check(
+        types.Integer,
+        msg="The {} argument '{}' must be an integer."),
+    d=tu.Check(
+        types.Number,
+        msg="The {} argument '{}' must be a scalar."),
+)
 
 
 @overload(np.fft.fftfreq)
 def fftfreq(n, d=1.0):
-    _check_typing_fftfreq(n, d)
+    fftfreq_typing(n=n, d=d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)
@@ -919,7 +952,7 @@ def fftfreq(n, d=1.0):
 
 @overload(np.fft.rfftfreq)
 def rfftfreq(n, d=1.0):
-    _check_typing_fftfreq(n, d)
+    fftfreq_typing(n=n, d=d)
 
     def impl(n, d=1.0):
         val = 1.0 / (n * d)
@@ -930,17 +963,175 @@ def rfftfreq(n, d=1.0):
     return impl
 
 
+def next_fast_len(target, real):
+    typing_check(types.Integer)(
+        target, "The 1st argument 'target' must be an integer.")
+    typing_check(types.Boolean)(
+        real, "The 2nd argument 'real' must be a boolean.")
+
+    def impl(target, real):
+        if target < 0:
+            raise ValueError("Target cannot be negative.")
+        return pocketfft.numba_good_size(target, real)
+
+    return impl
+
+
 if _scipy_installed_:
-    @overload(scipy.fft.next_fast_len)
-    def next_fast_len(target, real):
-        typing_check(types.Integer)(
-            target, "The 1st argument 'target' must be an integer.")
-        typing_check(types.Boolean)(
-            real, "The 2nd argument 'real' must be a boolean.")
+    overload(scipy.fft.next_fast_len)(next_fast_len)
+    
+# The following functions are adopted from SciPy:
+# https://github.com/scipy/scipy/blob/main/scipy/fft/_fftlog.py
+# These function cannot be used without SciPy as they require
+# scipy.special.cython_special to work.
+    
+if _scipy_installed_:
+    fht_typing = tu.TypingChecker(
+        a=tu.Check(
+            types.Array,
+            msg="The {} argument '{}' must be an array."),
+        A=tu.Check(
+            types.Array,
+            msg="The {} argument '{}' must be an array."),
+        dln=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        mu=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        initial=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        bias=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        offset=tu.Check(
+            types.Number, 
+            msg="The {} argument '{}' must be a scalar."),
+        )
 
-        def impl(target, real):
-            if target < 0:
-                raise ValueError("Target cannot be negative.")
-            return pocketfft.numba_good_size(target, real)
 
+    @register_jitable
+    def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
+        lnkr = offset
+        q = bias
+        xp = (mu+1+q)/2
+        xm = (mu+1-q)/2
+        y = np.linspace(0, np.pi*(n//2)/(n*dln), n//2+1)
+        u = np.empty(n//2+1, dtype=np.complex128)
+        v = np.empty(n//2+1, dtype=np.complex128)
+        u[:] = xm + y*1j
+        special.loggamma(u, v)
+        u.real[:] = xp
+        special.loggamma(u, u)
+        y *= 2*(np.log(2) - lnkr)
+        u = np.exp((u.real - v.real + np.log(2)*q) + (u.imag + v.imag + y)*1j)
+        u.imag[-1] = 0
+        if not np.isfinite(u[0]):
+            u[0] = 2**q * special.poch(xm, xp-xm)
+        return u
+
+
+    @overload(scipy.fft.fhtoffset)
+    def fhtoffset(dln, mu, initial=0.0, bias=0.0):
+        fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
+        
+        def impl(dln, mu, initial=0.0, bias=0.0):
+            lnkr = initial
+            q = bias
+            
+            xp = (mu+1+q)/2
+            xm = (mu+1-q)/2
+            y = np.pi/(2*dln)
+            zp = special.loggamma(xp + 1j*y)
+            zm = special.loggamma(xm + 1j*y)
+            arg = (np.log(2) - lnkr)/dln + (zp.imag + zm.imag)/np.pi
+            return lnkr + (arg - np.round(arg))*dln
+
+        return impl
+        
+        
+    @register_jitable
+    def _fhtq(a, u):
+        if np.isinf(u[0]):
+            # TODO: Is there a better solution for dealing with warnings?
+            print('WARNING: singular transform; consider changing the bias')
+            u = u.copy()
+            u[0] = 0
+        A = np.fft.rfft(a) 
+        A *= u
+        A = np.fft.irfft(A, a.shape[-1])
+        return A[..., ::-1]
+
+
+    @register_jitable
+    def _ifhtq(a, u):
+        if u[0] == 0:
+            # TODO: Is there a better solution for dealing with warnings?
+            print('WARNING: singular inverse transform; consider changing the bias')
+            u = u.copy()
+            u[0] = np.inf
+        A = np.fft.rfft(a) 
+        A /= u.conj()
+        A = np.fft.irfft(A, a.shape[-1])
+        return A[..., ::-1]
+
+
+    @overload(scipy.fft.fht)
+    def fht(a, dln, mu, offset=0.0, bias=0.0):
+        fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
+        
+        dtype = _scipy_real_lut.get(a.dtype)
+        if isinstance(dtype, types.Complex):
+            raise TypingError("The 1st argument 'a' must be a real array.")
+
+        def impl(a, dln, mu, offset=0.0, bias=0.0):
+            a = np.asarray(a, dtype=dtype)
+            dln = dtype(dln)
+            mu = dtype(mu)
+            offset = dtype(offset)
+            bias = dtype(bias)
+            
+            n = a.shape[-1]
+            if bias != 0:
+                j_c = (n-1)/2
+                j = np.arange(n)
+                a = a * np.exp(-bias*(j - j_c)*dln)
+                a = np.asarray(a, dtype=dtype)
+            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+            A = _fhtq(a, u)
+            if bias != 0:
+                A *= np.exp(-bias*((j - j_c)*dln + offset))
+            return A
+        
+        return impl
+
+
+    @overload(scipy.fft.ifht)
+    def ifht(A, dln, mu, offset=0.0, bias=0.0):
+        fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
+
+        dtype = _scipy_real_lut.get(A.dtype)
+        if isinstance(dtype, types.Complex):
+            raise TypingError("The 1st argument 'A' must be a real array.")
+
+        def impl(A, dln, mu, offset=0.0, bias=0.0):
+            A = np.asarray(A, dtype=dtype)
+            dln = dtype(dln)
+            mu = dtype(mu)
+            offset = dtype(offset)
+            bias = dtype(bias)
+            
+            n = A.shape[-1]
+            if bias != 0:
+                j_c = (n-1)/2
+                j = np.arange(n)
+                A = A * np.exp(bias*((j - j_c)*dln + offset))
+                A = np.asarray(A, dtype=dtype)
+            u = fhtcoeff(n, dln, mu, offset=offset, bias=bias)
+            a = _ifhtq(A, u)
+            if bias != 0:
+                a /= np.exp(-bias*(j - j_c)*dln)
+            return a
+        
         return impl
