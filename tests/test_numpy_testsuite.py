@@ -6,7 +6,6 @@ https://github.com/numpy/numpy/blob/main/numpy/fft/tests/test_pocketfft.py
 Whenever I changed a test, I left a note.
 """
 
-import sys
 from functools import partial
 
 import numba as nb

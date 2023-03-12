@@ -3,7 +3,6 @@ import numpy as np
 import numpy.fft
 import pytest
 import scipy.fft
-from helpers import numba_cache_cleanup
 from numba import TypingError
 from pytest import raises as assert_raises
 
@@ -60,6 +59,21 @@ def fftshift(x, axes=None):
 @nb.njit
 def fftfreq(n, d=1.0):
     return np.fft.fftfreq(n, d)
+
+
+@nb.njit
+def fht(a, dln, mu, offset=0.0, bias=0.0):
+    return scipy.fft.fht(a, dln, mu, offset, bias)
+
+
+@nb.njit
+def ifht(A, dln, mu, offset=0.0, bias=0.0):
+    return scipy.fft.ifht(A, dln, mu, offset, bias)
+
+
+@nb.njit
+def fhtoffset(dln, mu, initial=0.0, bias=0.0):
+    return scipy.fft.fhtoffset(dln, mu, initial, bias)
 
 
 def mk_match(pos, name):
@@ -530,3 +544,98 @@ class TestND:
             func(self.x, 1, None, (0, 1, 2), None, True, 4, (False,))
         func(self.x, orthogonalize=None)
         func(self.x, 1, None, (0, 1, 2), None, True, 4, orthogonalize=True)
+
+
+class TestFht:
+    x = np.random.rand(7)
+    
+    def test_a(self):
+        with assert_raises(TypingError, match=mk_match(0, "a")):
+            fht(list(self.x), 1.0, 1.0)
+        with assert_raises(TypingError, match=mk_match(0, "a")):
+            fht(tuple(self.x), 1.0, 1.0)
+        with assert_raises(TypeError):
+            fht(A=self.x, dln=1.0, mu=1.0)
+        with assert_raises(TypingError):
+            fht(self.x.astype(np.complex128), 1.0, 1.0)
+        fht(self.x, 1.0, 1.0)
+        
+    def test_A(self):
+        with assert_raises(TypingError, match=mk_match(0, "A")):
+            ifht(list(self.x), 1.0, 1.0)
+        with assert_raises(TypingError, match=mk_match(0, "A")):
+            ifht(tuple(self.x), 1.0, 1.0)
+        with assert_raises(TypeError):
+            ifht(a=self.x, dln=1.0, mu=1.0)
+        with assert_raises(TypingError):
+            ifht(self.x.astype(np.complex128), 1.0, 1.0)
+        
+    def test_dln(self):
+        for func in (fht, ifht):
+            with assert_raises(TypingError, match=mk_match(1, "dln")):
+                func(self.x, [1.0], 1.0)
+            with assert_raises(TypingError, match=mk_match(1, "dln")):
+                func(self.x, "1.0", 1.0)
+            with assert_raises(TypingError, match=mk_match(1, "dln")):
+                func(self.x, True, 1.0)
+            
+    def test_mu(self):
+        for func in (fht, ifht):
+            with assert_raises(TypingError, match=mk_match(2, "mu")):
+                func(self.x, 1.0, [1.0])
+            with assert_raises(TypingError, match=mk_match(2, "mu")):
+                func(self.x, 1.0, "1.0")
+            with assert_raises(TypingError, match=mk_match(2, "mu")):
+                func(self.x, 1.0, True)
+                       
+    def test_offset(self):
+        for func in (fht, ifht):
+            with assert_raises(TypingError, match=mk_match(3, "offset")):
+                func(self.x, 1.0, 1.0, [1.0])
+            with assert_raises(TypingError, match=mk_match(3, "offset")):
+                func(self.x, 1.0, 1.0, "1.0")
+            with assert_raises(TypingError, match=mk_match(3, "offset")):
+                func(self.x, 1.0, 1.0, True)
+                      
+    def test_bias(self):
+        for func in (fht, ifht):
+            with assert_raises(TypingError, match=mk_match(4, "bias")):
+                func(self.x, 1.0, 1.0, 1.0, [1.0])
+            with assert_raises(TypingError, match=mk_match(4, "bias")):
+                func(self.x, 1.0, 1.0, 1.0, "1.0")
+            with assert_raises(TypingError, match=mk_match(4, "bias")):
+                func(self.x, 1.0, 1.0, 1.0, True)
+                
+                
+class TestFhtoffset:
+    def test_dln(self):
+        with assert_raises(TypingError, match=mk_match(0, "dln")):
+            fhtoffset([1.0], 1.0)
+        with assert_raises(TypingError, match=mk_match(0, "dln")):
+            fhtoffset("1.0", 1.0)
+        with assert_raises(TypingError, match=mk_match(0, "dln")):
+            fhtoffset(True, 1.0)
+                   
+    def test_mu(self):
+        with assert_raises(TypingError, match=mk_match(1, "mu")):
+            fhtoffset(1.0, [1.0])
+        with assert_raises(TypingError, match=mk_match(1, "mu")):
+            fhtoffset(1.0, "1.0")
+        with assert_raises(TypingError, match=mk_match(1, "mu")):
+            fhtoffset(1.0, True)
+                    
+    def test_initial(self):
+        with assert_raises(TypingError, match=mk_match(2, "initial")):
+            fhtoffset(1.0, 1.0, [1.0])
+        with assert_raises(TypingError, match=mk_match(2, "initial")):
+            fhtoffset(1.0, 1.0, "1.0")
+        with assert_raises(TypingError, match=mk_match(2, "initial")):
+            fhtoffset(1.0, 1.0, True)
+                   
+    def test_bias(self):
+        with assert_raises(TypingError, match=mk_match(3, "bias")):
+            fhtoffset(1.0, 1.0, 1.0, [1.0])
+        with assert_raises(TypingError, match=mk_match(3, "bias")):
+            fhtoffset(1.0, 1.0, 1.0, "1.0")
+        with assert_raises(TypingError, match=mk_match(3, "bias")):
+            fhtoffset(1.0, 1.0, 1.0, True)

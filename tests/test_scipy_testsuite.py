@@ -6,7 +6,6 @@ https://github.com/scipy/scipy/blob/main/scipy/fft/_pocketfft/tests/test_real_tr
 Whenever I changed a test, I left a note.
 """
 
-import sys
 from functools import partial
 from os.path import join
 from typing import Callable, Dict, Tuple, Type, Union
