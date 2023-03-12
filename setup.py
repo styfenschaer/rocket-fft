@@ -9,9 +9,13 @@ from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
 
+py_versions_supported = ("3.8", "3.9", "3.10")
+
+
 py_version = "{}.{}".format(*sys.version_info[:2])
-if py_version not in ("3.8", "3.9", "3.10"):
-    sys.exit("Unsupported Python version {py_version}; must be 3.8, 3.9 or 3.10")
+if py_version not in py_versions_supported:
+    sys.exit(f"Unsupported Python version {py_version};"
+             f" must be one of {py_versions_supported}")
 
 
 def get_version(rel_path):
@@ -60,6 +64,7 @@ if platform.system() == "Windows":
 else:
     extra_compile_args = ["-std=c++11", "-O3", "-Wall"]
 
+
 setup(
     name="rocket-fft",
     version=get_version("rocket_fft/_version.py"),
@@ -85,6 +90,11 @@ setup(
             "rocket_fft/_pocketfft_numba",
             sources=["rocket_fft/_pocketfft_numba.cpp"],
             define_macros=define_macros,
+            extra_compile_args=extra_compile_args,
+        ),
+        Extension(
+            "rocket_fft/_special_helpers",
+            sources=["rocket_fft/_special_helpers.cpp"],
             extra_compile_args=extra_compile_args,
         ),
     ],
