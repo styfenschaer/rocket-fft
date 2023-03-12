@@ -40,6 +40,21 @@ def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, 
     return scipy.fft.dct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
+@nb.njit
+def fht(a, dln, mu, offset=0.0, bias=0.0):
+    return scipy.fft.fht(a, dln, mu, offset, bias)
+
+
+@nb.njit
+def ifht(A, dln, mu, offset=0.0, bias=0.0):
+    return scipy.fft.ifht(A, dln, mu, offset, bias)
+
+
+@nb.njit
+def fhtoffset(dln, mu, initial=0.0, bias=0.0):
+    return scipy.fft.fhtoffset(dln, mu, initial, bias)
+
+
 def test_scipy_like_dtypes():
     x = np.random.rand(42)
 
@@ -54,7 +69,22 @@ def test_scipy_like_dtypes():
         dty2 = dct(x.astype(ty)).dtype
         assert dty1 == dty2
         
-        
+        if not isinstance(ty.type(0), np.complexfloating):
+            one = ty.type(1.0) if isinstance(ty.type(0), np.number) else 1.0
+
+            dty1 = scipy.fft.fht(x.astype(ty), one, one).dtype
+            dty2 = fht(x.astype(ty), one, one).dtype
+            assert dty1 == dty2
+            
+            dty1 = scipy.fft.ifht(x.astype(ty), one, one).dtype
+            dty2 = ifht(x.astype(ty), one, one).dtype
+            assert dty1 == dty2
+            
+            dty1 = scipy.fft.fhtoffset(one, one)
+            dty2 = fhtoffset(one, one)
+            assert type(dty1.item()) == type(dty2)
+         
+         
 def test_scipy_like_axes():
     x = np.random.rand(3, 3, 3, 3).astype(np.complex128)
     
