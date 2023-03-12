@@ -44,7 +44,7 @@ def is_not_nonelike(arg):
 
 class Check:
     __slots__ = ("ty", "as_one", "as_seq", "allow_none", "msg")
-    
+
     def __init__(self, ty, as_one=True, as_seq=False, allow_none=False, msg=None):
         self.ty = ty
         self.as_one = as_one
@@ -64,7 +64,9 @@ class Check:
                 return True
         if self.msg is None:
             return False
-        raise TypingError(self.msg.format(fmt))
+        if fmt is None:
+            raise TypingError(self.msg)
+        raise TypingError(self.msg.format(*fmt))
 
 
 def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
@@ -77,17 +79,17 @@ def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
 
 class TypingChecker:
     __slots__ = ("checks")
-    
+
     def __init__(self, **checks):
         self.checks = checks
 
     def __call__(self, **kwargs):
         items = kwargs.items()
-        for i, (key, val) in enumerate(items, start=1):
-            check = self.checks.get(key)
+        for i, (argname, argval) in enumerate(items, start=1):
+            check = self.checks.get(argname)
             if check is not None:
-                txt = self.get_ordinal(i)
-                check(val, fmt=txt)
+                ordinal = self.get_ordinal(i)
+                check(argval, fmt=(ordinal, argname))
         return self
 
     def register(self, **kwargs):
