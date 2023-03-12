@@ -1,15 +1,15 @@
-import ctypes
-from distutils.sysconfig import get_config_var
 from functools import partial
-from pathlib import Path
 
 from llvmlite import ir
-from llvmlite.binding import load_library_permanently
 from numba import TypingError
 from numba.core import types
 from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import array_astype, make_array
+
+from .extutils import load_extension_library_permanently
+
+load_extension_library_permanently("_pocketfft_numba")
 
 # All integer variables passed to the C interface are by definition non-negative
 # and we do not allow negative indexing on the C++ side. Therefore, we can always
@@ -28,24 +28,9 @@ uint64 = types.uint64
 void = types.void
 
 
-def load_pocketfft():
-    search_path = Path(__file__).parent.parent
-    ext_suffix = get_config_var("EXT_SUFFIX")
-    ext_path = f"**/_pocketfft_numba{ext_suffix}"
-    matches = search_path.glob(ext_path)
-    libpath = str(next(matches))
-    load_library_permanently(libpath)
-    return ctypes.CDLL(libpath)
-
-
 class Pocketfft:
-    __slots__ = ("dll")
-    
-    def __init__(self):
-        self.dll = load_pocketfft()
-
     def _call_cmplx(fname, builder, args):
-        fntype = ir.FunctionType(
+        fnty = ir.FunctionType(
             ll_void,
             (
                 ll_uint64,  # ndim
@@ -57,7 +42,7 @@ class Pocketfft:
                 ll_uint64,  # nthreads
             )
         )
-        fn = get_or_insert_function(builder.module, fntype, fname)
+        fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
     c2c = partial(_call_cmplx, "numba_c2c")
@@ -66,7 +51,7 @@ class Pocketfft:
     c2c_sym = partial(_call_cmplx, "numba_c2c_sym")
 
     def _call_real(fname, builder, args):
-        fntype = ir.FunctionType(
+        fnty = ir.FunctionType(
             ll_void,
             (
                 ll_uint64,  # ndim
@@ -79,14 +64,14 @@ class Pocketfft:
                 ll_uint64,  # nthreads
             )
         )
-        fn = get_or_insert_function(builder.module, fntype, fname)
+        fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
     dct = partial(_call_real, "numba_dct")
     dst = partial(_call_real, "numba_dst")
 
     def _call_hartley(fname, builder, args):
-        fntype = ir.FunctionType(
+        fnty = ir.FunctionType(
             ll_void,
             (
                 ll_uint64,  # ndim
@@ -97,17 +82,16 @@ class Pocketfft:
                 ll_uint64,  # nthreads
             )
         )
-        fn = get_or_insert_function(builder.module, fntype, fname)
+        fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
-    r2r_separable_hartley = partial(
-        _call_hartley, "numba_r2r_separable_hartley")
+    r2r_separable_hartley = partial(_call_hartley, "numba_r2r_separable_hartley")
     r2r_genuine_hartley = partial(_call_hartley, "numba_r2r_genuine_hartley")
 
     @staticmethod
     def r2r_fftpack(builder, args):
         fname = "numba_r2r_fftpack"
-        fntype = ir.FunctionType(
+        fnty = ir.FunctionType(
             ll_void,
             (
                 ll_uint64,  # ndim
@@ -120,24 +104,21 @@ class Pocketfft:
                 ll_uint64,  # nthreads
             )
         )
-        fn = get_or_insert_function(builder.module, fntype, fname)
+        fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
     @staticmethod
     def good_size(builder, args):
         fname = "numba_good_size"
-        fntype = ir.FunctionType(
+        fnty = ir.FunctionType(
             ll_uint64,
             (
                 ll_uint64,  # target
                 ll_bool,  # real
             )
         )
-        fn = get_or_insert_function(builder.module, fntype, fname)
+        fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
-
-
-ll_pocketfft = Pocketfft()
 
 
 def array_as_voidptr(context, builder, ary_t, ary):
@@ -146,22 +127,14 @@ def array_as_voidptr(context, builder, ary_t, ary):
     return builder.bitcast(ptr, ll_voidptr)
 
 
-class LLTypeConverter:
-    __slots__ = ("builder", "int_type", "float_type")
-    
-    def __init__(self, builder, int_type, float_type):
-        self.builder = builder
-        self.int_type = int_type
-        self.float_type = float_type
-
-    def __call__(self, *values):
-        values = list(values)
-        for index, value in enumerate(values):
-            if isinstance(value.type, ir.IntType) and (value.type.width != 1):
-                values[index] = self.builder.zext(value, self.int_type)
-            elif isinstance(value.type, ir.FloatType):
-                values[index] = self.builder.fpext(value, self.float_type)
-        return values
+def ll_cast(builder, args):
+    args = list(args)
+    for index, arg in enumerate(args):
+        if isinstance(arg.type, ir.IntType) and (arg.type.width != 1):
+            args[index] = builder.zext(arg, ll_uint64)
+        elif isinstance(arg.type, ir.FloatType):
+            args[index] = builder.fpext(arg, ll_double)
+    return args
 
 
 _tmpl = """
@@ -169,34 +142,26 @@ def _(typingctx, ain, aout, axes, {0}):
     if ain.ndim != aout.ndim:
         raise TypingError("Input and output array must have"
                           "the same number of dimensions")
-
     if axes.ndim != 1:
         raise TypingError("Axes must be a one-dimensional array")
-
     copy_axes = not (isinstance(axes.dtype, types.Integer)
                      and (axes.layout in ("C", "F"))
                      and (axes.dtype.bitwidth == 64))
-
     def codegen(context, builder, sig, args):
         ain, aout, axes, *rest = args
         ain_t, aout_t, axes_t, *_ = sig.args
-
         if copy_axes:
             new_t = types.Array(uint64, ndim=1, layout="C")
             sig = new_t(axes_t, uint64)
             args = (axes, uint64)
             axes = array_astype(context, builder, sig, args)
             axes_t = new_t
-
         ndim = ll_uint64(ain_t.ndim)
         ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
         aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
         ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
-
-        ll_convert = LLTypeConverter(builder, ll_uint64, ll_double)
-        args = ll_convert(ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
-        ll_pocketfft.{1}(builder, (args))
-
+        args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
+        Pocketfft.{1}(builder, ll_cast(builder, args))
     sig = void(ain, aout, axes, {0})
     return sig, codegen
 """
@@ -204,7 +169,7 @@ def _(typingctx, ain, aout, axes, {0}):
 
 class Builder:
     __slots__ = ("extra_args")
-    
+
     def __init__(self, *extra_args):
         self.extra_args = ", ".join(extra_args)
 
@@ -240,12 +205,12 @@ def numba_good_size(typingctx, n, real):
         raise TypingError("The first argument 'n' must be an integer")
     if not isinstance(real, (types.Integer, types.Boolean)):
         raise TypingError("The second argument 'real' must be a boolean")
-    
+
     def codegen(context, builder, sig, args):
-        n, real = args 
+        n, real = args
         n = builder.zext(n, ll_uint64)
         real = builder.trunc(real, ll_bool)
-        ret = ll_pocketfft.good_size(builder, (n, real))
+        ret = Pocketfft.good_size(builder, (n, real))
         return ret
 
     sig = uint64(n, real)
