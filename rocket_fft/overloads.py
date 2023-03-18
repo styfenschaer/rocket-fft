@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 import numpy as np
 import numpy.fft
-from numba import TypingError
+from numba import TypingError, generated_jit
 from numba.core import types
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
@@ -21,6 +21,7 @@ from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
+
     from . import special
     _scipy_installed_ = True
 except ImportError:
@@ -206,7 +207,7 @@ def wraparound_axes(x, axes):
 
 @register_jitable(locals={"slots": types.UniTuple(types.byte, 32)})
 def _scipy_assert_unique_axes(axes):
-    slots = (0,) * 32  # maximum ndim of ndarray
+    slots = (0,) * 32  # np.MAXDIMS
     for ax in axes:
         if slots[ax] != 0:
             raise ValueError("All axes must be unique.")
@@ -778,7 +779,6 @@ if _scipy_installed_:
 
 @implements_overload(np.roll)
 def roll(a, shift, axis=None):
-    # TODO: Make multidimensional case more efficient!
     typing_check(types.Array)(a, "The 1st argument 'a' must be an array.")
     typing_check(types.Integer, as_seq=True)(
         shift, ("The 2nd argument 'shift' must be a"
@@ -790,7 +790,7 @@ def roll(a, shift, axis=None):
 
 @roll.impl(axis=is_nonelike)
 def _(a, shift, axis=None):
-    r = np.empty(a.shape, dtype=a.dtype)
+    r = np.empty_like(a)
     if a.size == 0:
         return r
     
@@ -799,59 +799,52 @@ def _(a, shift, axis=None):
         return r
     
     sh = np.asarray(shift).sum() % a.size
-    r_flat = r.ravel()
-    a_flat = a.ravel()
+    a_flat, r_flat = a.ravel(), r.ravel()
     r_flat[sh:] = a_flat[:-sh]
     r_flat[:sh] = a_flat[-sh:]
     return r
 
 
+@generated_jit
+def _make_slice_tuple(a):
+    tup = (slice(None),) * a.ndim
+    return lambda a: tup
+
+
 @roll.impl(otherwise)
 def _(a, shift, axis=None):
-    axis, shift = np.broadcast_arrays(axis, shift)
+    shift, axis = np.broadcast_arrays(shift, axis)
     # Axis is readonly but we eventually need to write it
     axis = axis.copy()
     wraparound_axes(a, axis)
-
-    a_index = a.shape
-    for i in range(a.ndim):
-        a_index = tuple_setitem(a_index, i, 0)
-
-    r_index = a_index
+    
+    shifts = {ax: 0 for ax in range(a.ndim)}
     for ax, sh in zip(axis, shift):
-        r_index = tuple_setitem(r_index, ax, r_index[ax] + sh)
+        shifts[ax] += sh
 
-    for i in range(a.ndim):
-        if a.shape[i] == 0:
-            r_index = tuple_setitem(r_index, i, 0)
-        elif r_index[i] > 0:
-            val = (r_index[i] % a.shape[i]) - a.shape[i]
-            r_index = tuple_setitem(r_index, i, val)
+    r_slices = [(slice(None), slice(None))] * a.ndim
+    a_slices = [(slice(None), slice(None))] * a.ndim
+    for ax, sh in shifts.items():
+        sh %= a.shape[ax] or 1
+        if sh:
+            r_slices[ax] = (slice(None, sh), slice(sh, None))
+            a_slices[ax] = (slice(-sh, None), slice(None, -sh)) 
+      
+    shape = a.shape
+    for ax, sh in shifts.items():
+        shape = tuple_setitem(shape, ax, (2 if sh else 1))
 
-    r_index_init = r_index
-
-    r = np.empty(a.shape, dtype=a.dtype)
-    if r.size == 0:
-        return r
-
-    # Like np.ndindex but maintains two index tuples
-    # in parallel; a normal one and a shifted one
-    done = False
-    while not done:
+    r = np.empty_like(a)
+    
+    r_index = _make_slice_tuple(a)
+    a_index = _make_slice_tuple(a)
+    for index in np.ndindex(shape):
+        for ax, i in enumerate(index):
+            r_index = tuple_setitem(r_index, ax, r_slices[ax][i])
+            a_index = tuple_setitem(a_index, ax, a_slices[ax][i])
+            
         r[r_index] = a[a_index]
-
-        done = True
-        for i in range(a.ndim):
-            r_index = tuple_setitem(r_index, i, r_index[i] + 1)
-            a_index = tuple_setitem(a_index, i, a_index[i] + 1)
-
-            if a_index[i] < a.shape[i]:
-                done = False
-                break
-
-            r_index = tuple_setitem(r_index, i, r_index_init[i])
-            a_index = tuple_setitem(a_index, i, 0)
-
+        
     return r
 
 
