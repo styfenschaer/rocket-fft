@@ -132,4 +132,3 @@ def poch(z, m):
 def add_signatures(loggamma_sigs=None, poch_sigs=None):
     list(map(loggamma.add, loggamma_sigs or _loggamma_sigs))
     list(map(poch.add, poch_sigs or _poch_sigs))
-

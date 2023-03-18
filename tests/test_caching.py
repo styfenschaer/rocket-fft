@@ -7,9 +7,7 @@ src = """
 import numpy as np 
 import numba as nb 
 import scipy.fft
-
 njit = nb.njit(cache=True, nogil=True)
-
 fft = njit(lambda a: scipy.fft.fft(a))
 dct = njit(lambda a: scipy.fft.dct(a))
 fht = njit(lambda a: scipy.fft.fht(a, 1.0, 1.0))

@@ -142,33 +142,30 @@ def _(typingctx, ain, aout, axes, {0}):
     if ain.ndim != aout.ndim:
         raise TypingError("Input and output array must have"
                           "the same number of dimensions")
-
     if axes.ndim != 1:
         raise TypingError("Axes must be a one-dimensional array")
-
+        
     copy_axes = not (isinstance(axes.dtype, types.Integer)
                      and (axes.layout in ("C", "F"))
                      and (axes.dtype.bitwidth == 64))
-
+                     
     def codegen(context, builder, sig, args):
         ain, aout, axes, *rest = args
         ain_t, aout_t, axes_t, *_ = sig.args
-
         if copy_axes:
             new_t = types.Array(uint64, ndim=1, layout="C")
             sig = new_t(axes_t, uint64)
             args = (axes, uint64)
             axes = array_astype(context, builder, sig, args)
             axes_t = new_t
-
+            
         ndim = ll_uint64(ain_t.ndim)
         ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
         aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
         ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
-
         args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
         Pocketfft.{1}(builder, ll_cast(builder, args))
-
+        
     sig = void(ain, aout, axes, {0})
     return sig, codegen
 """

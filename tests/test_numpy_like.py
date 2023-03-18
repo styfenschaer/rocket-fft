@@ -51,4 +51,3 @@ def test_numpy_like_axes():
         for axes in [(0, 0), (0, 2, 2), (0, 2, 1, 0), (3, 1), (2, 1, 0), (0, 1, 2, 3)]:
             numpy_fn = getattr(np.fft, fn.__name__)
             assert np.allclose(fn(x, axes=axes), numpy_fn(x, axes=axes))
-    
