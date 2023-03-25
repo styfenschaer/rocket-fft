@@ -7,7 +7,7 @@
 
 ![](https://raw.githubusercontent.com/styfenschaer/rocket-fft/release0.1.5/assets/fourier.gif)
 
-Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. It takes its name from the [PocketFFT](https://github.com/hayguen/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 
+Rocket-FFT makes [Numba](https://numba.pydata.org/) aware of `numpy.fft` and `scipy.fft`. It takes its name from the [PocketFFT](https://github.com/mreineck/pocketfft) Fast Fourier Transformation library that powers it, and Numba's goal of making your scientific Python code blazingly fast - like a rocket. 
 
 ## Getting Started
 The easiest way to get Rocket-FFT is to:
@@ -74,4 +74,4 @@ def r2r_fftpack(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | NDArray[f8],
 def good_size(target: i8, real: b1) -> i8: ...
 ```
 Note that the low-level interface provides a lower level of safety and convenience compared to the SciPy-like and NumPy-like interfaces. 
-There is almost no safety net, and it is up to the user to ensure proper usage. You may want to consult the original [PocketFFT](https://github.com/hayguen/pocketfft) C++ implementation before using it.
+There is almost no safety net, and it is up to the user to ensure proper usage. You may want to consult the original [PocketFFT](https://github.com/mreineck/pocketfft) C++ implementation before using it.
