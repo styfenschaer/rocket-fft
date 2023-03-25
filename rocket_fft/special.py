@@ -18,7 +18,6 @@ init_special_functions()
 
 ll_void = ir.VoidType()
 ll_int32 = ir.IntType(32)
-ll_longlong = ir.IntType(64)
 ll_double = ir.DoubleType()
 ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
