@@ -12,7 +12,7 @@ def c2c(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def r2c(
@@ -23,7 +23,7 @@ def r2c(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def c2r(
@@ -34,7 +34,7 @@ def c2r(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def c2c_sym(
@@ -47,7 +47,7 @@ def c2c_sym(
 ) -> None:
     """Similar to c2c, but takes a real-valued input array. 
     It uses symmetry to speed up the calculation.
-    Please refer to https://github.com/hayguen/pocketfft for documentation.
+    Please refer to https://github.com/mreineck/pocketfft for documentation.
     """
 
 
@@ -60,7 +60,7 @@ def dst(
     ortho: bool8,
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def dct(
@@ -72,7 +72,7 @@ def dct(
     ortho: bool8,
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def r2r_separable_hartley(
@@ -82,7 +82,7 @@ def r2r_separable_hartley(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def r2r_genuine_hartley(
@@ -92,7 +92,7 @@ def r2r_genuine_hartley(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 def r2r_fftpack(
@@ -104,7 +104,7 @@ def r2r_fftpack(
     fct: Union[float32, float64],
     nthreads: int64
 ) -> None:
-    """Please refer to https://github.com/hayguen/pocketfft for documentation."""
+    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
 
 
 separable_hartley = r2r_separable_hartley
