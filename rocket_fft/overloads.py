@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 import numpy as np
 import numpy.fft
-from numba import TypingError, generated_jit
+from numba import TypingError
 from numba.core import types
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
@@ -777,8 +777,13 @@ if _scipy_installed_:
     scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 
-@generated_jit
+
 def _get_slice_tuple(arr):
+    pass 
+
+
+@overload(_get_slice_tuple)
+def _get_slice_tuple_impl(arr):
     tup = (slice(None),) * arr.ndim
     return lambda arr: tup
 
@@ -851,7 +856,7 @@ def _(a, shift, axis=None):
 
     shift = np.asarray(shift)
     if shift.ndim > 1:
-        ValueError("'shift' must be scalars or 1D sequences")
+        ValueError("'shift' must be scalars or 1D sequence")
         
     sh = shift.sum() % (arr.size or 1)
     inv_sh = arr.size - sh

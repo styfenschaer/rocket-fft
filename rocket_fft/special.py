@@ -1,9 +1,9 @@
 import ctypes
 
 from llvmlite import ir
-from numba import TypingError, generated_jit, types, vectorize
+from numba import TypingError, types, vectorize
 from numba.core.cgutils import get_or_insert_function
-from numba.extending import intrinsic
+from numba.extending import intrinsic, overload
 
 from .extutils import get_extension_path, load_extension_library_permanently
 
@@ -75,8 +75,12 @@ def _real_loggamma(typingctx, z):
     return sig, codegen
 
 
-@generated_jit
 def _loggamma(z):
+    pass 
+
+
+@overload(_loggamma)
+def _loggamma_impl(z):
     if isinstance(z, types.Complex):
         return lambda z: _complex_loggamma(z)
     if isinstance(z, types.Float):
