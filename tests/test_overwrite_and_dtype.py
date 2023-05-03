@@ -140,11 +140,11 @@ def test_c2c_sym():
     y = fft(x, overwrite_x=True)
     assert x is not y
 
-    x = np.random.rand(42).astype(np.bool8)
+    x = np.random.rand(42).astype(np.bool_)
     y = fft(x)
     assert x is not y
     assert y.dtype == np.complex128
 
-    x = np.random.rand(42).astype(np.bool8)
+    x = np.random.rand(42).astype(np.bool_)
     y = fft(x, overwrite_x=True)
     assert x is not y

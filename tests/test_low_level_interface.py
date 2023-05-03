@@ -215,7 +215,7 @@ def test_low_level_typing_raise5():
                                        np.int16(1), np.uint16(1),
                                        np.int8(1), np.uint8(1),
                                        np.float64(1), np.float32(1),))
-@pytest.mark.parametrize("forward", (np.bool8(False), np.bool8(1), True))
+@pytest.mark.parametrize("forward", (np.bool_(False), np.bool_(1), True))
 @pytest.mark.parametrize("fct", (np.float32(1.0), np.float64(1.0)))
 @pytest.mark.parametrize("nthreads", (np.int64(1), np.uint64(1),
                                       np.int32(1), np.uint32(1),
