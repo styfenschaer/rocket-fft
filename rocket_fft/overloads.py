@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 import numpy as np
 import numpy.fft
-from numba import TypingError, generated_jit
+from numba import TypingError
 from numba.core import types
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
@@ -14,9 +14,9 @@ from numba.np.numpy_support import is_nonelike
 from . import pocketfft
 from . import typutils as tu
 from .imputils import implements_jit, implements_overload, otherwise
-from .typutils import (is_integer, is_integer_2tuple, is_literal_bool,
-                       is_literal_integer, is_nonelike, is_not_nonelike,
-                       typing_check)
+from .typutils import (is_contiguous_array, is_integer, is_integer_2tuple,
+                       is_literal_bool, is_literal_integer, is_nonelike,
+                       is_not_nonelike, is_scalar, typing_check)
 
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
@@ -777,75 +777,115 @@ if _scipy_installed_:
     scipy_rnd_builder(r2rn, **_common_dst, forward=False).overload(scipy.fft.idstn)
 
 
+def _get_slice_tuple(arr):
+    pass 
+
+
+@overload(_get_slice_tuple)
+def _get_slice_tuple_impl(arr):
+    tup = (slice(None),) * arr.ndim
+    return lambda arr: tup
+
+
+@register_jitable
+def _roll_core_impl(a, shift, axis):
+    axis, shift = np.broadcast_arrays(axis, shift)
+
+    shifts = {ax: 0 for ax in range(a.ndim)}
+    for ax, sh in zip(axis, shift):
+        if (ax >= a.ndim) or (ax < -a.ndim):
+            raise ValueError("axis is out of bounds")
+        if ax < 0:
+            ax += a.ndim
+        shifts[ax] += sh
+
+    n_sclices = a.shape
+    out_slices = [(slice(None), slice(None))] * a.ndim
+    arr_slices = [(slice(None), slice(None))] * a.ndim
+    for ax, sh in shifts.items():
+        sh %= a.shape[ax] or 1
+        n_sclices = tuple_setitem(n_sclices, ax, (2 if sh else 1))
+        if sh:
+            out_slices[ax] = (slice(None, sh), slice(sh, None))
+            arr_slices[ax] = (slice(-sh, None), slice(None, -sh))
+
+    out = np.empty(a.shape, dtype=a.dtype)
+
+    arr_index = _get_slice_tuple(a)
+    out_index = _get_slice_tuple(a)
+    for index in np.ndindex(n_sclices):
+        for ax, i in enumerate(index):
+            arr_index = tuple_setitem(arr_index, ax, arr_slices[ax][i])
+            out_index = tuple_setitem(out_index, ax, out_slices[ax][i])
+
+        out[out_index] = a[arr_index]
+
+    return out
+
+
 @implements_overload(np.roll)
 def roll(a, shift, axis=None):
-    typing_check(types.Array)(a, "The 1st argument 'a' must be an array.")
-    typing_check(types.Integer, as_seq=True)(
+    typing_check((types.Number, types.Boolean), as_seq=True)(
+        a, "The 1st argument 'a' must be array-like.")
+    typing_check((types.Integer, types.Boolean), as_seq=True)(
         shift, ("The 2nd argument 'shift' must be a"
                 " sequence of integers or an integer."))
-    typing_check(types.Integer, as_seq=True, allow_none=True)(
-        axis, ("The 3rd argument 'axis' must be a"
+    typing_check((types.Integer, types.Boolean), as_seq=True, allow_none=True)(
+        axis, ("If specified, the 3rd argument 'axis' must be a"
                " sequence of integers or an integer."))
+
+                     
+@roll.impl(a=is_scalar)
+def _(a, shift, axis=None):
+    return np.asarray(a)
 
 
 @roll.impl(axis=is_nonelike)
 def _(a, shift, axis=None):
-    r = np.empty_like(a)
-    if a.size == 0:
-        return r
+    arr = np.asarray(a)
+    out = np.empty(arr.shape, dtype=arr.dtype)
+
+    shift = np.asarray(shift)
+    if shift.ndim > 1:
+        ValueError("'shift' must be scalars or 1D sequence")
+        
+    sh = shift.sum() % (arr.size or 1)
+    inv_sh = arr.size - sh
     
-    if a.size == 1:
-        r[0] = a[0]
-        return r
+    for i in range(inv_sh):
+        out.flat[sh + i] = arr.flat[i]
+    for i in range(sh):
+        out.flat[i] = arr.flat[inv_sh + i]
     
-    sh = np.asarray(shift).sum() % a.size
-    a_flat, r_flat = a.ravel(), r.ravel()
-    r_flat[sh:] = a_flat[:-sh]
-    r_flat[:sh] = a_flat[-sh:]
-    return r
+    return out
 
 
-@generated_jit
-def _make_slice_tuple(a):
-    tup = (slice(None),) * a.ndim
-    return lambda a: tup
+@roll.impl(a=is_contiguous_array(layout="C"))
+def _(a, shift, axis=None):
+    return _roll_core_impl(a, shift, axis)
+
+
+@register_jitable
+def _transpose_axes(axis, ndim):
+    axis = np.atleast_1d(np.asarray(axis))
+    return np.array([(ndim - ax - 1) % ndim for ax in axis])
+
+
+@roll.impl(a=is_contiguous_array(layout="F"))
+def _(a, shift, axis=None):
+    axis = _transpose_axes(axis, a.ndim)
+    return _roll_core_impl(a.T, shift, axis).T
 
 
 @roll.impl(otherwise)
 def _(a, shift, axis=None):
-    shift, axis = np.broadcast_arrays(shift, axis)
-    # Axis is readonly but we eventually need to write it
-    axis = axis.copy()
-    wraparound_axes(a, axis)
+    arr = np.asarray(a)
     
-    shifts = {ax: 0 for ax in range(a.ndim)}
-    for ax, sh in zip(axis, shift):
-        shifts[ax] += sh
+    if arr.strides[0] >= arr.strides[-1]:
+        return _roll_core_impl(arr, shift, axis)
 
-    r_slices = [(slice(None), slice(None))] * a.ndim
-    a_slices = [(slice(None), slice(None))] * a.ndim
-    for ax, sh in shifts.items():
-        sh %= a.shape[ax] or 1
-        if sh:
-            r_slices[ax] = (slice(None, sh), slice(sh, None))
-            a_slices[ax] = (slice(-sh, None), slice(None, -sh)) 
-      
-    shape = a.shape
-    for ax, sh in shifts.items():
-        shape = tuple_setitem(shape, ax, (2 if sh else 1))
-
-    r = np.empty_like(a)
-    
-    r_index = _make_slice_tuple(a)
-    a_index = _make_slice_tuple(a)
-    for index in np.ndindex(shape):
-        for ax, i in enumerate(index):
-            r_index = tuple_setitem(r_index, ax, r_slices[ax][i])
-            a_index = tuple_setitem(a_index, ax, a_slices[ax][i])
-            
-        r[r_index] = a[a_index]
-        
-    return r
+    axis = _transpose_axes(axis, arr.ndim)
+    return _roll_core_impl(arr.T, shift, axis).T
 
 
 fftshift_typing = tu.TypingChecker(
@@ -956,13 +996,13 @@ def rfftfreq(n, d=1.0):
     return impl
 
 
-def next_fast_len(target, real):
+def next_fast_len(target, real=False):
     typing_check(types.Integer)(
         target, "The 1st argument 'target' must be an integer.")
     typing_check(types.Boolean)(
         real, "The 2nd argument 'real' must be a boolean.")
 
-    def impl(target, real):
+    def impl(target, real=False):
         if target < 0:
             raise ValueError("Target cannot be negative.")
         return pocketfft.numba_good_size(target, real)
@@ -1048,7 +1088,7 @@ if _scipy_installed_:
     def _fhtq(a, u):
         if np.isinf(u[0]):
             # TODO: Is there a better solution for dealing with warnings?
-            print('WARNING: singular transform; consider changing the bias')
+            print("WARNING: singular transform; consider changing the bias")
             u = u.copy()
             u[0] = 0
         A = np.fft.rfft(a) 
@@ -1061,7 +1101,7 @@ if _scipy_installed_:
     def _ifhtq(a, u):
         if u[0] == 0:
             # TODO: Is there a better solution for dealing with warnings?
-            print('WARNING: singular inverse transform; consider changing the bias')
+            print("WARNING: singular inverse transform; consider changing the bias")
             u = u.copy()
             u[0] = np.inf
         A = np.fft.rfft(a) 
