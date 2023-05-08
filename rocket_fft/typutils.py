@@ -5,19 +5,23 @@ from numba.np.numpy_support import is_nonelike
 
 
 def is_sequence_like(arg):
-    seq_like = (types.Tuple, types.Array, types.Set,
-                types.ListType, types.Sequence)
+    seq_like = (types.Tuple, types.ListType,
+                types.Array, types.Sequence)
     return isinstance(arg, seq_like)
 
 
 def is_integer(arg):
-    return isinstance(arg, types.Integer)
+    return isinstance(arg, (types.Integer, types.Boolean))
+
+
+def is_scalar(arg):
+    return isinstance(arg, (types.Number, types.Boolean))
 
 
 def is_integer_2tuple(arg):
     return (isinstance(arg, types.UniTuple)
             and (arg.count == 2)
-            and isinstance(arg.dtype, types.Integer))
+            and is_integer(arg.dtype))
 
 
 def is_literal_integer(val):
@@ -34,6 +38,15 @@ def is_literal_bool(val):
         if not isinstance(arg, types.BooleanLiteral):
             return False
         return arg.literal_value == val
+
+    return impl
+
+
+def is_contiguous_array(layout):
+    def impl(arg):
+        if not isinstance(arg, types.Array):
+            return False
+        return arg.layout == layout
 
     return impl
 
