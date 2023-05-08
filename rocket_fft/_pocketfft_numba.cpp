@@ -1,7 +1,7 @@
 #include <numpy/ndarrayobject.h>
 #include <numpy/arrayscalars.h>
 
-#include "_pocketfft_hdronly.hpp"
+#include "_pocketfft_hdronly.h"
 
 #include "_arraystruct.h"
 #include "./core/runtime/nrt_external.h"
