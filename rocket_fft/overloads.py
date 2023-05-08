@@ -21,8 +21,8 @@ from .typutils import (is_contiguous_array, is_integer, is_integer_2tuple,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
-
     from . import special
+    
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
@@ -799,24 +799,22 @@ def _roll_core_impl(a, shift, axis):
         if ax < 0:
             ax += a.ndim
         shifts[ax] += sh
-
+    
+    n_sclices = a.shape
     out_slices = [(slice(None), slice(None))] * a.ndim
     arr_slices = [(slice(None), slice(None))] * a.ndim
     for ax, sh in shifts.items():
         sh %= a.shape[ax] or 1
+        n_sclices = tuple_setitem(n_sclices, ax, (2 if sh else 1))
         if sh:
             out_slices[ax] = (slice(None, sh), slice(sh, None))
             arr_slices[ax] = (slice(-sh, None), slice(None, -sh))
-
-    shape = a.shape
-    for ax, sh in shifts.items():
-        shape = tuple_setitem(shape, ax, (2 if sh else 1))
 
     out = np.empty(a.shape, dtype=a.dtype)
 
     arr_index = _get_slice_tuple(a)
     out_index = _get_slice_tuple(a)
-    for index in np.ndindex(shape):
+    for index in np.ndindex(n_sclices):
         for ax, i in enumerate(index):
             arr_index = tuple_setitem(arr_index, ax, arr_slices[ax][i])
             out_index = tuple_setitem(out_index, ax, out_slices[ax][i])
@@ -824,12 +822,6 @@ def _roll_core_impl(a, shift, axis):
         out[out_index] = a[arr_index]
 
     return out
-
-
-@register_jitable
-def _transpose_axes(axis, ndim):
-    axis = np.atleast_1d(np.asarray(axis))
-    return np.array([(ndim - ax - 1) % ndim for ax in axis])
 
 
 @implements_overload(np.roll)
@@ -874,6 +866,12 @@ def _(a, shift, axis=None):
     return _roll_core_impl(a, shift, axis)
 
 
+@register_jitable
+def _transpose_axes(axis, ndim):
+    axis = np.atleast_1d(np.asarray(axis))
+    return np.array([(ndim - ax - 1) % ndim for ax in axis])
+
+
 @roll.impl(a=is_contiguous_array(layout="F"))
 def _(a, shift, axis=None):
     axis = _transpose_axes(axis, a.ndim)
@@ -883,6 +881,7 @@ def _(a, shift, axis=None):
 @roll.impl(otherwise)
 def _(a, shift, axis=None):
     arr = np.asarray(a)
+    
     if arr.strides[0] >= arr.strides[-1]:
         return _roll_core_impl(arr, shift, axis)
 
@@ -998,13 +997,13 @@ def rfftfreq(n, d=1.0):
     return impl
 
 
-def next_fast_len(target, real):
+def next_fast_len(target, real=False):
     typing_check(types.Integer)(
         target, "The 1st argument 'target' must be an integer.")
     typing_check(types.Boolean)(
         real, "The 2nd argument 'real' must be a boolean.")
 
-    def impl(target, real):
+    def impl(target, real=False):
         if target < 0:
             raise ValueError("Target cannot be negative.")
         return pocketfft.numba_good_size(target, real)
@@ -1090,7 +1089,7 @@ if _scipy_installed_:
     def _fhtq(a, u):
         if np.isinf(u[0]):
             # TODO: Is there a better solution for dealing with warnings?
-            print('WARNING: singular transform; consider changing the bias')
+            print("WARNING: singular transform; consider changing the bias")
             u = u.copy()
             u[0] = 0
         A = np.fft.rfft(a) 
@@ -1103,7 +1102,7 @@ if _scipy_installed_:
     def _ifhtq(a, u):
         if u[0] == 0:
             # TODO: Is there a better solution for dealing with warnings?
-            print('WARNING: singular inverse transform; consider changing the bias')
+            print("WARNING: singular inverse transform; consider changing the bias")
             u = u.copy()
             u[0] = np.inf
         A = np.fft.rfft(a) 
