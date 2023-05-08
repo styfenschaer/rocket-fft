@@ -9,7 +9,7 @@ from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
 
-py_versions_supported = ("3.8", "3.9", "3.10")
+py_versions_supported = ("3.8", "3.9", "3.10", "3.11")
 
 
 py_version = "{}.{}".format(*sys.version_info[:2])
