@@ -712,9 +712,7 @@ def _(norm, ortho):
 
 @get_ortho.impl(otherwise)
 def _(norm, ortho):
-    if norm == "ortho":
-        return True
-    return False
+    return (norm == "ortho")
 
 
 def r2rn(args, trafo, delta, forward):
@@ -847,7 +845,7 @@ def _(a, shift, axis=None):
 
     shift = np.asarray(shift)
     if shift.ndim > 1:
-        ValueError("'shift' must be scalars or 1D sequence")
+        ValueError("'shift' must be a scalar or 1D sequence")
         
     sh = shift.sum() % (arr.size or 1)
     inv_sh = arr.size - sh
