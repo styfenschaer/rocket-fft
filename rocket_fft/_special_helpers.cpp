@@ -19,9 +19,9 @@ typedef complex (*complex_loggamma_type)(complex);
 typedef double (*real_loggamma_type)(double);
 typedef double (*poch_type)(double, double);
 
-void *complex_loggamma_ptr = NULL;
-void *real_loggamma_ptr = NULL;
-void *poch_ptr = NULL;
+complex_loggamma_type complex_loggamma_ptr = NULL;
+real_loggamma_type real_loggamma_ptr = NULL;
+poch_type poch_ptr = NULL;
 
 std::mutex import_mutex;
 
@@ -74,7 +74,7 @@ DLL_EXPORT void
 numba_complex_loggamma(double real, double imag, double *real_out, double *imag_out)
 {
     complex zin = {real, imag};
-    complex zout = ((complex_loggamma_type)complex_loggamma_ptr)(zin);
+    complex zout = complex_loggamma_ptr(zin);
     real_out[0] = zout.real;
     imag_out[0] = zout.imag;
 }
@@ -82,11 +82,11 @@ numba_complex_loggamma(double real, double imag, double *real_out, double *imag_
 DLL_EXPORT double
 numba_real_loggamma(double z)
 {
-    return ((real_loggamma_type)real_loggamma_ptr)(z);
+    return real_loggamma_ptr(z);
 }
 
 DLL_EXPORT double
 numba_poch(double z, double m)
 {
-    return ((poch_type)poch_ptr)(z, m);
+    return poch_ptr(z, m);
 }
