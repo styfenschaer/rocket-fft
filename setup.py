@@ -1,20 +1,19 @@
 import platform
 import re
 import sys
-from distutils.ccompiler import new_compiler
-from distutils.command.build_ext import build_ext as build_ext_distutils
-from distutils.errors import CompileError
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext, new_compiler
+from setuptools.errors import CompileError
 
-py_versions_supported = ("3.8", "3.9", "3.10", "3.11")
+py_versions_supported = "3.8 3.9 3.10 3.11".split()
 
 
-py_version = "{}.{}".format(*sys.version_info[:2])
+py_version = "{}.{}".format(*sys.version_info)
 if py_version not in py_versions_supported:
-    sys.exit(f"Unsupported Python version {py_version};"
+    sys.exit(f"Unsupported Python version {py_version};" 
              f" must be one of {py_versions_supported}")
 
 
@@ -43,7 +42,7 @@ def pthread_available():
             return False
 
 
-class build_ext(build_ext_distutils):
+class custom_build_ext(build_ext):
     def get_export_symbols(self, ext):
         return ext.export_symbols
 
@@ -103,7 +102,7 @@ setup(
         numba_get_include(),
     ],
     cmdclass={
-        "build_ext": build_ext,
+        "build_ext": custom_build_ext,
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -121,6 +120,6 @@ setup(
     ],
     keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"],
     extras_require={
-        "dev": ["scipy>=1.7.2", "pytest>=6.2.5"]
-    }
+        "dev": ["scipy>=1.7.2", "pytest>=6.2.5"],
+    },
 )
