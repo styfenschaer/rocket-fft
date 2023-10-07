@@ -7,6 +7,7 @@ import numpy as np
 import numpy.fft
 from numba import TypingError
 from numba.core import types
+from numba.core.errors import NumbaValueError
 from numba.cpython.unsafe.tuple import tuple_setitem
 from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
@@ -21,11 +22,12 @@ from .typutils import (is_contiguous_array, is_integer, is_integer_2tuple,
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
     import scipy.fft
-
     from . import special
+    
     _scipy_installed_ = True
 except ImportError:
     _scipy_installed_ = False
+
 
 # SciPy and NumPy differ in when they convert types and handle duplicate axes.
 # These functions mimic their behavior. They must be called before the compilation
@@ -188,7 +190,7 @@ class FFTBuilder:
 @register_jitable
 def wraparound_axis(x, ax):
     if (ax >= x.ndim) or (ax < -x.ndim):
-        raise ValueError("Axis exceeds dimensionality of input.")
+        raise NumbaValueError("Axis exceeds dimensionality of input.")
     if ax < 0:
         ax += x.ndim
     return ax
@@ -198,7 +200,7 @@ def wraparound_axis(x, ax):
 def wraparound_axes(x, axes):
     for i, ax in enumerate(axes):
         if (ax >= x.ndim) or (ax < -x.ndim):
-            raise ValueError("Axes exceeds dimensionality of input.")
+            raise NumbaValueError("Axes exceeds dimensionality of input.")
         if ax < 0:
             axes[i] += x.ndim
 
@@ -210,7 +212,7 @@ def _scipy_assert_unique_axes(axes):
     slots = (0,) * 32  # np.MAXDIMS
     for ax in axes:
         if slots[ax] != 0:
-            raise ValueError("All axes must be unique.")
+            raise NumbaValueError("All axes must be unique.")
         slots = tuple_setitem(slots, ax, 1)
 
 
@@ -231,7 +233,7 @@ def _set_assert_unique_axes(impl):
 def assert_valid_shape(shape):
     for n in shape:
         if n < 1:
-            raise ValueError("Invalid number of data points specified.")
+            raise NumbaValueError("Invalid number of data points specified.")
 
 
 @register_jitable
@@ -291,7 +293,7 @@ def _(x, s, axes):
     s = toarray(s)
     assert_valid_shape(s)
     if s.size > x.ndim:
-        raise ValueError("Shape requires more axes than are present.")
+        raise NumbaValueError("Shape requires more axes than are present.")
     # Axes not specified, transform last len(s) axes
     axes = np.arange(x.ndim - s.size, x.ndim)
     return s, axes
@@ -305,8 +307,8 @@ def _(x, s, axes):
     wraparound_axes(x, axes)
     assert_unique_axes(axes)
     if s.size != axes.size:
-        raise ValueError("When given, axes and shape arguments"
-                         " have to be of the same length.")
+        raise NumbaValueError("When given, axes and shape arguments"
+                              " have to be of the same length.")
     return s, axes
 
 
@@ -354,8 +356,8 @@ def _(x, axes, norm, forward, delta=None):
         return 1.0 / np.sqrt(mul_axes(x.shape, axes, delta))
     elif norm == "forward":
         return 1.0 / mul_axes(x.shape, axes, delta)
-    raise ValueError("Invalid norm value; should be"
-                     " 'backward', 'ortho' or 'forward'.")
+    raise NumbaValueError("Invalid norm value; should be"
+                          " 'backward', 'ortho' or 'forward'.")
 
 
 @get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(False))
@@ -366,8 +368,8 @@ def _(x, axes, norm, forward, delta=None):
         return 1.0 / np.sqrt(mul_axes(x.shape, axes, delta))
     elif norm == "forward":
         return 1.0
-    raise ValueError("Invalid norm value; should be"
-                     " 'backward', 'ortho' or 'forward'.")
+    raise NumbaValueError("Invalid norm value; should be"
+                          " 'backward', 'ortho' or 'forward'.")
 
 
 _cpu_count = cpu_count()
@@ -406,9 +408,9 @@ def _(workers):
     if workers > 0:
         return workers
     if workers == 0:
-        raise ValueError("Workers must not be zero.")
+        raise NumbaValueError("Workers must not be zero.")
     if workers < -_cpu_count:
-        raise ValueError("Workers value out of range.")
+        raise NumbaValueError("Workers value out of range.")
     return workers + _cpu_count + 1
 
 
@@ -685,7 +687,7 @@ def _(type, forward):
 @get_type.impl(forward=is_literal_bool(True))
 def _(type, forward):
     if type not in (1, 2, 3, 4):
-        raise ValueError("Invalid type; must be one of (1, 2, 3, 4).")
+        raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
     return type
 
 
@@ -696,7 +698,7 @@ def _(type, forward):
     if type == 3:
         return 2
     if type not in (1, 4):
-        raise ValueError("Invalid type; must be one of (1, 2, 3, 4).")
+        raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
     return type
 
 
@@ -792,7 +794,7 @@ def _roll_core_impl(a, shift, axis):
     shifts = {ax: 0 for ax in range(a.ndim)}
     for ax, sh in zip(axis, shift):
         if (ax >= a.ndim) or (ax < -a.ndim):
-            raise ValueError("axis is out of bounds")
+            raise NumbaValueError("axis is out of bounds")
         if ax < 0:
             ax += a.ndim
         shifts[ax] += sh
@@ -842,18 +844,19 @@ def _(a, shift, axis=None):
 def _(a, shift, axis=None):
     arr = np.asarray(a)
     out = np.empty(arr.shape, dtype=arr.dtype)
+    arr = arr.ravel()  # much faster than arr.flat on A/F arrays
 
     shift = np.asarray(shift)
     if shift.ndim > 1:
-        ValueError("'shift' must be a scalar or 1D sequence")
+        NumbaValueError("'shift' must be a scalar or 1D sequence")
         
     sh = shift.sum() % (arr.size or 1)
     inv_sh = arr.size - sh
     
     for i in range(inv_sh):
-        out.flat[sh + i] = arr.flat[i]
+        out.flat[sh + i] = arr[i]
     for i in range(sh):
-        out.flat[i] = arr.flat[inv_sh + i]
+        out.flat[i] = arr[inv_sh + i]
     
     return out
 
@@ -865,7 +868,7 @@ def _(a, shift, axis=None):
 
 @register_jitable
 def _transpose_axes(axis, ndim):
-    axis = np.atleast_1d(np.asarray(axis))
+    axis = np.asarray(axis).ravel()
     return np.array([(ndim - ax - 1) % ndim for ax in axis])
 
 
@@ -1002,7 +1005,7 @@ def next_fast_len(target, real=False):
 
     def impl(target, real=False):
         if target < 0:
-            raise ValueError("Target cannot be negative.")
+            raise NumbaValueError("Target cannot be negative.")
         return pocketfft.numba_good_size(target, real)
 
     return impl
@@ -1113,7 +1116,7 @@ if _scipy_installed_:
         fht_typing(a=a, dln=dln, mu=mu, offset=offset, bias=bias)
         
         dtype = _scipy_real_lut.get(a.dtype)
-        if isinstance(dtype, types.Complex):
+        if isinstance(a.dtype, types.Complex):
             raise TypingError("The 1st argument 'a' must be a real array.")
 
         def impl(a, dln, mu, offset=0.0, bias=0.0):
@@ -1143,7 +1146,7 @@ if _scipy_installed_:
         fht_typing(A=A, dln=dln, mu=mu, offset=offset, bias=bias)
 
         dtype = _scipy_real_lut.get(A.dtype)
-        if isinstance(dtype, types.Complex):
+        if isinstance(A.dtype, types.Complex):
             raise TypingError("The 1st argument 'A' must be a real array.")
 
         def impl(A, dln, mu, offset=0.0, bias=0.0):
