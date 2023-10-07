@@ -1,7 +1,10 @@
 import os
 import subprocess
+import sys
 
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
+
+set_numba_capture_errors_new_style()
 
 src = """
 import numpy as np 
@@ -26,8 +29,8 @@ def test_caching():
         with open(filename, "w") as file:
             file.write(src)
             
-        subprocess.call(['python', filename])
-        subprocess.call(['python', filename])
+        subprocess.call([sys.executable, filename])
+        subprocess.call([sys.executable, filename])
     except Exception as e:
         raise e
     finally:

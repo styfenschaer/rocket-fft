@@ -1,9 +1,11 @@
 import numba as nb
 import numpy as np
 import scipy.fft
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
 from numba import TypingError
 from pytest import raises as assert_raises
+
+set_numba_capture_errors_new_style()
 
 
 @nb.njit

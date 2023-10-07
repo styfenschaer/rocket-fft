@@ -8,8 +8,10 @@ from functools import partial
 import numba as nb
 import numpy as np
 import pytest
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
 from numpy.testing import assert_, assert_raises
+
+set_numba_capture_errors_new_style()
 
 # Only test the functions that are not used in the SciPy or NumPy interface
 # c2c is needed for comparison

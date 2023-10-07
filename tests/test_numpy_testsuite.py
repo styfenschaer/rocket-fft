@@ -11,12 +11,14 @@ from functools import partial
 import numba as nb
 import numpy as np
 import pytest
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
 from numba import TypingError
 from numpy import pi
 from numpy.random import random
 from numpy.testing import (assert_allclose, assert_array_almost_equal,
                            assert_raises)
+
+set_numba_capture_errors_new_style()
 
 # At maximum double precision is supported
 np.longcomplex = np.complex128

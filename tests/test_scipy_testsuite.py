@@ -15,7 +15,8 @@ import numpy as np
 import numpy.fft
 import pytest
 import scipy.fft
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
+from numba.core.errors import NumbaValueError
 from numba import TypingError
 from numpy import (add, arange, array, asarray, cdouble, dot, exp, pi,
                    swapaxes, zeros)
@@ -27,6 +28,8 @@ from pytest import raises as assert_raises
 from scipy.fft._pocketfft.realtransforms import (dct, dctn, dst, dstn, idct,
                                                  idctn, idst, idstn)
 from scipy.fft._pocketfft.tests.test_real_transforms import fftpack_test_dir
+
+set_numba_capture_errors_new_style()
 
 # At maximum double precision is supported
 np.longcomplex = np.complex128
@@ -314,7 +317,7 @@ class _TestFFTBase:
     def test_invalid_sizes(self):
         # NOTE: Tests modified.
         assert_raises(ValueError, fft, [])
-        assert_raises(ValueError, fft, np.array([[1, 1], [2, 2]]), -5)
+        assert_raises(NumbaValueError, fft, np.array([[1, 1], [2, 2]]), -5)
 
 
 class TestLongDoubleFFT(_TestFFTBase):
@@ -431,7 +434,7 @@ class _TestIFFTBase:
     def test_invalid_sizes(self):
         # NOTE: Test modified.
         assert_raises(ValueError, ifft, [])
-        assert_raises(ValueError, ifft, np.array([[1, 1], [2, 2]]), -5)
+        assert_raises(NumbaValueError, ifft, np.array([[1, 1], [2, 2]]), -5)
 
 
 @pytest.mark.skipif(np.longdouble is np.float64,
@@ -476,7 +479,7 @@ class Testfft2:
     def test_invalid_sizes(self):
         # Tests modified.
         assert_raises(ValueError, fft2, [[]])
-        assert_raises(ValueError, fft2, np.array([[1, 1], [2, 2]]), (4, -3))
+        assert_raises(NumbaValueError, fft2, np.array([[1, 1], [2, 2]]), (4, -3))
 
 
 class TestFftnSingle:
@@ -749,7 +752,7 @@ class TestFftn:
     def test_shape_argument_more(self):
         x = zeros((4, 4, 2))
         # NOTE: Not specific error message
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             fftn(x, s=(8, 8, 2, 1))
 
     def test_invalid_sizes(self):
@@ -762,7 +765,7 @@ class TestFftn:
         assert_array_almost_equal(x, fftn(x))
 
         # NOTE: No specific error message
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             fftn(np.array([[1, 1], [2, 2]]), (4, -3))
 
     def test_no_axes(self):
@@ -810,7 +813,7 @@ class TestIfftn:
             ifftn([[]])
 
         # NOTE: Note specific error message
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             ifftn(np.array([[1, 1], [2, 2]]), (4, -3))
 
     def test_no_axes(self):
@@ -964,7 +967,7 @@ class TestIfftn:
 def test_invalid_norm(func):
     x = np.arange(10, dtype=float)
     # NOTE: Test modified; not providing explicit error message.
-    with assert_raises(ValueError):
+    with assert_raises(NumbaValueError):
         func(x, norm="o")
 
 
@@ -1009,7 +1012,7 @@ class _TestRFFTBase:
     def test_invalid_sizes(self):
         # NOTE: Tests modified.
         assert_raises(ValueError, rfft, [])
-        assert_raises(ValueError, rfft, np.array([[1, 1], [2, 2]]), -5)
+        assert_raises(NumbaValueError, rfft, np.array([[1, 1], [2, 2]]), -5)
 
     def test_complex_input(self):
         x = np.zeros(10, dtype=self.cdt)
@@ -1126,7 +1129,7 @@ class _TestIRFFTBase:
     def test_invalid_sizes(self):
         # NOTE: Modified test
         assert_raises(ValueError, irfft, [])
-        assert_raises(ValueError, irfft, np.array([[1, 1], [2, 2]]), -5)
+        assert_raises(NumbaValueError, irfft, np.array([[1, 1], [2, 2]]), -5)
 
 
 # self.ndec is bogus; we should have a assert_array_approx_equal for number of
@@ -1624,11 +1627,11 @@ class Test_DCTN_IDCTN:
     def test_axes_and_shape(self, fforward, finverse):
         # NOTE: Test without explicit error message
         # s is passed as tuple instead of inteter
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             fforward(self.data, s=(self.data.shape[0],), axes=(0, 1))
         # NOTE: Test without explicit error message
         # axes is passed as tuple instead of inteter
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             fforward(self.data, s=self.data.shape, axes=(0,))
 
     @pytest.mark.parametrize("fforward", [dctn, dstn])

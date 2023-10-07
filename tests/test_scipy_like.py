@@ -1,11 +1,15 @@
 import numba as nb
 import numpy as np
 import scipy.fft
+from numba.core.errors import NumbaValueError
 from numba.np.numpy_support import as_dtype
 from pytest import raises as assert_raises
 
+from helpers import set_numba_capture_errors_new_style
 from rocket_fft import scipy_like
 from rocket_fft.overloads import _scipy_cmplx_lut
+
+set_numba_capture_errors_new_style()
 
 scipy_like()
 
@@ -90,7 +94,7 @@ def test_scipy_like_axes():
     
     for fn in (fft2, fftn, ifft2, ifftn):  
         for axes in [(0, 0), (0, 2, 2), (0, 2, 1, 0)]:
-            with assert_raises(ValueError):
+            with assert_raises(NumbaValueError):
                 fn(x, axes=axes)
             
     for fn in (fft2, fftn, ifft2, ifftn):  
