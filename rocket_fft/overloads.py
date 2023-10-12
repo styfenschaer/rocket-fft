@@ -848,7 +848,7 @@ def _(a, shift, axis=None):
 
     shift = np.asarray(shift)
     if shift.ndim > 1:
-        NumbaValueError("'shift' must be a scalar or 1D sequence")
+        raise NumbaValueError("'shift' must be a scalar or 1D sequence")
         
     sh = shift.sum() % (arr.size or 1)
     inv_sh = arr.size - sh
