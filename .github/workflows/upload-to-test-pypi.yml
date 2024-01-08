@@ -32,8 +32,7 @@ jobs:
       run: twine check dist/*
 
   build_wheels:
-    # TODO: uncomment the following line after testing
-    # if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
