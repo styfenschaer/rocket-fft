@@ -39,7 +39,7 @@ def _call_complex_loggamma(builder, real, imag, real_out, imag_out):
 @intrinsic
 def _complex_loggamma(typingctx, z):
     if not isinstance(z, types.Complex):
-        raise TypingError("Argument 'z' must be a complex")
+        raise TypingError("Argument 'z' must be complex")
 
     def codegen(context, builder, sig, args):
         real = builder.extract_value(args[0], 0)

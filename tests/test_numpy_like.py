@@ -2,8 +2,11 @@ import numba as nb
 import numpy as np
 from numba.np.numpy_support import as_dtype
 
+from helpers import set_numba_capture_errors_new_style
 from rocket_fft import numpy_like
 from rocket_fft.overloads import _numpy_cmplx_lut
+
+set_numba_capture_errors_new_style()
 
 numpy_like()
     

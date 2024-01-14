@@ -3,7 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 import numba as nb
 import numpy as np
 import scipy.fft
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
+
+set_numba_capture_errors_new_style()
 
 njit = nb.njit(cache=True, nogil=True)
 

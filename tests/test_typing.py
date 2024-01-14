@@ -4,7 +4,11 @@ import numpy.fft
 import pytest
 import scipy.fft
 from numba import TypingError
+from numba.core.errors import NumbaValueError
 from pytest import raises as assert_raises
+from helpers import set_numba_capture_errors_new_style
+
+set_numba_capture_errors_new_style()
 
 @nb.njit
 def scipy_fft(x, n=None, axis=-1, norm=None, overwrite_x=False, workers=None):
@@ -321,9 +325,9 @@ class Test2D:
             func(self.x, s=[1.])
         with assert_raises(TypingError, match=mk_match(1, "s")):
             func(self.x, s=1.)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, 1)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, s=(1,))
         func(self.x, s=(2, 3,))
         func(self.x, None)
@@ -404,9 +408,9 @@ class TestND:
             func(self.x, s=[1.])
         with assert_raises(TypingError, match=mk_match(1, "s")):
             func(self.x, s=1.)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, 0)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, s=(0,))
         func(self.x, s=(2, 3, 7))
         func(self.x, None)
@@ -431,9 +435,9 @@ class TestND:
             func(self.x, s=[1.])
         with assert_raises(TypingError, match=mk_match(2, "s")):
             func(self.x, s=1.)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, 1, 0)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, s=(0,))
         func(self.x, s=(2, 3, 7))
         func(self.x, 1, None)
@@ -470,7 +474,7 @@ class TestND:
             func(self.x, norm=0)
         with assert_raises(TypingError, match=mk_match(3, "norm")):
             func(self.x, None, (-2, -1), norm=0)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, None, (0, 1, 2, 3), norm="ortho")
         func(self.x, None, (0, 1, 2), None)
         func(self.x, norm="ortho")
@@ -483,7 +487,7 @@ class TestND:
             func(self.x, norm=0)
         with assert_raises(TypingError, match=mk_match(4, "norm")):
             func(self.x, 2, None, (-2, -1), norm=0)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, 2, None, (0, 1, 2, 3), norm="ortho")
         func(self.x, 2, None, (0, 1, 2), None)
         func(self.x, norm="ortho")
@@ -496,7 +500,7 @@ class TestND:
             func(self.x, overwrite_x=None)
         with assert_raises(TypingError, match=mk_match(4, "overwrite_x")):
             func(self.x, None, (-2, -1), None, None)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, None, (-4, -2, -1), None, False)
         func(self.x, overwrite_x=True)
         func(self.x, None, (-3, -2, -1), None, True)
@@ -509,7 +513,7 @@ class TestND:
             func(self.x, overwrite_x=None)
         with assert_raises(TypingError, match=mk_match(5, "overwrite_x")):
             func(self.x, 2, None, (-2, -1), None, None)
-        with assert_raises(ValueError):
+        with assert_raises(NumbaValueError):
             func(self.x, 2, (-4, -2, -1), None, None)
         func(self.x, overwrite_x=True)
         func(self.x, 2, None, (-3, -2, -1), None, True)

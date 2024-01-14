@@ -12,9 +12,11 @@ import numba as nb
 import numpy as np
 import pytest
 import scipy.fft
-from helpers import numba_cache_cleanup
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
 from numpy.testing import assert_allclose, assert_raises
 from scipy.special import poch
+
+set_numba_capture_errors_new_style()
 
 # All functions should be cacheable and run without the GIL
 njit = partial(nb.njit, cache=True, nogil=True)

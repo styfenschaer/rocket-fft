@@ -7,10 +7,17 @@ from functools import partial
 import numba as nb
 import numpy as np
 import pytest
+<<<<<<< HEAD
 from helpers import numba_cache_cleanup
+=======
+from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
+from numba.core.errors import NumbaValueError
+>>>>>>> origin/main
 from numba import TypingError
 from numpy.testing import assert_equal
 from pytest import raises as assert_raises
+
+set_numba_capture_errors_new_style()
 
 # All functions should be cacheable and run without the GIL
 njit = partial(nb.njit, cache=True, nogil=True)
@@ -159,7 +166,11 @@ class TestRollTyping:
             roll(self.x, shift=1.0)
         with assert_raises(TypingError, match=mk_match(1, "shift")):
             roll(self.x, shift=((1,),))
+<<<<<<< HEAD
         with assert_raises(TypingError):
+=======
+        with assert_raises(AttributeError):  # because shift is 2d
+>>>>>>> origin/main
             roll(self.x, shift=np.array([[1]]), axis=np.array([0]))
         with assert_raises(TypeError):
             roll(self.x)
@@ -175,7 +186,11 @@ class TestRollTyping:
             roll(self.x, shift=1, axis=1.)
         with assert_raises(TypingError, match=mk_match(2, "axis")):
             roll(self.x, shift=1, axis=((1,),))
+<<<<<<< HEAD
         with assert_raises(TypingError):
+=======
+        with assert_raises(AttributeError):  # because shift is 2d
+>>>>>>> origin/main
             roll(self.x, shift=np.array([1]), axis=np.array([[0]]))
         roll(self.x, shift=1, axis=(0,))
         roll(self.x, shift=1, axis=0)
