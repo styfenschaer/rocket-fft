@@ -179,8 +179,10 @@ class Builder:
 
     def __call__(self, fname):
         src = _tmpl.format(self.extra_args, fname)
-        exec(src)
-        func = locals()["_"]
+        local_ns = {}
+        global_ns = globals()
+        exec(src, global_ns, local_ns)
+        func = local_ns["_"]
         func.__name__ = fname
         return intrinsic(func)
 
