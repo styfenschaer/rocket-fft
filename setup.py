@@ -8,7 +8,7 @@ from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext, new_compiler
 from setuptools.errors import CompileError
 
-py_versions_supported = "3.8 3.9 3.10 3.11".split()
+py_versions_supported = "3.8 3.9 3.10 3.11 3.12".split()
 
 
 py_version = "{}.{}".format(*sys.version_info)
@@ -110,6 +110,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "License :: OSI Approved :: BSD License",
         "Operating System :: OS Independent",
         "Topic :: Scientific/Engineering",
@@ -120,6 +121,10 @@ setup(
     ],
     keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"],
     extras_require={
-        "dev": ["scipy>=1.7.2", "pytest>=6.2.5"],
+        "dev": [
+            "scipy>=1.7.2",
+            "pytest>=6.2.5",
+            "setuptools>=59.2.0",
+        ],
     },
 )

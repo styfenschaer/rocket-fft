@@ -1,5 +1,5 @@
-from distutils.sysconfig import get_config_var
 from pathlib import Path
+from sysconfig import get_config_var
 
 from llvmlite.binding import load_library_permanently
 
