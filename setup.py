@@ -9,7 +9,7 @@ from setuptools.command.build_ext import build_ext, new_compiler
 from setuptools.errors import CompileError
 
 
-py_versions_supported = "3.8 3.9 3.10 3.11 3.12 3.13".split()
+py_versions_supported = "3.8 3.9 3.10 3.11 3.12 3.13 3.14".split()
 
 
 py_version = "{}.{}".format(*sys.version_info)
@@ -113,6 +113,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "License :: OSI Approved :: BSD License",
         "Operating System :: OS Independent",
         "Topic :: Scientific/Engineering",
