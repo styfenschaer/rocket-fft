@@ -1,13 +1,6 @@
 from . import pocketfft
 from ._version import __version__
-from .overloads import (_scipy_installed_, get_workers, numpy_like, scipy_like,
-                        set_workers)
-
-if _scipy_installed_:
-    scipy_like()
-else:
-    numpy_like()
-
+from .overloads import _scipy_installed_, get_workers, set_workers
 
 c2c = pocketfft.numba_c2c
 r2c = pocketfft.numba_r2c
@@ -31,4 +24,5 @@ good_size = pocketfft.numba_good_size
 def _init_extension():
     if _scipy_installed_:
         from .special import add_signatures
+
         add_signatures()

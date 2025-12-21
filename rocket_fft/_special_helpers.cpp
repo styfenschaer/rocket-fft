@@ -27,8 +27,7 @@ static std::mutex import_mutex;
 
 // Copied from: https://github.com/numba/numba/blob/release0.57/numba/_helperlib.c#L574
 static void*
-import_cython_function(const char* module_name, const char* function_name)
-{
+import_cython_function(const char* module_name, const char* function_name) {
     PyObject *module, *capi, *cobj;
     void* res = NULL;
     const char* capsule_name;
@@ -59,13 +58,11 @@ import_cython_function(const char* module_name, const char* function_name)
 }
 
 static void*
-import_cython_special_function(const char* function_name)
-{
+import_cython_special_function(const char* function_name) {
     return import_cython_function("scipy.special.cython_special", function_name);
 }
 
-DLL_EXPORT void init_special_functions()
-{
+DLL_EXPORT void init_special_functions() {
     std::lock_guard<std::mutex> lock(import_mutex);
     complex_loggamma_ptr = (complex_loggamma_type)import_cython_special_function("__pyx_fuse_0loggamma");
     real_loggamma_ptr = (real_loggamma_type)import_cython_special_function("__pyx_fuse_1loggamma");
@@ -73,22 +70,33 @@ DLL_EXPORT void init_special_functions()
 }
 
 DLL_EXPORT void
-numba_complex_loggamma(double real, double imag, double* real_out, double* imag_out)
-{
-    complex zin = { real, imag };
+numba_complex_loggamma(double real, double imag, double* real_out, double* imag_out) {
+    complex zin = {real, imag};
     complex zout = complex_loggamma_ptr(zin);
     real_out[0] = zout.real;
     imag_out[0] = zout.imag;
 }
 
 DLL_EXPORT double
-numba_real_loggamma(double z)
-{
+numba_real_loggamma(double z) {
     return real_loggamma_ptr(z);
 }
 
 DLL_EXPORT double
-numba_poch(double z, double m)
-{
+numba_poch(double z, double m) {
     return poch_ptr(z, m);
+}
+
+// ---- Required for Windows / setuptools (dummy Python module) ----
+
+static PyModuleDef moduledef = {
+    PyModuleDef_HEAD_INIT,
+    "_special_helpers",
+    nullptr,
+    -1,
+    nullptr,
+};
+
+PyMODINIT_FUNC PyInit__special_helpers(void) {
+    return PyModule_Create(&moduledef);
 }

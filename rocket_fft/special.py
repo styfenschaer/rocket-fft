@@ -1,8 +1,9 @@
 import ctypes
 
 from llvmlite import ir
-from numba import TypingError, types, vectorize
+from numba import types, vectorize
 from numba.core.cgutils import get_or_insert_function
+from numba.core.errors import TypingError
 from numba.extending import intrinsic, overload
 
 from .extutils import get_extension_path, load_extension_library_permanently
@@ -76,7 +77,7 @@ def _real_loggamma(typingctx, z):
 
 
 def _loggamma(z):
-    pass 
+    pass
 
 
 @overload(_loggamma)
@@ -115,6 +116,7 @@ _loggamma_sigs = (
     "complex128(complex128)",
 )
 
+
 @vectorize
 def loggamma(z):
     return _loggamma(z)
@@ -126,6 +128,7 @@ _poch_sigs = (
     "float64(float32, float64)",
     "float64(float64, float64)",
 )
+
 
 @vectorize
 def poch(z, m):

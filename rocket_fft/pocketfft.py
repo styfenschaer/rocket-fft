@@ -1,8 +1,8 @@
 from functools import partial
 
 from llvmlite import ir
-from numba import TypingError
 from numba.core import types
+from numba.core.errors import TypingError
 from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import array_astype, make_array
@@ -40,7 +40,7 @@ class Pocketfft:
                 ll_bool,  # forward
                 ll_double,  # fct
                 ll_uint64,  # nthreads
-            )
+            ),
         )
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
@@ -62,7 +62,7 @@ class Pocketfft:
                 ll_double,  # fct
                 ll_bool,  # ortho
                 ll_uint64,  # nthreads
-            )
+            ),
         )
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
@@ -80,13 +80,19 @@ class Pocketfft:
                 ll_voidptr,  # axes
                 ll_double,  # fct
                 ll_uint64,  # nthreads
-            )
+            ),
         )
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
-    r2r_separable_hartley = partial(_call_hartley, "numba_r2r_separable_hartley")
-    r2r_genuine_hartley = partial(_call_hartley, "numba_r2r_genuine_hartley")
+    r2r_separable_hartley = partial(
+        _call_hartley,
+        "numba_r2r_separable_hartley",
+    )
+    r2r_genuine_hartley = partial(
+        _call_hartley,
+        "numba_r2r_genuine_hartley",
+    )
 
     @staticmethod
     def r2r_fftpack(builder, args):
@@ -102,7 +108,7 @@ class Pocketfft:
                 ll_bool,  # forward
                 ll_double,  # fct
                 ll_uint64,  # nthreads
-            )
+            ),
         )
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
@@ -115,7 +121,7 @@ class Pocketfft:
             (
                 ll_uint64,  # target
                 ll_bool,  # real
-            )
+            ),
         )
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
@@ -144,11 +150,11 @@ def _(typingctx, ain, aout, axes, {0}):
                           "the same number of dimensions")
     if axes.ndim != 1:
         raise TypingError("Axes must be a one-dimensional array")
-        
+
     copy_axes = not (isinstance(axes.dtype, types.Integer)
                      and (axes.layout in ("C", "F"))
                      and (axes.dtype.bitwidth == 64))
-                     
+
     def codegen(context, builder, sig, args):
         ain, aout, axes, *rest = args
         ain_t, aout_t, axes_t, *_ = sig.args
@@ -158,29 +164,28 @@ def _(typingctx, ain, aout, axes, {0}):
             args = (axes, uint64)
             axes = array_astype(context, builder, sig, args)
             axes_t = new_t
-            
+
         ndim = ll_uint64(ain_t.ndim)
         ain_ptr = array_as_voidptr(context, builder, ain_t, ain)
         aout_ptr = array_as_voidptr(context, builder, aout_t, aout)
         ax_ptr = array_as_voidptr(context, builder, axes_t, axes)
         args = (ndim, ain_ptr, aout_ptr, ax_ptr, *rest)
         Pocketfft.{1}(builder, ll_cast(builder, args))
-        
+
     sig = void(ain, aout, axes, {0})
     return sig, codegen
 """
 
 
 class Builder:
-    __slots__ = ("extra_args")
-
     def __init__(self, *extra_args):
         self.extra_args = ", ".join(extra_args)
 
     def __call__(self, fname):
         src = _tmpl.format(self.extra_args, fname)
-        exec(src)
-        func = locals()["_"]
+        ns = {}
+        exec(src, globals(), ns)
+        func = ns["_"]
         func.__name__ = fname
         return intrinsic(func)
 

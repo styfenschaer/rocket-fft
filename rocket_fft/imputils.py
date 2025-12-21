@@ -1,7 +1,7 @@
 import inspect
 from functools import wraps
 
-from numba import TypingError
+from numba.core.errors import TypingError
 from numba.extending import overload
 
 
@@ -10,8 +10,6 @@ def otherwise(*args):
 
 
 class Overloader:
-    __slots__ = ("header", "overl", "checks", "impls", "preprocs", "options")
-    
     def __init__(self, header=None, overl=None, **options):
         self.header = header
         self.overl = overl
@@ -29,7 +27,7 @@ class Overloader:
             return self
 
         self.impls.append(impl)
-        return self
+        return impl
 
     def impl(self, arg=None, **kwargs):
         if arg is not None:
@@ -59,8 +57,10 @@ class Overloader:
                 elif all(fn(kwd[kw]) for kw, fn in check):
                     return impl
 
-            raise TypingError("No implementation found for function {} with "
-                              "arguments {}.".format(self.header.__name__, args))
+            raise TypingError(
+                "No implementation found for function {} with "
+                "arguments {}.".format(self.header.__name__, args)
+            )
 
         return impl_func_
 
@@ -70,15 +70,27 @@ class Overloader:
         overload(overl, **self.options)(impl_func)
 
 
-def implements_jit(func=None, jit_options=None, strict=True,
-                   inline="never", prefer_literal=False, **kwargs):
+def implements_jit(
+    func=None,
+    jit_options=None,
+    strict=True,
+    inline="never",
+    prefer_literal=False,
+    **kwargs
+):
     if jit_options is None:
         jit_options = {}
 
     def wrapper(func):
         overloader = Overloader(
-            func, None, jit_options=jit_options, strict=strict,
-            inline=inline, prefer_literal=prefer_literal, **kwargs)
+            func,
+            None,
+            jit_options=jit_options,
+            strict=strict,
+            inline=inline,
+            prefer_literal=prefer_literal,
+            **kwargs
+        )
         return overloader
 
     if func is not None:
@@ -86,12 +98,24 @@ def implements_jit(func=None, jit_options=None, strict=True,
     return wrapper
 
 
-def implements_overload(overloaded_func, jit_options=None, strict=True,
-                        inline="never", prefer_literal=False, **kwargs):
+def implements_overload(
+    overloaded_func,
+    jit_options=None,
+    strict=True,
+    inline="never",
+    prefer_literal=False,
+    **kwargs
+):
     if jit_options is None:
         jit_options = {}
 
     overloader = Overloader(
-        None, overloaded_func, jit_options=jit_options, strict=strict,
-        inline=inline, prefer_literal=prefer_literal, **kwargs)
+        None,
+        overloaded_func,
+        jit_options=jit_options,
+        strict=strict,
+        inline=inline,
+        prefer_literal=prefer_literal,
+        **kwargs
+    )
     return overloader

@@ -1,13 +1,21 @@
 import numba as nb
-from numba import TypingError
 from numba.core import types
+from numba.core.errors import TypingError
 from numba.np.numpy_support import is_nonelike
 
 
 def is_sequence_like(arg):
-    seq_like = (types.Tuple, types.ListType,
-                types.Array, types.Sequence)
+    seq_like = (
+        types.Tuple,
+        types.ListType,
+        types.Array,
+        types.Sequence,
+    )
     return isinstance(arg, seq_like)
+
+
+def is_unicode(arg):
+    return arg is types.unicode_type
 
 
 def is_integer(arg):
@@ -19,9 +27,7 @@ def is_scalar(arg):
 
 
 def is_integer_2tuple(arg):
-    return (isinstance(arg, types.UniTuple)
-            and (arg.count == 2)
-            and is_integer(arg.dtype))
+    return isinstance(arg, types.UniTuple) and arg.count == 2 and is_integer(arg.dtype)
 
 
 def is_literal_integer(val):
@@ -42,6 +48,15 @@ def is_literal_bool(val):
     return impl
 
 
+def is_literal_string(val):
+    def impl(arg):
+        if not isinstance(arg, types.StringLiteral):
+            return False
+        return arg.literal_value == val
+
+    return impl
+
+
 def is_contiguous_array(layout):
     def impl(arg):
         if not isinstance(arg, types.Array):
@@ -56,9 +71,14 @@ def is_not_nonelike(arg):
 
 
 class Check:
-    __slots__ = ("ty", "as_one", "as_seq", "allow_none", "msg")
-
-    def __init__(self, ty, as_one=True, as_seq=False, allow_none=False, msg=None):
+    def __init__(
+        self,
+        ty,
+        as_one=True,
+        as_seq=False,
+        allow_none=False,
+        msg=None,
+    ):
         self.ty = ty
         self.as_one = as_one
         self.as_seq = as_seq
@@ -91,8 +111,6 @@ def typing_check(ty, as_one=True, as_seq=False, allow_none=False):
 
 
 class TypingChecker:
-    __slots__ = ("checks")
-
     def __init__(self, **checks):
         self.checks = checks
 
@@ -111,6 +129,5 @@ class TypingChecker:
 
     @staticmethod
     def get_ordinal(n):
-        ordinals = ("th", "st", "nd", "rd", "th",
-                    "th", "th", "th", "th", "th")
+        ordinals = ("th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th")
         return str(n) + ordinals[n % 10]
