@@ -15,8 +15,13 @@ set_numba_capture_errors_new_style()
 
 # Only test the functions that are not used in the SciPy or NumPy interface
 # c2c is needed for comparison
-from rocket_fft import (c2c, good_size, r2r_fftpack, r2r_genuine_hartley,
-                        r2r_separable_hartley)
+from rocket_fft import (
+    c2c,
+    good_size,
+    r2r_fftpack,
+    r2r_genuine_hartley,
+    r2r_separable_hartley,
+)
 
 # All functions should be cacheable and run without the GIL
 njit = partial(nb.njit, cache=True, nogil=True)
@@ -59,16 +64,16 @@ tol = {np.float32: 6e-7, np.float64: 1.5e-15}
 
 def _assert_close(a, b, epsilon):
     err = _l2error(a, b)
-    if (err >= epsilon):
+    if err >= epsilon:
         print("Error: {} > {}".format(err, epsilon))
     assert_(err < epsilon)
 
 
 def _l2error(a, b):
-    return np.sqrt(np.sum(np.abs(a-b)**2)/np.sum(np.abs(a)**2))
+    return np.sqrt(np.sum(np.abs(a - b) ** 2) / np.sum(np.abs(a) ** 2))
 
 
-@pytest.mark.parametrize("shp", shapes2D+shapes3D)
+@pytest.mark.parametrize("shp", shapes2D + shapes3D)
 def test_genuine_hartley(shp):
     a = np.random.rand(*shp) - 0.5
     aout = np.empty_like(a)
@@ -78,7 +83,7 @@ def test_genuine_hartley(shp):
 
     v1 = jit_r2r_genuine_hartley(a, aout, axes, fct, nthreads)
     v2 = np.fft.fftn(a.astype(np.complex128))
-    v2 = v2.real+v2.imag
+    v2 = v2.real + v2.imag
     assert_(_l2error(v1, v2) < 1e-15)
 
 
@@ -90,9 +95,16 @@ def test_hartley_identity(shp):
     fct = 1.0
     nthreads = 1
 
-    v1 = jit_r2r_separable_hartley(
-        jit_r2r_separable_hartley(a, aout, axes, fct, nthreads),
-        aout, axes, fct, nthreads) / a.size
+    v1 = (
+        jit_r2r_separable_hartley(
+            jit_r2r_separable_hartley(a, aout, axes, fct, nthreads),
+            aout,
+            axes,
+            fct,
+            nthreads,
+        )
+        / a.size
+    )
     assert_(_l2error(a, v1) < 1e-15)
 
 
@@ -104,19 +116,35 @@ def test_genuine_hartley_identity(shp):
     fct = 1.0
     nthreads = 1
 
-    v1 = jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
-        a, aout, axes, fct, nthreads), aout, axes, fct, nthreads) / a.size
+    v1 = (
+        jit_r2r_genuine_hartley(
+            jit_r2r_genuine_hartley(a, aout, axes, fct, nthreads),
+            aout,
+            axes,
+            fct,
+            nthreads,
+        )
+        / a.size
+    )
     assert_(_l2error(a, v1) < 1e-15)
 
     v1 = a.copy()
-    fct = 1 / np.float64(np.prod(shp)**0.5)
+    fct = 1 / np.float64(np.prod(shp) ** 0.5)
 
-    assert_(jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
-        v1, v1, axes, fct, nthreads), v1, axes, fct, nthreads) is v1)
+    assert_(
+        jit_r2r_genuine_hartley(
+            jit_r2r_genuine_hartley(v1, v1, axes, fct, nthreads),
+            v1,
+            axes,
+            fct,
+            nthreads,
+        )
+        is v1
+    )
     assert_(_l2error(a, v1) < 1e-15)
 
 
-@pytest.mark.parametrize("shp", shapes2D+shapes3D)
+@pytest.mark.parametrize("shp", shapes2D + shapes3D)
 @pytest.mark.parametrize("axes", ((0,), (1,), (0, 1), (1, 0)))
 def test_genuine_hartley_2D(shp, axes):
     a = np.random.rand(*shp) - 0.5
@@ -129,8 +157,13 @@ def test_genuine_hartley_2D(shp, axes):
     for ax in axes:
         fct2 /= shp[ax]
 
-    aout = jit_r2r_genuine_hartley(jit_r2r_genuine_hartley(
-        a, aout, axes, fct, nthreads), aout, axes, fct2, nthreads)
+    aout = jit_r2r_genuine_hartley(
+        jit_r2r_genuine_hartley(a, aout, axes, fct, nthreads),
+        aout,
+        axes,
+        fct2,
+        nthreads,
+    )
     assert_(_l2error(aout, a) < 1e-15)
 
 
@@ -212,17 +245,36 @@ def test_low_level_typing_raise5():
         jit_c2c(a.reshape(1, 1, 1), a.reshape(1, 1), axes, True, 1.0, 1)
 
 
-@pytest.mark.parametrize("axes_type", (np.int64(1), np.uint64(1),
-                                       np.int32(1), np.uint32(1),
-                                       np.int16(1), np.uint16(1),
-                                       np.int8(1), np.uint8(1),
-                                       np.float64(1), np.float32(1),))
+@pytest.mark.parametrize(
+    "axes_type",
+    (
+        np.int64(1),
+        np.uint64(1),
+        np.int32(1),
+        np.uint32(1),
+        np.int16(1),
+        np.uint16(1),
+        np.int8(1),
+        np.uint8(1),
+        np.float64(1),
+        np.float32(1),
+    ),
+)
 @pytest.mark.parametrize("forward", (np.bool_(False), np.bool_(1), True))
 @pytest.mark.parametrize("fct", (np.float32(1.0), np.float64(1.0)))
-@pytest.mark.parametrize("nthreads", (np.int64(1), np.uint64(1),
-                                      np.int32(1), np.uint32(1),
-                                      np.int16(1), np.uint16(1),
-                                      np.int8(1), np.uint8(1)))
+@pytest.mark.parametrize(
+    "nthreads",
+    (
+        np.int64(1),
+        np.uint64(1),
+        np.int32(1),
+        np.uint32(1),
+        np.int16(1),
+        np.uint16(1),
+        np.int8(1),
+        np.uint8(1),
+    ),
+)
 def test_low_level_typing_noraise(axes_type, forward, fct, nthreads):
     a = np.random.rand(42).astype(np.complex128)
     axes = np.array([0], dtype=axes_type)
@@ -241,15 +293,33 @@ def test_good_size_raise(n, real):
         jit_good_size(n, real)
 
 
-@pytest.mark.parametrize("real", (True,
-                                  np.int8(42), np.uint8(42),
-                                  np.int16(42), np.uint16(42),
-                                  np.int32(42), np.uint32(42),
-                                  np.int64(42), np.uint64(42)))
-@pytest.mark.parametrize("n", (True,
-                               np.int8(42), np.uint8(42),
-                               np.int16(42), np.uint16(42),
-                               np.int32(42), np.uint32(42),
-                               np.int64(42), np.uint64(42)))
+@pytest.mark.parametrize(
+    "real",
+    (
+        True,
+        np.int8(42),
+        np.uint8(42),
+        np.int16(42),
+        np.uint16(42),
+        np.int32(42),
+        np.uint32(42),
+        np.int64(42),
+        np.uint64(42),
+    ),
+)
+@pytest.mark.parametrize(
+    "n",
+    (
+        True,
+        np.int8(42),
+        np.uint8(42),
+        np.int16(42),
+        np.uint16(42),
+        np.int32(42),
+        np.uint32(42),
+        np.int64(42),
+        np.uint64(42),
+    ),
+)
 def test_good_size_noraise(n, real):
     jit_good_size(n, real)

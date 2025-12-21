@@ -2,28 +2,18 @@
 The numpy.roll tests are adopted from Numpy.
 """
 
-from functools import partial
-
 import numba as nb
 import numpy as np
 import pytest
-<<<<<<< HEAD
-from helpers import numba_cache_cleanup
-=======
 from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
-from numba.core.errors import NumbaValueError
->>>>>>> origin/main
-from numba import TypingError
+from numba.core.errors import TypingError
 from numpy.testing import assert_equal
 from pytest import raises as assert_raises
 
 set_numba_capture_errors_new_style()
 
-# All functions should be cacheable and run without the GIL
-njit = partial(nb.njit, cache=True, nogil=True)
 
-
-@njit
+@nb.njit(cache=True, nogil=True)
 def roll(a, shift, axis=None):
     return np.roll(a, shift, axis)
 
@@ -98,31 +88,47 @@ class TestCompareNumpy:
     @staticmethod
     def A(arr, mode):
         if arr.ndim < 2:
-            arr = np.random.rand(arr.size*2)
+            arr = np.random.rand(arr.size * 2)
             return arr[::2]
         shape = arr.shape
         if mode == 1:
-            arr = np.random.rand(*shape[:-1], 2*shape[-1])
+            arr = np.random.rand(*shape[:-1], 2 * shape[-1])
             return arr[..., ::2]
         if mode == 2:
-            arr = np.random.rand(2*shape[0], *shape[1:])
+            arr = np.random.rand(2 * shape[0], *shape[1:])
             return arr[::2, ...]
         if mode == 3:
-            arr = np.random.rand(2*shape[0], *shape[1:-1], 2*shape[-1])
+            arr = np.random.rand(2 * shape[0], *shape[1:-1], 2 * shape[-1])
             return arr[::2, ..., ::2]
         raise ValueError(f"Invalid mode {mode}")
-    
-    def A1(self, arr): return self.A(arr, mode=1)
-    def A2(self, arr): return self.A(arr, mode=2)
-    def A3(self, arr): return self.A(arr, mode=3)
 
-    @pytest.mark.parametrize("shape, shift, axis", [
-        *zip(
-            [(0,), (1,), (83,), (83,), (3, 42, 42), (99, 50, 25), (100, 3, 19, 19)],  # shape
-            [1, -1, 21, -21, (-12, 85, 1), (5, 2), (3, 3)],  # shift
-            [0, 0, (0,), None, (-3, 1, 0), (0, 0), (2, 3)],  # axis
-        )
-    ])
+    def A1(self, arr):
+        return self.A(arr, mode=1)
+
+    def A2(self, arr):
+        return self.A(arr, mode=2)
+
+    def A3(self, arr):
+        return self.A(arr, mode=3)
+
+    @pytest.mark.parametrize(
+        "shape, shift, axis",
+        [
+            *zip(
+                [
+                    (0,),
+                    (1,),
+                    (83,),
+                    (83,),
+                    (3, 42, 42),
+                    (99, 50, 25),
+                    (100, 3, 19, 19),
+                ],  # shape
+                [1, -1, 21, -21, (-12, 85, 1), (5, 2), (3, 3)],  # shift
+                [0, 0, (0,), None, (-3, 1, 0), (0, 0), (2, 3)],  # axis
+            )
+        ],
+    )
     def test_all(self, shape, shift, axis):
         for layout in (self.C, self.F, self.A1, self.A2, self.A3):
             a = layout(np.random.rand(*shape))
@@ -134,13 +140,21 @@ class TestCompareNumpy:
             assert got.dtype == expected.dtype
             assert got.flags.c_contiguous == expected.flags.c_contiguous
             assert got.flags.f_contiguous == expected.flags.f_contiguous
-    
+
 
 def mk_match(pos, name):
-    lut = {0: "1st", 1: "2nd", 2: "3rd", 3: "4th",
-           4: "5th", 5: "6th", 6: "7th", 7: "8th"}
+    lut = {
+        0: "1st",
+        1: "2nd",
+        2: "3rd",
+        3: "4th",
+        4: "5th",
+        5: "6th",
+        6: "7th",
+        7: "8th",
+    }
     pos = lut.get(pos)
-    return fr".* {pos} .* '{name}' .*"
+    return rf".* {pos} .* '{name}' .*"
 
 
 class TestRollTyping:
@@ -158,7 +172,7 @@ class TestRollTyping:
         roll(42.0, shift=1)
         roll(True, shift=1)
         roll(42, shift=1)
-        
+
     def test_shift(self):
         with assert_raises(TypingError, match=mk_match(1, "shift")):
             roll(self.x, shift=None)
@@ -166,11 +180,7 @@ class TestRollTyping:
             roll(self.x, shift=1.0)
         with assert_raises(TypingError, match=mk_match(1, "shift")):
             roll(self.x, shift=((1,),))
-<<<<<<< HEAD
-        with assert_raises(TypingError):
-=======
         with assert_raises(AttributeError):  # because shift is 2d
->>>>>>> origin/main
             roll(self.x, shift=np.array([[1]]), axis=np.array([0]))
         with assert_raises(TypeError):
             roll(self.x)
@@ -183,14 +193,10 @@ class TestRollTyping:
 
     def test_axis(self):
         with assert_raises(TypingError, match=mk_match(2, "axis")):
-            roll(self.x, shift=1, axis=1.)
+            roll(self.x, shift=1, axis=1.0)
         with assert_raises(TypingError, match=mk_match(2, "axis")):
             roll(self.x, shift=1, axis=((1,),))
-<<<<<<< HEAD
-        with assert_raises(TypingError):
-=======
         with assert_raises(AttributeError):  # because shift is 2d
->>>>>>> origin/main
             roll(self.x, shift=np.array([1]), axis=np.array([[0]]))
         roll(self.x, shift=1, axis=(0,))
         roll(self.x, shift=1, axis=0)
