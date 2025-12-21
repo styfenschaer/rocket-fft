@@ -117,6 +117,6 @@ setup(
     ],
     keywords=["FFT", "Fourier", "Numba", "SciPy", "NumPy"],
     extras_require={
-        "dev": ["scipy>=1.13.1", "pytest>=9.0.2"],
+        "dev": ["scipy>=1.13.1", "pytest>=8.4.2"],
     },
 )
