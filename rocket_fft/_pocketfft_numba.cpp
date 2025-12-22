@@ -222,7 +222,7 @@ numba_r2r_genuine_hartley(uint64_t ndim, const arystruct_t* ain, arystruct_t* ao
     }
 }
 
-// ---- Required for Windows / setuptools (dummy Python module) ----
+// ---- Required for setuptools (dummy Python module) ----
 
 static PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,

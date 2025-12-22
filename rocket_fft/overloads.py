@@ -1,5 +1,4 @@
 import inspect
-from functools import partial, wraps
 from os import cpu_count
 
 import numpy as np
@@ -11,13 +10,10 @@ from numba.extending import overload, register_jitable
 from numba.np.numpy_support import is_nonelike
 
 from . import pocketfft
-from . import typutils as tu
-from .imputils import (
-    implements_jit,
-    implements_overload,
-    otherwise,
-)
+from .imputils import implements_jit, implements_overload
 from .typutils import (
+    TypingValidator,
+    TypeConstraint,
     is_contiguous_array,
     is_integer,
     is_integer_2tuple,
@@ -28,7 +24,6 @@ from .typutils import (
     is_nonelike,
     is_not_nonelike,
     is_scalar,
-    typing_check,
 )
 
 # Unlike NumPy, SciPy is an optional runtime dependency
@@ -44,7 +39,7 @@ except ImportError:
 # Type conversion
 # -----------------------------------------------------------------------------
 
-_cmplx_lut = {
+_as_cmplx_lut = {
     types.complex64: types.complex64,
     types.complex128: types.complex128,
     types.float32: types.complex64,
@@ -60,10 +55,10 @@ _cmplx_lut = {
     types.bool_: types.complex128,
     types.byte: types.complex128,
 }
-_real_lut = {key: val.underlying_float for key, val in _cmplx_lut.items()}
+_as_real_lut = {key: val.underlying_float for key, val in _as_cmplx_lut.items()}
 
 
-def _as_supported_dtype(dtype, lut):
+def _as_dtype(dtype, lut):
     ty = lut.get(dtype)
     if ty is not None:
         return ty
@@ -72,182 +67,269 @@ def _as_supported_dtype(dtype, lut):
     raise TypingError(f"Unsupported dtype {dtype}; supported are {keys}.")
 
 
-as_supported_cmplx = partial(_as_supported_dtype, lut=_cmplx_lut)
-as_supported_real = partial(_as_supported_dtype, lut=_real_lut)
+as_complex = partial(_as_dtype, lut=_as_cmplx_lut)
+as_real = partial(_as_dtype, lut=_as_real_lut)
 
 
 # -----------------------------------------------------------------------------
 # Typing checkers
 # -----------------------------------------------------------------------------
 
-fft_typing = tu.TypingChecker(
-    a=tu.Check(
+fft_typing_validator = TypingValidator(
+    a=TypeConstraint(
         types.Array,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=False,
-        msg="The {} argument '{}' must be an array.",
+        error_message="The {} argument '{}' must be an array but got.",
     ),
-    x=tu.Check(
+    x=TypeConstraint(
         types.Array,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=False,
-        msg="The {} argument '{}' must be an array.",
+        error_message="The {} argument '{}' must be an array.",
     ),
-    n=tu.Check(
+    n=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=True,
+        allow_scalar=True,
+        allow_sequence=True,
         allow_none=True,
-        msg="The {} argument '{}' must be an integer.",
+        error_message="The {} argument '{}' must be an integer.",
     ),
-    s=tu.Check(
+    s=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=True,
+        allow_scalar=True,
+        allow_sequence=True,
         allow_none=True,
-        msg="The {} argument '{}' must be a sequence of integers.",
+        error_message="The {} argument '{}' must be a sequence of integers.",
     ),
-    axis=tu.Check(
+    axis=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=True,
+        allow_scalar=True,
+        allow_sequence=True,
         allow_none=True,
-        msg="The {} argument '{}' must be an integer.",
+        error_message="The {} argument '{}' must be an integer.",
     ),
-    axes=tu.Check(
+    axes=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=True,
+        allow_scalar=True,
+        allow_sequence=True,
         allow_none=True,
-        msg="The {} argument '{}' must be a sequence of integers.",
+        error_message="The {} argument '{}' must be a sequence of integers.",
     ),
-    norm=tu.Check(
+    norm=TypeConstraint(
         types.UnicodeType,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' must be a string.",
+        error_message="The {} argument '{}' must be a string.",
     ),
-    type=tu.Check(
+    type=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=False,
-        msg="The {} argument '{}' must be an integer.",
+        error_message="The {} argument '{}' must be an integer.",
     ),
-    overwrite_x=tu.Check(
+    overwrite_x=TypeConstraint(
         types.Boolean,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=False,
-        msg="The {} argument '{}' must be a boolean.",
+        error_message="The {} argument '{}' must be a boolean.",
     ),
-    out=tu.Check(
+    out=TypeConstraint(
         types.NoneType,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' is not yet supported.",  # TODO
+        error_message="The {} argument '{}' is not yet supported.",  # TODO
     ),
-    workers=tu.Check(
+    workers=TypeConstraint(
         types.Integer,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' must be an integer.",
+        error_message="The {} argument '{}' must be an integer.",
     ),
-    orthogonalize=tu.Check(
+    orthogonalize=TypeConstraint(
         types.Boolean,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' must be a boolean.",
+        error_message="The {} argument '{}' must be a boolean.",
     ),
-    plan=tu.Check(
+    plan=TypeConstraint(
         types.NoneType,
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' is not supported.",
+        error_message="The {} argument '{}' is not supported.",
     ),
 )
 
 
-fftshift_typing = tu.TypingChecker(
-    x=tu.Check(
+fftshift_typing_validator = TypingValidator(
+    x=TypeConstraint(
         types.Array,
-        msg="The {} argument '{}' must be an array.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be an array.",
     ),
-    axes=tu.Check(
+    axes=TypeConstraint(
         types.Integer,
-        as_seq=True,
+        allow_scalar=True,
+        allow_sequence=True,
         allow_none=True,
-        msg="The {} argument '{}' must be a sequence of integers or an integer.",
+        error_message="The {} argument '{}' must be a sequence of integers or an integer.",
     ),
 )
 
-
-fftfreq_typing = tu.TypingChecker(
-    n=tu.Check(
+fftfreq_typing_validator = TypingValidator(
+    n=TypeConstraint(
         types.Integer,
-        msg="The {} argument '{}' must be an integer.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be an integer.",
     ),
-    d=tu.Check(
+    d=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
-    device=tu.Check(
+    device=TypeConstraint(
         (types.StringLiteral, types.UnicodeType),
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="Only the value 'cpu' is supported for the {} argument '{}'.",
+        error_message="Only the value 'cpu' is supported for the {} argument '{}'.",
     ),
-    xp=tu.Check(
+    xp=TypeConstraint(
         (types.Module, types.NoneType),
-        as_one=True,
-        as_seq=False,
+        allow_scalar=True,
+        allow_sequence=False,
         allow_none=True,
-        msg="The {} argument '{}' is not yet supported.",
+        error_message="The {} argument '{}' is not yet supported.",
     ),
 )
 
-fht_typing = tu.TypingChecker(
-    a=tu.Check(
+fht_typing_validator = TypingValidator(
+    a=TypeConstraint(
         types.Array,
-        msg="The {} argument '{}' must be an array.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be an array.",
     ),
-    A=tu.Check(
+    A=TypeConstraint(
         types.Array,
-        msg="The {} argument '{}' must be an array.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be an array.",
     ),
-    dln=tu.Check(
+    dln=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
-    mu=tu.Check(
+    mu=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
-    initial=tu.Check(
+    initial=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
-    bias=tu.Check(
+    bias=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
-    offset=tu.Check(
+    offset=TypeConstraint(
         types.Number,
-        msg="The {} argument '{}' must be a scalar.",
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a scalar.",
     ),
 )
+
+fastlen_typing_validator = TypingValidator(
+    target=TypeConstraint(
+        types.Integer,
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be an integer.",
+    ),
+    real=TypeConstraint(
+        types.Boolean,
+        allow_scalar=True,
+        allow_sequence=False,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a boolean.",
+    ),
+)
+
+
+roll_typing_validator = TypingValidator(
+    a=TypeConstraint(
+        (types.Number, types.Boolean),
+        allow_scalar=True,
+        allow_sequence=True,
+        allow_none=False,
+        error_message="The {} argument '{}' must be array-like.",
+    ),
+    shift=TypeConstraint(
+        (types.Integer, types.Boolean),
+        allow_scalar=True,
+        allow_sequence=True,
+        allow_none=False,
+        error_message="The {} argument '{}' must be a sequence of integers or an integer.",
+    ),
+    axis=TypeConstraint(
+        (types.Integer, types.Boolean),
+        allow_scalar=True,
+        allow_sequence=True,
+        allow_none=True,
+        error_message="If specified, the {} argument '{}' must be a sequence of integers or an integer",
+    ),
+)
+
 
 # -----------------------------------------------------------------------------
 # Public functions (not jitted)
 # -----------------------------------------------------------------------------
+
+
+# SciPy and NumPy differ in when they convert types and handle duplicate axes.
+# These functions mimic their behavior. They must be called before the compilation
+# of our internals, otherwise they have no effect. After compilation, the changes
+# are ireversible.
+
+
+def numpy_like():
+    _set_check_axes_unique(_numpy_check_axes_unique)
+
+
+def scipy_like():
+    _set_check_axes_unique(_scipy_check_axes_unique)
 
 
 _cpu_count = cpu_count()
@@ -291,13 +373,30 @@ def wraparound_axes(x, axes):
             axes[i] += x.ndim
 
 
+# NumPy allows passing duplicate axes for fft2, fftn, ifft2 and ifft
+# while SciPy doesn't.
+
+
 @register_jitable(locals={"slots": types.UniTuple(types.byte, 32)})
-def ensure_unique_axes(axes):
+def _scipy_check_axes_unique(axes):
     slots = (0,) * 32  # np.MAXDIMS
     for ax in axes:
         if slots[ax] != 0:
             raise NumbaValueError("All axes must be unique.")
         slots = tuple_setitem(slots, ax, 1)
+
+
+@register_jitable
+def _numpy_check_axes_unique(axes):
+    pass
+
+
+check_axes_unique = None
+
+
+def _set_check_axes_unique(impl):
+    global check_axes_unique
+    check_axes_unique = impl
 
 
 @register_jitable
@@ -318,13 +417,13 @@ def ndshape_and_axes(x, s, axes):
     pass
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=is_literal_integer(-1))
+@ndshape_and_axes.case(s=is_nonelike, axes=is_literal_integer(-1))
 def _(x, s, axes):
     # Specialization for default 1D transform
     return s, np.array([x.ndim - 1])
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=is_integer)
+@ndshape_and_axes.case(s=is_nonelike, axes=is_integer)
 def _(x, s, axes):
     # Specialization for 1D transform
     axes = wraparound_axis(x, axes)
@@ -332,18 +431,18 @@ def _(x, s, axes):
     return s, axes
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=is_integer_2tuple)
+@ndshape_and_axes.case(s=is_nonelike, axes=is_integer_2tuple)
 def _(x, s, axes):
     # Specialization for 2D transform
     ax1, ax2 = axes
     ax1 = wraparound_axis(x, ax1)
     ax2 = wraparound_axis(x, ax2)
-    ensure_unique_axes((ax1, ax2))
+    check_axes_unique((ax1, ax2))
     axes = np.array([ax1, ax2])
     return s, axes
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=is_nonelike)
+@ndshape_and_axes.case(s=is_nonelike, axes=is_nonelike)
 def _(x, s, axes):
     # Specialization for default ND transform
     # Axes not specified, transform all axes
@@ -351,15 +450,15 @@ def _(x, s, axes):
     return s, axes
 
 
-@ndshape_and_axes.impl(s=is_nonelike, axes=is_not_nonelike)
+@ndshape_and_axes.case(s=is_nonelike, axes=is_not_nonelike)
 def _(x, s, axes):
     axes = toarray(axes)
     wraparound_axes(x, axes)
-    ensure_unique_axes(axes)
+    check_axes_unique(axes)
     return s, axes
 
 
-@ndshape_and_axes.impl(s=is_not_nonelike, axes=is_nonelike)
+@ndshape_and_axes.case(s=is_not_nonelike, axes=is_nonelike)
 def _(x, s, axes):
     s = toarray(s)
     assert_valid_shape(s)
@@ -370,13 +469,13 @@ def _(x, s, axes):
     return s, axes
 
 
-@ndshape_and_axes.impl(otherwise)
+@ndshape_and_axes.fallback
 def _(x, s, axes):
     s = toarray(s)
     assert_valid_shape(s)
     axes = toarray(axes)
     wraparound_axes(x, axes)
-    ensure_unique_axes(axes)
+    check_axes_unique(axes)
     if s.size != axes.size:
         raise NumbaValueError(
             "When given, axes and shape arguments" " have to be of the same length."
@@ -389,7 +488,7 @@ def mul_axes(shape, axes, delta=None):
     pass
 
 
-@mul_axes.impl(delta=is_nonelike)
+@mul_axes.case(delta=is_nonelike)
 def _(shape, axes, delta=None):
     n = 1.0
     for ax in axes:
@@ -397,7 +496,7 @@ def _(shape, axes, delta=None):
     return n
 
 
-@mul_axes.impl(otherwise)
+@mul_axes.fallback
 def _(shape, axes, delta=None):
     n = 1.0
     for ax in axes:
@@ -410,17 +509,17 @@ def get_fct(x, axes, norm, forward, delta=None):
     pass
 
 
-@get_fct.impl(norm=is_nonelike, forward=is_literal_bool(True))
+@get_fct.case(norm=is_nonelike, forward=is_literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     return 1.0
 
 
-@get_fct.impl(norm=is_nonelike, forward=is_literal_bool(False))
+@get_fct.case(norm=is_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     return 1.0 / mul_axes(x.shape, axes, delta)
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(True))
+@get_fct.case(norm=is_not_nonelike, forward=is_literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0
@@ -433,7 +532,7 @@ def _(x, axes, norm, forward, delta=None):
     )
 
 
-@get_fct.impl(norm=is_not_nonelike, forward=is_literal_bool(False))
+@get_fct.case(norm=is_not_nonelike, forward=is_literal_bool(False))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
         return 1.0 / mul_axes(x.shape, axes, delta)
@@ -451,12 +550,12 @@ def get_nthreads(workers):
     pass
 
 
-@get_nthreads.impl(workers=is_nonelike)
+@get_nthreads.case(workers=is_nonelike)
 def _(workers):
     return _num_workers
 
 
-@get_nthreads.impl(otherwise)
+@get_nthreads.fallback
 def _(workers):
     if workers > 0:
         return workers
@@ -481,7 +580,7 @@ def _(x, s, axes, dtype):
     return x, s, axes, dtype
 
 
-@zeropad_or_crop.impl(s=is_not_nonelike)
+@zeropad_or_crop.case(s=is_not_nonelike)
 def _(x, s, axes, dtype):
     shape = x.shape
     for n, ax in zip(s, axes):
@@ -494,12 +593,12 @@ def _(x, s, axes, dtype):
     return out
 
 
-@zeropad_or_crop.impl(lambda x, s, axes, dtype: x.dtype != dtype)
+@zeropad_or_crop.case(lambda x, s, axes, dtype: x.dtype != dtype)
 def _(x, s, axes, dtype):
     return x.astype(dtype)
 
 
-@zeropad_or_crop.impl(otherwise)
+@zeropad_or_crop.fallback
 def _(x, s, axes, dtype):
     return x
 
@@ -521,12 +620,12 @@ def generated_alloc_output(s, istype, reqtype):
     def alloc_output(x, overwrite_x):
         pass
 
-    @alloc_output.impl(overwrite_x=is_literal_bool(False))
+    @alloc_output.case(overwrite_x=is_literal_bool(False))
     def _(x, overwrite_x):
         # Specialization for default case
         return np.empty(x.shape, dtype=x.dtype)
 
-    @alloc_output.impl(otherwise)
+    @alloc_output.fallback
     def _(x, overwrite_x):
         if overwrite_x:
             return x
@@ -557,12 +656,12 @@ def resize(shape, x, s, axes):
     pass
 
 
-@resize.impl(s=is_nonelike)
+@resize.case(s=is_nonelike)
 def _(shape, x, s, axes):
     return shape
 
 
-@resize.impl(otherwise)
+@resize.fallback
 def _(shape, x, s, axes):
     last_ax = x.ndim - 1
     for i, ax in enumerate(axes):
@@ -577,47 +676,52 @@ def get_type(type, forward):
     pass
 
 
-@get_type.impl(type=is_literal_integer(2), forward=is_literal_bool(True))
+@get_type.case(type=is_literal_integer(2), forward=is_literal_bool(True))
 def _(type, forward):
     # Specialization for default case forward
     return 2
 
 
-@get_type.impl(type=is_literal_integer(2), forward=is_literal_bool(False))
+@get_type.case(type=is_literal_integer(2), forward=is_literal_bool(False))
 def _(type, forward):
     # Specialization for default case backward
     return 3
 
 
-@get_type.impl(forward=is_literal_bool(True))
+@get_type.case(forward=is_literal_bool(True))
 def _(type, forward):
     if type not in (1, 2, 3, 4):
         raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
     return type
 
 
-@get_type.impl(forward=is_literal_bool(False))
+@get_type.case(forward=is_literal_bool(False))
 def _(type, forward):
     if type == 2:
         return 3
     if type == 3:
         return 2
-    if type not in (1, 4):
-        raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
-    return type
+    if type in (1, 4):
+        return type
+    raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
 
 
-@implements_jit
+@implements_jit(prefer_literal=True)
 def get_ortho(norm, ortho):
     pass
 
 
-@get_ortho.impl(ortho=is_not_nonelike)
+@get_ortho.case(ortho=is_not_nonelike)
 def _(norm, ortho):
     return ortho
 
 
-@get_ortho.impl(otherwise)
+@get_ortho.case(norm=is_literal_string("ortho"))
+def _(norm, ortho):
+    return True
+
+
+@get_ortho.fallback
 def _(norm, ortho):
     return norm == "ortho"
 
@@ -627,16 +731,15 @@ def check_device(device):
     pass
 
 
-@check_device.impl(device=is_nonelike)
-@check_device.impl(device=is_literal_string("cpu"))
-@check_device.impl(device=is_literal_string("CPU"))
+@check_device.case(device=is_nonelike)
+@check_device.case(device=is_literal_string("cpu"))
 def _(device):
     return
 
 
-@check_device.impl(device=is_unicode)
+@check_device.case(device=is_unicode)
 def _(device):
-    if device != "cpu" and device != "CPU":
+    if device != "cpu":
         raise ValueError("Only 'cpu' device is supported.")
 
 
@@ -687,27 +790,17 @@ def _roll_core_impl(a, shift, axis):
 
 
 @implements_overload(numpy.roll)
+@roll_typing_validator.decorator
 def roll(a, shift, axis=None):
-    typing_check((types.Number, types.Boolean), as_seq=True)(
-        a,
-        "The 1st argument 'a' must be array-like.",
-    )
-    typing_check((types.Integer, types.Boolean), as_seq=True)(
-        shift,
-        "The 2nd argument 'shift' must be a sequence of integers or an integer.",
-    )
-    typing_check((types.Integer, types.Boolean), as_seq=True, allow_none=True)(
-        axis,
-        "If specified, the 3rd argument 'axis' must be a sequence of integers or an integer",
-    )
+    pass
 
 
-@roll.impl(a=is_scalar)
+@roll.case(a=is_scalar)
 def _(a, shift, axis=None):
     return np.asarray(a)
 
 
-@roll.impl(axis=is_nonelike)
+@roll.case(axis=is_nonelike)
 def _(a, shift, axis=None):
     arr = np.asarray(a)
     out = np.empty(arr.shape, dtype=arr.dtype)
@@ -728,7 +821,7 @@ def _(a, shift, axis=None):
     return out
 
 
-@roll.impl(a=is_contiguous_array(layout="C"))
+@roll.case(a=is_contiguous_array(layout="C"))
 def _(a, shift, axis=None):
     return _roll_core_impl(a, shift, axis)
 
@@ -739,13 +832,13 @@ def _transpose_axes(axis, ndim):
     return np.array([(ndim - ax - 1) % ndim for ax in axis])
 
 
-@roll.impl(a=is_contiguous_array(layout="F"))
+@roll.case(a=is_contiguous_array(layout="F"))
 def _(a, shift, axis=None):
     axis = _transpose_axes(axis, a.ndim)
     return _roll_core_impl(a.T, shift, axis).T
 
 
-@roll.impl(otherwise)
+@roll.fallback
 def _(a, shift, axis=None):
     arr = np.asarray(a)
 
@@ -803,29 +896,6 @@ def _ifhtq(a, u):
     return A[..., ::-1]
 
 
-def next_fast_len(target, real=False):
-    typing_check(types.Integer)(
-        target,
-        "The 1st argument 'target' must be an integer.",
-    )
-    typing_check(types.Boolean)(
-        real,
-        "The 2nd argument 'real' must be a boolean.",
-    )
-
-    def impl(target, real=False):
-        if target < 0:
-            raise NumbaValueError("Target cannot be negative.")
-        return pocketfft.numba_good_size(target, real)
-
-    return impl
-
-
-# TODO
-def prev_fast_len(target, real=False):
-    raise NotImplementedError("scipy.fft.prev_fast_len is not yet supported.")
-
-
 # -----------------------------------------------------------------------------
 # Generic transforms
 # -----------------------------------------------------------------------------
@@ -864,31 +934,8 @@ def apply_signature(src, dst):
     return dst
 
 
-def apply_signature_decorator(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return apply_signature(func, func(*args, **kwargs))
-
-    return wrapper
-
-
-def auto_typing_decorator(typing_checker):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            sig = inspect.signature(func)
-            bound = sig.bind(*args, **kwargs)
-            bound.apply_defaults()
-            typing_checker(**bound.arguments)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
 def scipy_c2cn(x, s, forward):
-    rettype = as_supported_cmplx(x.dtype)
+    rettype = as_complex(x.dtype)
 
     if isinstance(x.dtype, types.Complex):
         alloc_output = generated_alloc_output(s, x.dtype, rettype)
@@ -903,7 +950,7 @@ def scipy_c2cn(x, s, forward):
             return out
 
     else:
-        argtype = as_supported_real(x.dtype)
+        argtype = as_real(x.dtype)
 
         def impl(x, s, axes, norm, overwrite_x, workers, plan):
             s, axes = ndshape_and_axes(x, s, axes)
@@ -918,8 +965,8 @@ def scipy_c2cn(x, s, forward):
 
 
 def scipy_c2rn(x, forward):
-    argtype = as_supported_cmplx(x.dtype)
-    rettype = as_supported_real(argtype)
+    argtype = as_complex(x.dtype)
+    rettype = as_real(argtype)
 
     def impl(x, s, axes, norm, overwrite_x, workers, plan):
         s, axes = ndshape_and_axes(x, s, axes)
@@ -937,7 +984,7 @@ def scipy_c2rn(x, forward):
 
 def scipy_r2rn(x, s, trafo, delta, forward):
     if isinstance(x.dtype, types.Complex):
-        argtype = as_supported_cmplx(x.dtype)
+        argtype = as_complex(x.dtype)
 
         @register_jitable
         def transform(x, out, axes, type, fct, ortho, nthreads):
@@ -945,7 +992,7 @@ def scipy_r2rn(x, s, trafo, delta, forward):
             trafo(x.imag, out.imag, axes, type, fct, ortho, nthreads)
 
     else:
-        argtype = as_supported_real(x.dtype)
+        argtype = as_real(x.dtype)
         transform = trafo
 
     rettype = argtype
@@ -970,8 +1017,8 @@ def scipy_r2cn(x, forward):
     if isinstance(x.dtype, types.Complex):
         raise TypingError(f"unsupported dtype {x.dtype}")
 
-    argtype = as_supported_real(x.dtype)
-    rettype = as_supported_cmplx(argtype)
+    argtype = as_real(x.dtype)
+    rettype = as_complex(argtype)
 
     def impl(x, s, axes, norm, overwrite_x, workers, plan):
         s, axes = ndshape_and_axes(x, s, axes)
@@ -986,8 +1033,9 @@ def scipy_r2cn(x, forward):
     return impl
 
 
+# TODO: Support the 'out' arguments
 def numpy_c2cn(x, s, forward):
-    rettype = as_supported_cmplx(x.dtype)
+    rettype = as_complex(x.dtype)
 
     if isinstance(x.dtype, types.Complex):
         alloc_output = generated_alloc_output(s, x.dtype, rettype)
@@ -1002,7 +1050,7 @@ def numpy_c2cn(x, s, forward):
             return out
 
     else:
-        argtype = as_supported_real(x.dtype)
+        argtype = as_real(x.dtype)
 
         def impl(x, s, axes, norm, _out):
             s, axes = ndshape_and_axes(x, s, axes)
@@ -1016,12 +1064,13 @@ def numpy_c2cn(x, s, forward):
     return impl
 
 
+# TODO: Support the 'out' arguments
 def numpy_r2cn(x, forward):
     if isinstance(x.dtype, types.Complex):
         raise TypingError(f"unsupported dtype {x.dtype}")
 
-    argtype = as_supported_real(x.dtype)
-    rettype = as_supported_cmplx(argtype)
+    argtype = as_real(x.dtype)
+    rettype = as_complex(argtype)
 
     def impl(x, s, axes, norm, _out):
         s, axes = ndshape_and_axes(x, s, axes)
@@ -1036,9 +1085,10 @@ def numpy_r2cn(x, forward):
     return impl
 
 
+# TODO: Support the 'out' arguments
 def numpy_c2rn(x, forward):
-    argtype = as_supported_cmplx(x.dtype)
-    rettype = as_supported_real(argtype)
+    argtype = as_complex(x.dtype)
+    rettype = as_real(argtype)
 
     def impl(x, s, axes, norm, _out):
         s, axes = ndshape_and_axes(x, s, axes)
@@ -1060,101 +1110,101 @@ def numpy_c2rn(x, forward):
 
 
 @overload(numpy.fft.fft)
-@apply_signature_decorator
-@auto_typing_decorator(fft_typing)
+@fft_typing_validator.decorator
 def numpy_fft(a, n=None, axis=-1, norm=None, out=None):
-    return numpy_c2cn(a, n, forward=True)
+    impl = numpy_c2cn(a, n, forward=True)
+    return apply_signature(numpy_fft, impl)
 
 
 @overload(numpy.fft.ifft)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_ifft(a, n=None, axis=-1, norm=None, out=None):
-    fft_typing(a=a, n=n, axis=axis, norm=norm, out=out)
-    return numpy_c2cn(a, n, forward=False)
+    impl = numpy_c2cn(a, n, forward=False)
+    return apply_signature(numpy_ifft, impl)
 
 
 @overload(numpy.fft.fft2)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_fft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2cn(a, s, forward=True)
+    impl = numpy_c2cn(a, s, forward=True)
+    return apply_signature(numpy_fft2, impl)
 
 
 @overload(numpy.fft.ifft2)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_ifft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2cn(a, s, forward=False)
+    impl = numpy_c2cn(a, s, forward=False)
+    return apply_signature(numpy_ifft2, impl)
 
 
 @overload(numpy.fft.fftn)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_fftn(a, s=None, axes=None, norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2cn(a, s, forward=True)
+    impl = numpy_c2cn(a, s, forward=True)
+    return apply_signature(numpy_fftn, impl)
 
 
 @overload(numpy.fft.ifftn)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_ifftn(a, s=None, axes=None, norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2cn(a, s, forward=False)
+    impl = numpy_c2cn(a, s, forward=False)
+    return apply_signature(numpy_ifftn, impl)
 
 
 @overload(numpy.fft.rfft)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_rfft(a, n=None, axis=-1, norm=None, out=None):
-    fft_typing(a=a, n=n, axes=axis, norm=norm, out=out)
-    return numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True)
+    return apply_signature(numpy_rfft, impl)
 
 
 @overload(numpy.fft.irfft)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_irfft(a, n=None, axis=-1, norm=None, out=None):
-    fft_typing(a=a, n=n, axes=axis, norm=norm, out=out)
-    return numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False)
+    return apply_signature(numpy_irfft, impl)
 
 
 @overload(numpy.fft.rfft2)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_rfft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True)
+    return apply_signature(numpy_rfft2, impl)
 
 
 @overload(numpy.fft.irfft2)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_irfft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False)
+    return apply_signature(numpy_irfft2, impl)
 
 
 @overload(numpy.fft.rfftn)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_rfftn(a, s=None, axes=None, norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True)
+    return apply_signature(numpy_rfftn, impl)
 
 
 @overload(numpy.fft.irfftn)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_irfftn(a, s=None, axes=None, norm=None, out=None):
-    fft_typing(a=a, s=s, axes=axes, norm=norm, out=out)
-    return numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False)
+    return apply_signature(numpy_irfftn, impl)
 
 
 @overload(numpy.fft.hfft)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_hfft(a, n=None, axis=-1, norm=None, out=None):
-    fft_typing(a=a, n=n, axis=axis, norm=norm, out=out)
-    return numpy_c2rn(a, forward=True)
+    impl = numpy_c2rn(a, forward=True)
+    return apply_signature(numpy_hfft, impl)
 
 
 @overload(numpy.fft.ihfft)
-@apply_signature_decorator
+@fft_typing_validator.decorator
 def numpy_ihfft(a, n=None, axis=-1, norm=None, out=None):
-    fft_typing(a=a, n=n, axis=axis, norm=norm, out=out)
-    return numpy_r2cn(a, forward=False)
+    impl = numpy_r2cn(a, forward=False)
+    return apply_signature(numpy_ihfft, impl)
 
 
 # -----------------------------------------------------------------------------
@@ -1175,8 +1225,8 @@ def numpy_fftfreq_impl(n, d=1.0, device=None):
 
 
 @overload(numpy.fft.fftfreq)
+@fftfreq_typing_validator.decorator
 def numpy_fftfreq(n, d=1.0, device=None):
-    fftfreq_typing(n=n, d=d, device=device)
     return numpy_fftfreq_impl
 
 
@@ -1189,17 +1239,18 @@ def numpy_rfftfreq_impl(n, d=1.0, device=None):
 
 
 @overload(numpy.fft.rfftfreq)
+@fftfreq_typing_validator.decorator
 def numpy_rfftfreq(n, d=1.0, device=None):
-    fftfreq_typing(n=n, d=d, device=device)
     return numpy_rfftfreq_impl
 
 
 @implements_overload(numpy.fft.fftshift)
-def fftshift(x, axes=None):
-    fftshift_typing(x=x, axes=axes)
+@fftshift_typing_validator.decorator
+def numpy_fftshift(x, axes=None):
+    pass
 
 
-@fftshift.impl(axes=is_nonelike)
+@numpy_fftshift.case(axes=is_nonelike)
 def _(x, axes=None):
     axes = x.shape
     shift = x.shape
@@ -1209,13 +1260,13 @@ def _(x, axes=None):
     return np.roll(x, shift, axes)
 
 
-@fftshift.impl(axes=is_integer)
+@numpy_fftshift.case(axes=is_integer)
 def _(x, axes=None):
     shift = x.shape[axes] // 2
     return np.roll(x, shift, axes)
 
 
-@fftshift.impl(otherwise)
+@numpy_fftshift.fallback
 def _(x, axes=None):
     shift = x.shape[: len(axes)]
     for i, ax in enumerate(axes):
@@ -1224,11 +1275,12 @@ def _(x, axes=None):
 
 
 @implements_overload(numpy.fft.ifftshift)
-def ifftshift(x, axes=None):
-    fftshift_typing(x=x, axes=axes)
+@fftshift_typing_validator.decorator
+def numpy_ifftshift(x, axes=None):
+    pass
 
 
-@ifftshift.impl(axes=is_nonelike)
+@numpy_ifftshift.case(axes=is_nonelike)
 def _(x, axes=None):
     axes = x.shape
     shift = x.shape
@@ -1238,13 +1290,13 @@ def _(x, axes=None):
     return np.roll(x, shift, axes)
 
 
-@ifftshift.impl(axes=is_integer)
+@numpy_ifftshift.case(axes=is_integer)
 def _(x, axes=None):
     shift = -(x.shape[axes] // 2)
     return np.roll(x, shift, axes)
 
 
-@ifftshift.impl(otherwise)
+@numpy_ifftshift.fallback
 def _(x, axes=None):
     shift = x.shape[: len(axes)]
     for i, ax in enumerate(axes):
@@ -1260,7 +1312,7 @@ def _(x, axes=None):
 if _scipy_installed_:
 
     @overload(scipy.fft.fft, strict=False)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_fft(
         x,
         n=None,
@@ -1270,19 +1322,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, n, forward=True)
+        impl = scipy_c2cn(x, n, forward=True)
+        return apply_signature(scipy_fft, impl)
 
     @overload(scipy.fft.ifft)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ifft(
         x,
         n=None,
@@ -1292,19 +1336,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, n, forward=False)
+        impl = scipy_c2cn(x, n, forward=False)
+        return apply_signature(scipy_ifft, impl)
 
     @overload(scipy.fft.fft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_fft2(
         x,
         s=None,
@@ -1314,19 +1350,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, s, forward=True)
+        impl = scipy_c2cn(x, s, forward=True)
+        return apply_signature(scipy_fft2, impl)
 
     @overload(scipy.fft.ifft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ifft2(
         x,
         s=None,
@@ -1336,19 +1364,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, s, forward=False)
+        impl = scipy_c2cn(x, s, forward=False)
+        return apply_signature(scipy_ifft2, impl)
 
     @overload(scipy.fft.fftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_fftn(
         x,
         s=None,
@@ -1358,19 +1378,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, s, forward=True)
+        impl = scipy_c2cn(x, s, forward=True)
+        return apply_signature(scipy_fftn, impl)
 
     @overload(scipy.fft.ifftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ifftn(
         x,
         s=None,
@@ -1380,19 +1392,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2cn(x, s, forward=False)
+        impl = scipy_c2cn(x, s, forward=False)
+        return apply_signature(scipy_ifftn, impl)
 
     @overload(scipy.fft.rfft)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_rfft(
         x,
         n=None,
@@ -1402,19 +1406,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=True)
+        impl = scipy_r2cn(x, forward=True)
+        return apply_signature(scipy_rfft, impl)
 
     @overload(scipy.fft.irfft)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_irfft(
         x,
         n=None,
@@ -1424,19 +1420,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2rn(x, forward=False)
+        impl = scipy_c2rn(x, forward=False)
+        return apply_signature(scipy_irfft, impl)
 
     @overload(scipy.fft.rfft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_rfft2(
         x,
         s=None,
@@ -1446,19 +1434,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=True)
+        impl = scipy_r2cn(x, forward=True)
+        return apply_signature(scipy_rfft2, impl)
 
     @overload(scipy.fft.irfft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_irfft2(
         x,
         s=None,
@@ -1468,19 +1448,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=False)
+        impl = scipy_c2rn(x, forward=False)
+        return apply_signature(scipy_irfft2, impl)
 
     @overload(scipy.fft.rfftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_rfftn(
         x,
         s=None,
@@ -1490,19 +1462,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=True)
+        impl = scipy_r2cn(x, forward=True)
+        return apply_signature(scipy_rfftn, impl)
 
     @overload(scipy.fft.irfftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_irfftn(
         x,
         s=None,
@@ -1512,19 +1476,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2rn(x, forward=False)
+        impl = scipy_c2rn(x, forward=False)
+        return apply_signature(scipy_irfftn, impl)
 
     @overload(scipy.fft.hfft)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_hfft(
         x,
         n=None,
@@ -1534,19 +1490,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2rn(x, forward=True)
+        impl = scipy_c2rn(x, forward=True)
+        return apply_signature(scipy_hfft, impl)
 
     @overload(scipy.fft.ihfft)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ihfft(
         x,
         n=None,
@@ -1556,19 +1504,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=False)
+        impl = scipy_r2cn(x, forward=False)
+        return apply_signature(scipy_ihfft, impl)
 
     @overload(scipy.fft.hfft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_hfft2(
         x,
         s=None,
@@ -1578,19 +1518,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2rn(x, forward=True)
+        impl = scipy_c2rn(x, forward=True)
+        return apply_signature(scipy_hfft2, impl)
 
     @overload(scipy.fft.ihfft2)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ihfft2(
         x,
         s=None,
@@ -1600,19 +1532,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=False)
+        impl = scipy_r2cn(x, forward=False)
+        return apply_signature(scipy_ihfft2, impl)
 
     @overload(scipy.fft.hfftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_hfftn(
         x,
         s=None,
@@ -1622,19 +1546,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_c2rn(x, forward=True)
+        impl = scipy_c2rn(x, forward=True)
+        return apply_signature(scipy_hfftn, impl)
 
     @overload(scipy.fft.ihfftn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_ihfftn(
         x,
         s=None,
@@ -1644,20 +1560,11 @@ if _scipy_installed_:
         workers=None,
         plan=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            plan=plan,
-        )
-        return scipy_r2cn(x, forward=False)
+        impl = scipy_r2cn(x, forward=False)
+        return apply_signature(scipy_ihfftn, impl)
 
     @overload(scipy.fft.dct)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_dct(
         x,
         type=2,
@@ -1668,26 +1575,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             n,
             trafo=pocketfft.numba_dct,
             delta=-1,
             forward=True,
         )
+        return apply_signature(scipy_dct, impl)
 
     @overload(scipy.fft.idct)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_idct(
         x,
         type=2,
@@ -1698,26 +1596,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             n,
             trafo=pocketfft.numba_dct,
             delta=-1,
             forward=False,
         )
+        return apply_signature(scipy_idct, impl)
 
     @overload(scipy.fft.dctn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_dctn(
         x,
         type=2,
@@ -1728,26 +1617,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             s,
             trafo=pocketfft.numba_dct,
             delta=-1,
             forward=True,
         )
+        return apply_signature(scipy_dctn, impl)
 
     @overload(scipy.fft.idctn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_idctn(
         x,
         type=2,
@@ -1758,26 +1638,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             s,
             trafo=pocketfft.numba_dct,
             delta=-1,
             forward=False,
         )
+        return apply_signature(scipy_idctn, impl)
 
     @overload(scipy.fft.dst)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_dst(
         x,
         type=2,
@@ -1788,26 +1659,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             n,
             trafo=pocketfft.numba_dst,
             delta=1,
             forward=True,
         )
+        return apply_signature(scipy_dst, impl)
 
     @overload(scipy.fft.idst)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_idst(
         x,
         type=2,
@@ -1818,26 +1680,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            n=n,
-            axis=axis,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             n,
             trafo=pocketfft.numba_dst,
             delta=1,
             forward=False,
         )
+        return apply_signature(scipy_idst, impl)
 
     @overload(scipy.fft.dstn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_dstn(
         x,
         type=2,
@@ -1848,26 +1701,17 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             s,
             trafo=pocketfft.numba_dst,
             delta=1,
             forward=True,
         )
+        return apply_signature(scipy_dstn, impl)
 
     @overload(scipy.fft.idstn)
-    @apply_signature_decorator
+    @fft_typing_validator.decorator
     def scipy_idstn(
         x,
         type=2,
@@ -1878,35 +1722,19 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        fft_typing(
-            x=x,
-            type=type,
-            s=s,
-            axes=axes,
-            norm=norm,
-            overwrite_x=overwrite_x,
-            workers=workers,
-            orthogonalize=orthogonalize,
-        )
-        return scipy_r2rn(
+        impl = scipy_r2rn(
             x,
             s,
             trafo=pocketfft.numba_dst,
             delta=1,
             forward=False,
         )
+        return apply_signature(scipy_idstn, impl)
 
     @overload(scipy.fft.fht)
+    @fht_typing_validator.decorator
     def scipy_fht(a, dln, mu, offset=0.0, bias=0.0):
-        fht_typing(
-            a=a,
-            dln=dln,
-            mu=mu,
-            offset=offset,
-            bias=bias,
-        )
-
-        dtype = as_supported_real(a.dtype)
+        dtype = as_real(a.dtype)
         if isinstance(a.dtype, types.Complex):
             raise TypingError("The 1st argument 'a' must be a real array.")
 
@@ -1932,16 +1760,9 @@ if _scipy_installed_:
         return impl
 
     @overload(scipy.fft.ifht)
+    @fht_typing_validator.decorator
     def scipy_ifht(A, dln, mu, offset=0.0, bias=0.0):
-        fht_typing(
-            A=A,
-            dln=dln,
-            mu=mu,
-            offset=offset,
-            bias=bias,
-        )
-
-        dtype = as_supported_real(A.dtype)
+        dtype = as_real(A.dtype)
         if isinstance(A.dtype, types.Complex):
             raise TypingError("The 1st argument 'A' must be a real array.")
 
@@ -1968,16 +1789,15 @@ if _scipy_installed_:
 
     @overload(scipy.fft.fftshift)
     def scipy_fftshift(x, axes=None):
-        return fftshift(x, axes)
+        return numpy_fftshift.dispatcher(x, axes)
 
     @overload(scipy.fft.ifftshift)
     def scipy_ifftshift(x, axes=None):
-        return ifftshift(x, axes)
+        return numpy_ifftshift.dispatcher(x, axes)
 
     @overload(scipy.fft.fftfreq)
+    @fftfreq_typing_validator.decorator
     def scipy_fftfreq(n, d=1.0, *, xp=None, device=None):
-        fftfreq_typing(n=n, d=d, xp=xp, device=device)
-
         if isinstance(xp, types.Module) and xp.pymod is not numpy:
             raise TypingError("Only NumPy namespace is supported.")
 
@@ -1989,9 +1809,8 @@ if _scipy_installed_:
         return impl
 
     @overload(scipy.fft.rfftfreq)
+    @fftfreq_typing_validator.decorator
     def scipy_rfftfreq(n, d=1.0, *, xp=None, device=None):
-        fftfreq_typing(n=n, d=d, xp=xp, device=device)
-
         if isinstance(xp, types.Module) and xp.pymod is not numpy:
             raise TypingError("Only NumPy namespace is supported.")
 
@@ -2003,9 +1822,8 @@ if _scipy_installed_:
         return impl
 
     @overload(scipy.fft.fhtoffset)
+    @fht_typing_validator.decorator
     def scipy_fhtoffset(dln, mu, initial=0.0, bias=0.0):
-        fht_typing(dln=dln, mu=mu, initial=initial, bias=bias)
-
         def impl(dln, mu, initial=0.0, bias=0.0):
             lnkr = initial
             q = bias
@@ -2019,5 +1837,21 @@ if _scipy_installed_:
 
         return impl
 
-    overload(scipy.fft.next_fast_len)(next_fast_len)
-    overload(scipy.fft.prev_fast_len)(prev_fast_len)
+    @overload(scipy.fft.next_fast_len)
+    @fastlen_typing_validator.decorator
+    def next_fast_len(target, real=False):
+
+        def impl(target, real=False):
+            if target < 0:
+                raise NumbaValueError("Target cannot be negative.")
+            return pocketfft.numba_good_size(target, real)
+
+        return impl
+
+    # TODO: Implement 'scipy.fft.prev_fast_len'
+    # if hasattr(scipy.fft, "prev_fast_len"):  # Only introduced in Scipy 0.14
+    #
+    #     @overload(scipy.fft.prev_fast_len)
+    #     @fastlen_typing_validator.decorator
+    #     def prev_fast_len(target, real=False):
+    #         ...

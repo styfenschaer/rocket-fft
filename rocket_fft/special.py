@@ -6,16 +6,13 @@ from numba.core.cgutils import get_or_insert_function
 from numba.core.errors import TypingError
 from numba.extending import intrinsic, overload
 
-from .extutils import get_extension_path, load_extension_library_permanently
+from .extutils import ExtensionLibrary
 
-special_helpers_module = "_special_helpers"
-load_extension_library_permanently(special_helpers_module)
+lib = ExtensionLibrary("_special_helpers")
+lib.load_permanently()
 
-lib_path = get_extension_path(special_helpers_module)
-dll = ctypes.PyDLL(lib_path)
-
-init_special_functions = dll.init_special_functions
-init_special_functions()
+dll = ctypes.PyDLL(lib.path)
+dll.init_special_functions()
 
 ll_void = ir.VoidType()
 ll_int32 = ir.IntType(32)

@@ -111,3 +111,15 @@ def set_workers(workers: int) -> None:
     """Sets the default number of workers used.
     This change cannot be undone after compilation of Rocket-FFT's internals.
     """
+
+def scipy_like() -> None:
+    """Handle the `axes` argument in the same way as SciPy.
+    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn`
+    functions will result in an error.
+    """
+
+def numpy_like() -> None:
+    """Handle the `axes` argument in the same way as NumPy.
+    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn`
+    functions is allowed
+    """

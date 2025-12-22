@@ -87,7 +87,7 @@ numba_poch(double z, double m) {
     return poch_ptr(z, m);
 }
 
-// ---- Required for Windows / setuptools (dummy Python module) ----
+// ---- Required for setuptools (dummy Python module) ----
 
 static PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,

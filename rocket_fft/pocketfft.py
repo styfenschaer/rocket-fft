@@ -7,9 +7,10 @@ from numba.core.cgutils import get_or_insert_function
 from numba.extending import intrinsic
 from numba.np.arrayobj import array_astype, make_array
 
-from .extutils import load_extension_library_permanently
+from .extutils import ExtensionLibrary
 
-load_extension_library_permanently("_pocketfft_numba")
+lib = ExtensionLibrary("_pocketfft_numba")
+lib.load_permanently()
 
 # All integer variables passed to the C interface are by definition non-negative
 # and we do not allow negative indexing on the C++ side. Therefore, we can always
