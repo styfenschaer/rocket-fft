@@ -177,7 +177,6 @@ def _(typingctx, ain, aout, axes, {0}):
     return sig, codegen
 """
 
-
 class Builder:
     def __init__(self, *extra_args):
         self.extra_args = ", ".join(extra_args)
