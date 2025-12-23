@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from os import cpu_count
 from functools import partial
 import numpy as np
@@ -714,7 +715,6 @@ def _(type, forward):
 @implements_jit
 def get_ortho(norm, orthogonalize):
     pass
-
 
 
 @get_ortho.case(orthogonalize=is_not_nonelike)
@@ -1653,11 +1653,15 @@ if _scipy_installed_:
         )
         return apply_signature(scipy_idctn, impl)
 
-    # TODO: This is a restriction due to a unresolved bug when using non-default values
+    # TODO: Resolved this issue
     def _dst_only_default_scaling_guard(norm, orthogonalize):
         if is_not_nonelike(norm) or is_not_nonelike(orthogonalize):
-            raise NotImplementedError(
-                "The default arguments 'norm' and 'orthogonalize' are not supported."
+            warnings.warn(
+                "Specifying the 'norm' and 'orthogonalize' arguments may lead to "
+                "incorrect results due to an unresolved issue. "
+                "Please carefully verify the output if these options are provided. "
+                "Using the default values ('norm=None' and 'orthogonalize=None') is "
+                "safe until this issue is resolved in a future version."
             )
 
     @overload(scipy.fft.dst)
