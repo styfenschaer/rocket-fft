@@ -1,0 +1,3 @@
+include setup.py
+include pyproject.toml
+recursive-include rocket_fft *.py
