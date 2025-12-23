@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import scipy.fft
+from pytest import raises
 
 from helpers import (
     numba_cache_cleanup,
@@ -328,62 +329,102 @@ def test_dct_idct(n, axis, type, norm, orthogonalize, overwrite_x):
     assert_same_result(out_nb, out_np)
 
 
-# @pytest.mark.parametrize("n", SHAPES_1D + [None])
-# @pytest.mark.parametrize("axis", AXES_1D)
-# @pytest.mark.parametrize("type", DCT_DST_TYPES)
-# @pytest.mark.parametrize("norm", NORMS)
-# @pytest.mark.parametrize("orthogonalize", ORTHO)
-# @pytest.mark.parametrize("overwrite_x", OVERWRITE)
-# def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
-#     rng = np.random.default_rng(9)
-#     a = rng.standard_normal(32)
-#     a0 = a.copy()
+@pytest.mark.parametrize("n", SHAPES_1D + [None])
+@pytest.mark.parametrize("axis", AXES_1D)
+@pytest.mark.parametrize("type", DCT_DST_TYPES)
+@pytest.mark.parametrize("norm", NORMS)
+@pytest.mark.parametrize("orthogonalize", ORTHO)
+@pytest.mark.parametrize("overwrite_x", OVERWRITE)
+def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
+    rng = np.random.default_rng(9)
+    a = rng.standard_normal(32)
+    a0 = a.copy()
 
-#     r_nb = ScipyFFT.dst(
-#         a,
-#         type=type,
-#         n=n,
-#         axis=axis,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
-#     r_np = scipy.fft.dst(
-#         a0,
-#         type=type,
-#         n=n,
-#         axis=axis,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
+    # TODO: Due to a bug only the defaults are supported
+    if norm is not None or orthogonalize is not None:
+        with raises(NotImplementedError):
+            r_nb = ScipyFFT.dst(
+                a,
+                type=type,
+                n=n,
+                axis=axis,
+                norm=norm,
+                overwrite_x=overwrite_x,
+                workers=1,
+                orthogonalize=orthogonalize,
+            )
 
-#     assert_same_result(r_nb, r_np)
+        r_nb = scipy.fft.dst(
+            a0,
+            type=type,
+            n=n,
+            axis=axis,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+    else:
+        r_nb = ScipyFFT.dst(
+            a,
+            type=type,
+            n=n,
+            axis=axis,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
 
-#     out_nb = ScipyFFT.idst(
-#         r_nb,
-#         type=type,
-#         n=n,
-#         axis=axis,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
-#     out_np = scipy.fft.idst(
-#         r_np,
-#         type=type,
-#         n=n,
-#         axis=axis,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
+        r_np = scipy.fft.dst(
+            a0,
+            type=type,
+            n=n,
+            axis=axis,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
 
-#     assert_same_result(out_nb, out_np)
+        assert_same_result(r_nb, r_np)
+
+    if norm is not None or orthogonalize is not None:
+        with raises(NotImplementedError):
+            out_nb = ScipyFFT.idst(
+                r_nb,
+                type=type,
+                n=n,
+                axis=axis,
+                norm=norm,
+                overwrite_x=overwrite_x,
+                workers=1,
+                orthogonalize=orthogonalize,
+            )
+    else:
+        out_nb = ScipyFFT.idst(
+            r_nb,
+            type=type,
+            n=n,
+            axis=axis,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+
+        out_np = scipy.fft.idst(
+            r_np,
+            type=type,
+            n=n,
+            axis=axis,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+
+        assert_same_result(out_nb, out_np)
 
 
 @pytest.mark.parametrize("shape", SHAPES_ND)
@@ -445,63 +486,102 @@ def test_dctn_idctn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
     assert_same_result(out_nb, out_np)
 
 
-# @pytest.mark.parametrize("shape", SHAPES_ND)
-# @pytest.mark.parametrize("axes", AXES_ND)
-# @pytest.mark.parametrize("s", [None])
-# @pytest.mark.parametrize("type", DCT_DST_TYPES)
-# @pytest.mark.parametrize("norm", NORMS)
-# @pytest.mark.parametrize("orthogonalize", ORTHO)
-# @pytest.mark.parametrize("overwrite_x", OVERWRITE)
-# def test_dstn_idstn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
-#     rng = np.random.default_rng(11)
-#     a = rng.standard_normal(shape)
-#     a0 = a.copy()
+@pytest.mark.parametrize("shape", SHAPES_ND)
+@pytest.mark.parametrize("axes", AXES_ND)
+@pytest.mark.parametrize("s", [None])
+@pytest.mark.parametrize("type", DCT_DST_TYPES)
+@pytest.mark.parametrize("norm", NORMS)
+@pytest.mark.parametrize("orthogonalize", ORTHO)
+@pytest.mark.parametrize("overwrite_x", OVERWRITE)
+def test_dstn_idstn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
+    rng = np.random.default_rng(11)
+    a = rng.standard_normal(shape)
+    a0 = a.copy()
 
-#     r_nb = ScipyFFT.dstn(
-#         a,
-#         type=type,
-#         s=s,
-#         axes=axes,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
-#     r_np = scipy.fft.dstn(
-#         a0,
-#         type=type,
-#         s=s,
-#         axes=axes,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
+    if norm is not None or orthogonalize is not None:
+        with raises(NotImplementedError):
+            r_nb = ScipyFFT.dstn(
+                a,
+                type=type,
+                s=s,
+                axes=axes,
+                norm=norm,
+                overwrite_x=overwrite_x,
+                workers=1,
+                orthogonalize=orthogonalize,
+            )
 
-#     assert_same_result(r_nb, r_np)
+        r_nb = scipy.fft.dstn(
+            a0,
+            type=type,
+            s=s,
+            axes=axes,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+    else:
+        r_nb = ScipyFFT.dstn(
+            a,
+            type=type,
+            s=s,
+            axes=axes,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
 
-#     out_nb = ScipyFFT.idstn(
-#         r_nb,
-#         type=type,
-#         s=s,
-#         axes=axes,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
-#     out_np = scipy.fft.idstn(
-#         r_np,
-#         type=type,
-#         s=s,
-#         axes=axes,
-#         norm=norm,
-#         overwrite_x=overwrite_x,
-#         workers=1,
-#         orthogonalize=orthogonalize,
-#     )
+        r_np = scipy.fft.dstn(
+            a0,
+            type=type,
+            s=s,
+            axes=axes,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
 
-#     assert_same_result(out_nb, out_np)
+        assert_same_result(r_nb, r_np)
+
+    if norm is not None or orthogonalize is not None:
+        with raises(NotImplementedError):
+            out_nb = ScipyFFT.idstn(
+                r_nb,
+                type=type,
+                s=s,
+                axes=axes,
+                norm=norm,
+                overwrite_x=overwrite_x,
+                workers=1,
+                orthogonalize=orthogonalize,
+            )
+    else:
+        out_nb = ScipyFFT.idstn(
+            r_nb,
+            type=type,
+            s=s,
+            axes=axes,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+
+        out_np = scipy.fft.idstn(
+            r_np,
+            type=type,
+            s=s,
+            axes=axes,
+            norm=norm,
+            overwrite_x=overwrite_x,
+            workers=1,
+            orthogonalize=orthogonalize,
+        )
+
+        assert_same_result(out_nb, out_np)
 
 
 # -----------------------------------------------------------------------------
