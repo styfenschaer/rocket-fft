@@ -2,7 +2,7 @@ import platform
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from setuptools import Extension, find_packages, setup
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.errors import CompileError
 
@@ -47,9 +47,6 @@ else:
 
 
 setup(
-    packages=find_packages(),
-    include_package_data=True,
-    package_data={"rocket_fft": ["*.pyi"]},
     ext_modules=[
         Extension(
             "rocket_fft._pocketfft_numba",

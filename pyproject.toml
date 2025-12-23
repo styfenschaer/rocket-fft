@@ -12,14 +12,11 @@ name = "rocket-fft"
 version = "0.3.0"
 description = "Rocket-FFT extends Numba by scipy.fft and numpy.fft"
 readme = "README.md"
-license = "BSD-3-Clause"
-
+license = { text = "BSD-3-Clause" }
 authors = [
     { name = "Styfen Schär", email = "styfen.schaer.blog@gmail.com" }
 ]
-
 keywords = ["FFT", "Fourier", "Numba", "SciPy", "NumPy"]
-
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3 :: Only",
@@ -36,7 +33,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
 ]
-
 dependencies = [
     "numba>=0.60.0"
 ]
@@ -53,3 +49,14 @@ Repository = "https://github.com/styfenschaer/rocket-fft"
 
 [project.entry-points."numba_extensions"]
 init = "rocket_fft:_init_extension"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rocket_fft*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+rocket_fft = ["*.pyi"]
