@@ -94,7 +94,7 @@ class TypeConstraint:
         # Normalize to Numba type
         if not isinstance(value, types.Type):
             value = nb.typeof(value)
-        
+
         if isinstance(value, types.Literal):
             value = value.literal_type
 

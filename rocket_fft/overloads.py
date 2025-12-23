@@ -6,7 +6,8 @@ import numpy.fft
 from numba.core import types
 from numba.core.errors import NumbaValueError, TypingError
 from numba.cpython.unsafe.tuple import tuple_setitem
-from numba.extending import overload, register_jitable
+from numba.extending import register_jitable
+from numba.extending import overload as numba_overload
 from numba.np.numpy_support import is_nonelike
 
 from . import pocketfft
@@ -25,6 +26,10 @@ from .typutils import (
     is_not_nonelike,
     is_scalar,
 )
+
+# We define our own defaults because we often have specialized overloads
+# based on literal values.
+overload = partial(numba_overload, prefer_literal=True)
 
 # Unlike NumPy, SciPy is an optional runtime dependency
 try:
@@ -412,7 +417,7 @@ def toarray(arg):
     return np.atleast_1d(a)
 
 
-@implements_jit(prefer_literal=True)
+@implements_jit
 def ndshape_and_axes(x, s, axes):
     pass
 
@@ -504,7 +509,7 @@ def _(shape, axes, delta=None):
     return n
 
 
-@implements_jit(prefer_literal=True)
+@implements_jit
 def get_fct(x, axes, norm, forward, delta=None):
     pass
 
@@ -545,7 +550,7 @@ def _(x, axes, norm, forward, delta=None):
     )
 
 
-@implements_jit(prefer_literal=True)
+@implements_jit
 def get_nthreads(workers):
     pass
 
@@ -616,7 +621,7 @@ def generated_alloc_output(s, istype, reqtype):
 
         return alloc_output
 
-    @implements_jit(prefer_literal=True)
+    @implements_jit
     def alloc_output(x, overwrite_x):
         pass
 
@@ -671,7 +676,7 @@ def _(shape, x, s, axes):
     return shape
 
 
-@implements_jit(prefer_literal=True)
+@implements_jit
 def get_type(type, forward):
     pass
 
@@ -706,27 +711,28 @@ def _(type, forward):
     raise NumbaValueError("Invalid type; must be one of (1, 2, 3, 4).")
 
 
-@implements_jit(prefer_literal=True)
-def get_ortho(norm, ortho):
+@implements_jit
+def get_ortho(norm, orthogonalize):
     pass
 
 
-@get_ortho.case(ortho=is_not_nonelike)
-def _(norm, ortho):
-    return ortho
+
+@get_ortho.case(orthogonalize=is_not_nonelike)
+def _(norm, orthogonalize):
+    return orthogonalize
 
 
 @get_ortho.case(norm=is_literal_string("ortho"))
-def _(norm, ortho):
+def _(norm, orthogonalize):
     return True
 
 
 @get_ortho.fallback
-def _(norm, ortho):
+def _(norm, orthogonalize):
     return norm == "ortho"
 
 
-@implements_jit(prefer_literal=True)
+@implements_jit
 def check_device(device):
     pass
 
@@ -1647,6 +1653,13 @@ if _scipy_installed_:
         )
         return apply_signature(scipy_idctn, impl)
 
+    # TODO: This is a restriction due to a unresolved bug when using non-default values
+    def _dst_only_default_scaling_guard(norm, orthogonalize):
+        if is_not_nonelike(norm) or is_not_nonelike(orthogonalize):
+            raise NotImplementedError(
+                "The default arguments 'norm' and 'orthogonalize' are not supported."
+            )
+
     @overload(scipy.fft.dst)
     @fft_typing_validator.decorator
     def scipy_dst(
@@ -1659,6 +1672,7 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
+        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             n,
@@ -1680,6 +1694,7 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
+        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             n,
@@ -1701,6 +1716,7 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
+        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             s,
@@ -1722,6 +1738,7 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
+        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             s,

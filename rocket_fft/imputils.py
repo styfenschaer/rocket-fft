@@ -90,7 +90,7 @@ def implements_jit(
     jit_options=None,
     strict=True,
     inline="never",
-    prefer_literal=False,
+    prefer_literal=True,
     **kwargs,
 ):
     if jit_options is None:
@@ -118,7 +118,7 @@ def implements_overload(
     jit_options=None,
     strict=True,
     inline="never",
-    prefer_literal=False,
+    prefer_literal=True,
     **kwargs,
 ):
     if jit_options is None:
