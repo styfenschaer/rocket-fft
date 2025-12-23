@@ -1,4 +1,0 @@
-include README.md
-include LICENSE
-include pyproject.toml
-recursive-include rocket_fft *.pyi *.cpp
