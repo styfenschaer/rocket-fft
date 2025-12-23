@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=68",
+    "setuptools>=72",
     "wheel",
     "numpy>=1.26",
     "numba>=0.60"
