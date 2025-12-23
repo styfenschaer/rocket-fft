@@ -1,24 +1,21 @@
 import ctypes
 
 from llvmlite import ir
-from numba import TypingError, types, vectorize
+from numba import types, vectorize
 from numba.core.cgutils import get_or_insert_function
+from numba.core.errors import TypingError
 from numba.extending import intrinsic, overload
 
-from .extutils import get_extension_path, load_extension_library_permanently
+from .extutils import ExtensionLibrary
 
-special_helpers_module = "_special_helpers"
-load_extension_library_permanently(special_helpers_module)
+lib = ExtensionLibrary("_special_helpers")
+lib.load_permanently()
 
-lib_path = get_extension_path(special_helpers_module)
-dll = ctypes.PyDLL(lib_path)
-
-init_special_functions = dll.init_special_functions
-init_special_functions()
+dll = ctypes.PyDLL(lib.path)
+dll.init_special_functions()
 
 ll_void = ir.VoidType()
 ll_int32 = ir.IntType(32)
-ll_longlong = ir.IntType(64)
 ll_double = ir.DoubleType()
 ll_double_ptr = ll_double.as_pointer()
 ll_complex128 = ir.LiteralStructType([ll_double, ll_double])
@@ -77,7 +74,7 @@ def _real_loggamma(typingctx, z):
 
 
 def _loggamma(z):
-    pass 
+    pass
 
 
 @overload(_loggamma)
@@ -116,6 +113,7 @@ _loggamma_sigs = (
     "complex128(complex128)",
 )
 
+
 @vectorize
 def loggamma(z):
     return _loggamma(z)
@@ -127,6 +125,7 @@ _poch_sigs = (
     "float64(float32, float64)",
     "float64(float64, float64)",
 )
+
 
 @vectorize
 def poch(z, m):

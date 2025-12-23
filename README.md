@@ -39,7 +39,7 @@ jit_fft(a)
 Rocket-FFT makes extensive use of Numba's polymorphic dispatching to achieve both flexible function signatures similar to SciPy and NumPy, and low compilation times. Compilation takes only a few hundred milliseconds in most cases. Calls with default arguments follow a fast path and compile fastest.
 
 ## NumPy-like and SciPy-like interfaces
-NumPy and SciPy show subtle differences in how they convert types<sup>1</sup> and handle the `axes` argument in some functions<sup>2</sup>. Rocket-FFT implements both ways and lets its users choose between them.
+NumPy and SciPy show a subtle difference in how they handle the `axes` argument in some functions<sup>1</sup>. Rocket-FFT implements both ways and lets its users choose between them.
 
 You can set the interface by using the `scipy_like` or `numpy_like` function from the `rocket_fft` namespace:
 ```python
@@ -47,13 +47,23 @@ from rocket_fft import numpy_like, scipy_like
 
 numpy_like()
 ```
-Both functions can be used regardless of whether SciPy is installed<sup>3</sup>. By default, Rocket-FFT uses the SciPy-like interface if SciPy is installed, and the NumPy-like interface otherwise. Note that the interface cannot be changed after the compilation of Rocket-FFT's internals.
+Both functions can be used regardless of whether SciPy is installed<sup>2</sup>. By default, Rocket-FFT uses the SciPy-like interface if SciPy is installed, and the NumPy-like interface otherwise. Note that the interface cannot be changed after the compilation of Rocket-FFT's internals.
 
-<sup>1</sup>NumPy converts all types to either `float64` or `complex128` whereas SciPy takes a more fine-grained approach
+<sup>1</sup>NumPy allows duplicate axes in `fft2`, `ifft2`, `fftn` and `ifftn`, whereas SciPy doesn't
 <br/>
-<sup>2</sup>NumPy allows duplicate axes in `fft2`, `ifft2`, `fftn` and `ifftn`, whereas SciPy doesn't
-<br/>
-<sup>3</sup>SciPy is an optional runtime dependency
+<sup>2</sup>SciPy is an optional runtime dependency
+
+## Known limitations
+- Rocket-FFT implements NumPy's FFT interface and behavior as introduced in NumPy 2.0.
+  Note, however, that the `out` argument is not currently supported. Attempting to
+  specify it will result in a compile-time error.
+
+- There is a known issue in the implementations of `scipy.fft.dst`, `scipy.fft.idst`,
+  `scipy.fft.dstn`, and `scipy.fft.idstn` that may produce incorrect results when
+  `norm` and/or `orthogonalize` are set to non-default values. Specifying these
+  arguments with values other than their defaults emits a warning, and it is the
+  user's responsibility to verify the results. Using the default values is safe.
+
 
 ## Low-Level Interface
 Rocket-FFT also provides a low-level interface to the PocketFFT library. Using the low-level interface can significantly reduce compile time, minimize overhead and give more flexibility to the user. It also provides some functions that are not available through the SciPy-like and NumPy-like interfaces. You can import its functions from the `rocket_fft` namespace:

@@ -1,18 +1,21 @@
+from functools import cached_property
 from pathlib import Path
 from sysconfig import get_config_var
 
 from llvmlite.binding import load_library_permanently
 
 
-def get_extension_path(lib_name):
-    search_path = Path(__file__).parent.parent
-    ext_suffix = get_config_var("EXT_SUFFIX")
-    ext_path = f"**/{lib_name}{ext_suffix}"
-    matches = search_path.glob(ext_path)
-    lib_path = str(next(matches))
-    return lib_path
+class ExtensionLibrary:
+    def __init__(self, library_name):
+        self.library_name = library_name
 
+    @cached_property
+    def path(self):
+        search_path = Path(__file__).parent.parent
+        ext_suffix = get_config_var("EXT_SUFFIX")
+        ext_path = f"**/{self.library_name}{ext_suffix}"
+        matches = search_path.glob(ext_path)
+        return str(next(matches))
 
-def load_extension_library_permanently(lib_name):
-    lib_path = get_extension_path(lib_name)
-    load_library_permanently(lib_path)
+    def load_permanently(self):
+        load_library_permanently(self.path)

@@ -1,5 +1,5 @@
 """
-These tests are borrowed from Scipy. 
+These tests are borrowed from Scipy.
 Thanks to all who contributed to these tests.
 https://github.com/scipy/scipy/blob/main/scipy/fft/_pocketfft/tests/test_basic.py
 https://github.com/scipy/scipy/blob/main/scipy/fft/_pocketfft/tests/test_real_transforms.py
@@ -16,17 +16,28 @@ import numpy.fft
 import pytest
 import scipy.fft
 from helpers import numba_cache_cleanup, set_numba_capture_errors_new_style
-from numba.core.errors import NumbaValueError
-from numba import TypingError
-from numpy import (add, arange, array, asarray, cdouble, dot, exp, pi,
-                   swapaxes, zeros)
+from numba.core.errors import NumbaValueError, TypingError
+from numpy import add, arange, array, asarray, cdouble, dot, exp, pi, swapaxes, zeros
 from numpy.random import rand
-from numpy.testing import (assert_, assert_allclose, assert_array_almost_equal,
-                           assert_array_almost_equal_nulp, assert_array_less,
-                           assert_equal)
+from numpy.testing import (
+    assert_,
+    assert_allclose,
+    assert_array_almost_equal,
+    assert_array_almost_equal_nulp,
+    assert_array_less,
+    assert_equal,
+)
 from pytest import raises as assert_raises
-from scipy.fft._pocketfft.realtransforms import (dct, dctn, dst, dstn, idct,
-                                                 idctn, idst, idstn)
+from scipy.fft._pocketfft.realtransforms import (
+    dct,
+    dctn,
+    dst,
+    dstn,
+    idct,
+    idctn,
+    idst,
+    idstn,
+)
 from scipy.fft._pocketfft.tests.test_real_transforms import fftpack_test_dir
 
 set_numba_capture_errors_new_style()
@@ -41,42 +52,114 @@ njit = partial(nb.njit, cache=True, nogil=True)
 
 
 @njit
-def dct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def dct(
+    x,
+    type=2,
+    n=None,
+    axis=-1,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.dct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def idct(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def idct(
+    x,
+    type=2,
+    n=None,
+    axis=-1,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.idct(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def dst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def dst(
+    x,
+    type=2,
+    n=None,
+    axis=-1,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.dst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def idst(x, type=2, n=None, axis=-1, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def idst(
+    x,
+    type=2,
+    n=None,
+    axis=-1,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.idst(x, type, n, axis, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def dctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def dctn(
+    x,
+    type=2,
+    s=None,
+    axes=None,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.dctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def idctn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def idctn(
+    x,
+    type=2,
+    s=None,
+    axes=None,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.idctn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def dstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def dstn(
+    x,
+    type=2,
+    s=None,
+    axes=None,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.dstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
 @njit
-def idstn(x, type=2, s=None, axes=None, norm=None, overwrite_x=False, workers=None, orthogonalize=None):
+def idstn(
+    x,
+    type=2,
+    s=None,
+    axes=None,
+    norm=None,
+    overwrite_x=False,
+    workers=None,
+    orthogonalize=None,
+):
     return scipy.fft.idstn(x, type, s, axes, norm, overwrite_x, workers, orthogonalize)
 
 
@@ -182,12 +265,8 @@ SMALL_COMPOSITE_SIZES = [
     2 * 2 * 3 * 3,
 ]
 # prime
-LARGE_PRIME_SIZES = [
-    2011
-]
-SMALL_PRIME_SIZES = [
-    29
-]
+LARGE_PRIME_SIZES = [2011]
+SMALL_PRIME_SIZES = [29]
 
 
 def _assert_close_in_norm(x, y, rtol, size, rdt):
@@ -337,6 +416,7 @@ class TestSingleFFT(_TestFFTBase):
         self.cdt = np.complex64
         self.rdt = np.float32
 
+
 # NOTE: Numba has no support for float16.
 # class TestFloat16FFT:
 #     def test_1_argument_real(self):
@@ -437,8 +517,9 @@ class _TestIFFTBase:
         assert_raises(NumbaValueError, ifft, np.array([[1, 1], [2, 2]]), -5)
 
 
-@pytest.mark.skipif(np.longdouble is np.float64,
-                    reason="Long double is aliased to double")
+@pytest.mark.skipif(
+    np.longdouble is np.float64, reason="Long double is aliased to double"
+)
 class TestLongDoubleIFFT(_TestIFFTBase):
     def setup_method(self):
         self.cdt = np.longcomplex
@@ -487,12 +568,11 @@ class TestFftnSingle:
         np.random.seed(1234)
 
     def test_definition(self):
-        x = np.array([[1, 2, 3],
-                      [4, 5, 6],
-                      [7, 8, 9]])
+        x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         y = fftn(np.array(x, np.float32))
-        assert_(y.dtype == np.complex64,
-                msg="double precision output with single precision")
+        assert_(
+            y.dtype == np.complex64, msg="double precision output with single precision"
+        )
 
         y_r = np.array(fftn(x), np.complex64)
         assert_array_almost_equal_nulp(y, y_r)
@@ -551,9 +631,7 @@ class TestFftn:
         np.random.seed(1234)
 
     def test_definition(self):
-        x = np.array([[1, 2, 3],
-                      [4, 5, 6],
-                      [7, 8, 9]])
+        x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         y = fftn(x)
         assert_array_almost_equal(y, direct_dftn(x))
 
@@ -565,60 +643,24 @@ class TestFftn:
 
     def test_axes_argument(self):
         # plane == ji_plane, x== kji_space
-        plane1 = np.array([[1, 2, 3],
-                           [4, 5, 6],
-                           [7, 8, 9]])
-        plane2 = np.array([[10, 11, 12],
-                           [13, 14, 15],
-                           [16, 17, 18]])
-        plane3 = np.array([[19, 20, 21],
-                           [22, 23, 24],
-                           [25, 26, 27]])
-        ki_plane1 = np.array([[1, 2, 3],
-                              [10, 11, 12],
-                              [19, 20, 21]])
-        ki_plane2 = np.array([[4, 5, 6],
-                              [13, 14, 15],
-                              [22, 23, 24]])
-        ki_plane3 = np.array([[7, 8, 9],
-                              [16, 17, 18],
-                              [25, 26, 27]])
-        jk_plane1 = np.array([[1, 10, 19],
-                              [4, 13, 22],
-                              [7, 16, 25]])
-        jk_plane2 = np.array([[2, 11, 20],
-                              [5, 14, 23],
-                              [8, 17, 26]])
-        jk_plane3 = np.array([[3, 12, 21],
-                              [6, 15, 24],
-                              [9, 18, 27]])
-        kj_plane1 = np.array([[1, 4, 7],
-                              [10, 13, 16],
-                              [19, 22, 25]])
-        kj_plane2 = np.array([[2, 5, 8],
-                              [11, 14, 17],
-                              [20, 23, 26]])
-        kj_plane3 = np.array([[3, 6, 9],
-                              [12, 15, 18],
-                              [21, 24, 27]])
-        ij_plane1 = np.array([[1, 4, 7],
-                              [2, 5, 8],
-                              [3, 6, 9]])
-        ij_plane2 = np.array([[10, 13, 16],
-                              [11, 14, 17],
-                              [12, 15, 18]])
-        ij_plane3 = np.array([[19, 22, 25],
-                              [20, 23, 26],
-                              [21, 24, 27]])
-        ik_plane1 = np.array([[1, 10, 19],
-                              [2, 11, 20],
-                              [3, 12, 21]])
-        ik_plane2 = np.array([[4, 13, 22],
-                              [5, 14, 23],
-                              [6, 15, 24]])
-        ik_plane3 = np.array([[7, 16, 25],
-                              [8, 17, 26],
-                              [9, 18, 27]])
+        plane1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        plane2 = np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]])
+        plane3 = np.array([[19, 20, 21], [22, 23, 24], [25, 26, 27]])
+        ki_plane1 = np.array([[1, 2, 3], [10, 11, 12], [19, 20, 21]])
+        ki_plane2 = np.array([[4, 5, 6], [13, 14, 15], [22, 23, 24]])
+        ki_plane3 = np.array([[7, 8, 9], [16, 17, 18], [25, 26, 27]])
+        jk_plane1 = np.array([[1, 10, 19], [4, 13, 22], [7, 16, 25]])
+        jk_plane2 = np.array([[2, 11, 20], [5, 14, 23], [8, 17, 26]])
+        jk_plane3 = np.array([[3, 12, 21], [6, 15, 24], [9, 18, 27]])
+        kj_plane1 = np.array([[1, 4, 7], [10, 13, 16], [19, 22, 25]])
+        kj_plane2 = np.array([[2, 5, 8], [11, 14, 17], [20, 23, 26]])
+        kj_plane3 = np.array([[3, 6, 9], [12, 15, 18], [21, 24, 27]])
+        ij_plane1 = np.array([[1, 4, 7], [2, 5, 8], [3, 6, 9]])
+        ij_plane2 = np.array([[10, 13, 16], [11, 14, 17], [12, 15, 18]])
+        ij_plane3 = np.array([[19, 22, 25], [20, 23, 26], [21, 24, 27]])
+        ik_plane1 = np.array([[1, 10, 19], [2, 11, 20], [3, 12, 21]])
+        ik_plane2 = np.array([[4, 13, 22], [5, 14, 23], [6, 15, 24]])
+        ik_plane3 = np.array([[7, 16, 25], [8, 17, 26], [9, 18, 27]])
         ijk_space = np.array([jk_plane1, jk_plane2, jk_plane3])
         ikj_space = np.array([kj_plane1, kj_plane2, kj_plane3])
         jik_space = np.array([ik_plane1, ik_plane2, ik_plane3])
@@ -626,18 +668,19 @@ class TestFftn:
         kij_space = np.array([ij_plane1, ij_plane2, ij_plane3])
         x = np.array([plane1, plane2, plane3])
 
-        assert_array_almost_equal(fftn(x),
-                                  fftn(x, axes=(-3, -2, -1)))  # kji_space
+        assert_array_almost_equal(fftn(x), fftn(x, axes=(-3, -2, -1)))  # kji_space
         assert_array_almost_equal(fftn(x), fftn(x, axes=(0, 1, 2)))
         assert_array_almost_equal(fftn(x, axes=(0, 2)), fftn(x, axes=(0, -1)))
         y = fftn(x, axes=(2, 1, 0))  # ijk_space
         assert_array_almost_equal(swapaxes(y, -1, -3), fftn(ijk_space))
         y = fftn(x, axes=(2, 0, 1))  # ikj_space
-        assert_array_almost_equal(swapaxes(swapaxes(y, -1, -3), -1, -2),
-                                  fftn(ikj_space))
+        assert_array_almost_equal(
+            swapaxes(swapaxes(y, -1, -3), -1, -2), fftn(ikj_space)
+        )
         y = fftn(x, axes=(1, 2, 0))  # jik_space
-        assert_array_almost_equal(swapaxes(swapaxes(y, -1, -3), -3, -2),
-                                  fftn(jik_space))
+        assert_array_almost_equal(
+            swapaxes(swapaxes(y, -1, -3), -3, -2), fftn(jik_space)
+        )
         y = fftn(x, axes=(1, 0, 2))  # jki_space
         assert_array_almost_equal(swapaxes(y, -2, -3), fftn(jki_space))
         y = fftn(x, axes=(0, 2, 1))  # kij_space
@@ -669,20 +712,14 @@ class TestFftn:
         assert_array_almost_equal(fftn(ij_plane3), swapaxes(y[2], -2, -1))
 
         y = fftn(x, axes=(-1, -3))  # ik_plane
-        assert_array_almost_equal(fftn(ik_plane1),
-                                  swapaxes(y[:, 0, :], -1, -2))
-        assert_array_almost_equal(fftn(ik_plane2),
-                                  swapaxes(y[:, 1, :], -1, -2))
-        assert_array_almost_equal(fftn(ik_plane3),
-                                  swapaxes(y[:, 2, :], -1, -2))
+        assert_array_almost_equal(fftn(ik_plane1), swapaxes(y[:, 0, :], -1, -2))
+        assert_array_almost_equal(fftn(ik_plane2), swapaxes(y[:, 1, :], -1, -2))
+        assert_array_almost_equal(fftn(ik_plane3), swapaxes(y[:, 2, :], -1, -2))
 
         y = fftn(x, axes=(-2, -3))  # jk_plane
-        assert_array_almost_equal(fftn(jk_plane1),
-                                  swapaxes(y[:, :, 0], -1, -2))
-        assert_array_almost_equal(fftn(jk_plane2),
-                                  swapaxes(y[:, :, 1], -1, -2))
-        assert_array_almost_equal(fftn(jk_plane3),
-                                  swapaxes(y[:, :, 2], -1, -2))
+        assert_array_almost_equal(fftn(jk_plane1), swapaxes(y[:, :, 0], -1, -2))
+        assert_array_almost_equal(fftn(jk_plane2), swapaxes(y[:, :, 1], -1, -2))
+        assert_array_almost_equal(fftn(jk_plane3), swapaxes(y[:, :, 2], -1, -2))
 
         y = fftn(x, axes=(-1,))  # i_line
         for i in range(3):
@@ -697,19 +734,15 @@ class TestFftn:
             for j in range(3):
                 assert_array_almost_equal(fft(x[:, i, j]), y[:, i, j])
 
-        # NOTE: We don"t allows this case
+        # NOTE: We don't allows this case
         # y = fftn(x, axes=())  # point
         # assert_array_almost_equal(y, x)
         with assert_raises(TypingError):
             y = fftn(x, axes=())
 
     def test_shape_argument(self):
-        small_x = np.array([[1, 2, 3],
-                            [4, 5, 6]])
-        large_x1 = np.array([[1, 2, 3, 0],
-                             [4, 5, 6, 0],
-                             [0, 0, 0, 0],
-                             [0, 0, 0, 0]])
+        small_x = np.array([[1, 2, 3], [4, 5, 6]])
+        large_x1 = np.array([[1, 2, 3, 0], [4, 5, 6, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
 
         y = fftn(small_x, s=(4, 4))
         assert_array_almost_equal(y, fftn(large_x1))
@@ -718,19 +751,15 @@ class TestFftn:
         assert_array_almost_equal(y, fftn(large_x1[:-1]))
 
     def test_shape_axes_argument(self):
-        small_x = np.array([[1, 2, 3],
-                            [4, 5, 6],
-                            [7, 8, 9]])
-        large_x1 = array(np.array([[1, 2, 3, 0],
-                                   [4, 5, 6, 0],
-                                   [7, 8, 9, 0],
-                                   [0, 0, 0, 0]]))
+        small_x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        large_x1 = array(
+            np.array([[1, 2, 3, 0], [4, 5, 6, 0], [7, 8, 9, 0], [0, 0, 0, 0]])
+        )
         y = fftn(small_x, s=(4, 4), axes=(-2, -1))
         assert_array_almost_equal(y, fftn(large_x1))
         y = fftn(small_x, s=(4, 4), axes=(-1, -2))
 
-        assert_array_almost_equal(y, swapaxes(
-            fftn(swapaxes(large_x1, -1, -2)), -1, -2))
+        assert_array_almost_equal(y, swapaxes(fftn(swapaxes(large_x1, -1, -2)), -1, -2))
 
     def test_shape_axes_argument2(self):
         # Change shape of the last axis
@@ -746,8 +775,7 @@ class TestFftn:
         # Change shape of axes: cf #244, where shape and axes were mixed up
         x = numpy.random.random((4, 4, 2))
         y = fftn(x, axes=(-3, -2), s=(8, 8))
-        assert_array_almost_equal(y,
-                                  numpy.fft.fftn(x, axes=(-3, -2), s=(8, 8)))
+        assert_array_almost_equal(y, numpy.fft.fftn(x, axes=(-3, -2), s=(8, 8)))
 
     def test_shape_argument_more(self):
         x = zeros((4, 4, 2))
@@ -756,7 +784,7 @@ class TestFftn:
             fftn(x, s=(8, 8, 2, 1))
 
     def test_invalid_sizes(self):
-        # NOTE: We don"t raise an error in this case but return an empty array.
+        # NOTE: We don't raise an error in this case but return an empty array.
         # with assert_raises(ValueError,
         #                    match="invalid number of data points"
         #                    r" \(\[1, 0\]\) specified"):
@@ -769,7 +797,7 @@ class TestFftn:
             fftn(np.array([[1, 1], [2, 2]]), (4, -3))
 
     def test_no_axes(self):
-        # NOTE: We don"t allow this case
+        # NOTE: We don't allow this case
         x = numpy.random.random((2, 2, 2))
         # assert_allclose(fftn(x, axes=[]), x, atol=1e-7)
         with assert_raises(TypingError):
@@ -783,13 +811,12 @@ class TestIfftn:
     def setup_method(self):
         np.random.seed(1234)
 
-    @pytest.mark.parametrize("dtype,cdtype,maxnlp",
-                             [(np.float64, np.complex128, 2000),
-                              (np.float32, np.complex64, 3500)])
+    @pytest.mark.parametrize(
+        "dtype,cdtype,maxnlp",
+        [(np.float64, np.complex128, 2000), (np.float32, np.complex64, 3500)],
+    )
     def test_definition(self, dtype, cdtype, maxnlp):
-        x = np.array([[1, 2, 3],
-                      [4, 5, 6],
-                      [7, 8, 9]], dtype=dtype)
+        x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=dtype)
         y = ifftn(x)
         assert_equal(y.dtype, cdtype)
         assert_array_almost_equal_nulp(y, direct_idftn(x), maxnlp)
@@ -817,13 +844,14 @@ class TestIfftn:
             ifftn(np.array([[1, 1], [2, 2]]), (4, -3))
 
     def test_no_axes(self):
-        # NOTE: We don"t allow this case
+        # NOTE: We don't allow this case
         x = numpy.random.random((2, 2, 2))
         # assert_allclose(ifftn(x, axes=[]), x, atol=1e-7)
         with assert_raises(ValueError):
             ifftn(x, axes=[])
 
-# NOTE: We don"t test this because almost all of it is not supported by Numba
+
+# NOTE: We don't test this because almost all of it is not supported by Numba
 # class FakeArray:
 #     def __init__(self, data):
 #         self._data = data
@@ -837,8 +865,8 @@ class TestIfftn:
 #     def __array__(self):
 #         return self._data
 
-# NOTE: We don"t consider this one.
-# TODO: Is this test actually valuable? The behavior it"s testing shouldn"t be
+# NOTE: We don't consider this one.
+# TODO: Is this test actually valuable? The behavior it's testing shouldn't be
 # relied upon by users except for overwrite_x = False
 # class TestOverwrite:
 #     """Check input overwrite behavior of the FFT functions."""
@@ -962,8 +990,7 @@ class TestIfftn:
 #                            overwrite_x)
 
 
-@pytest.mark.parametrize("func", [fft, ifft, fftn, ifftn,
-                                  rfft, irfft, rfftn, irfftn])
+@pytest.mark.parametrize("func", [fft, ifft, fftn, ifftn, rfft, irfft, rfftn, irfftn])
 def test_invalid_norm(func):
     x = np.arange(10, dtype=float)
     # NOTE: Test modified; not providing explicit error message.
@@ -977,7 +1004,7 @@ def test_invalid_norm(func):
 # def test_swapped_byte_order_complex(func):
 #     rng = np.random.RandomState(1234)
 #     x = rng.rand(10) + 1j * rng.rand(10)
-    # assert_allclose(func(swap_byteorder(x)), func(x))
+# assert_allclose(func(swap_byteorder(x)), func(x))
 
 # NOTE: Not supported by Numba
 # @pytest.mark.parametrize("func", [ihfft, ihfftn, rfft, rfftn])
@@ -1046,8 +1073,9 @@ class _TestRFFTBase:
     #     assert_equal(xs.data, expected)
 
 
-@pytest.mark.skipif(np.longfloat is np.float64,
-                    reason="Long double is aliased to double")
+@pytest.mark.skipif(
+    np.longfloat is np.float64, reason="Long double is aliased to double"
+)
 class TestRFFTLongDouble(_TestRFFTBase):
     def setup_method(self):
         self.cdt = np.longcomplex
@@ -1074,8 +1102,9 @@ class _TestIRFFTBase:
         x1 = np.array([1, 2 + 3j, 4 + 1j, 1 + 2j, 3 + 4j])
         x1_1 = np.array([1, 2 + 3j, 4 + 1j, 2 + 3j, 4, 2 - 3j, 4 - 1j, 2 - 3j])
         x1 = x1_1[:5]
-        x2_1 = np.array([1, 2 + 3j, 4 + 1j, 2 + 3j, 4 + 5j,
-                        4 - 5j, 2 - 3j, 4 - 1j, 2 - 3j])
+        x2_1 = np.array(
+            [1, 2 + 3j, 4 + 1j, 2 + 3j, 4 + 5j, 4 - 5j, 2 - 3j, 4 - 1j, 2 - 3j]
+        )
         x2 = x2_1[:5]
 
         def _test(x, xr):
@@ -1106,10 +1135,12 @@ class _TestIRFFTBase:
             y2 = rfft(irfft(x, n=(size * 2 - 1)))
             assert_equal(y1.dtype, self.rdt)
             assert_equal(y2.dtype, self.cdt)
-            assert_array_almost_equal(y1, x, decimal=self.ndec,
-                                      err_msg="size=%d" % size)
-            assert_array_almost_equal(y2, x, decimal=self.ndec,
-                                      err_msg="size=%d" % size)
+            assert_array_almost_equal(
+                y1, x, decimal=self.ndec, err_msg="size=%d" % size
+            )
+            assert_array_almost_equal(
+                y2, x, decimal=self.ndec, err_msg="size=%d" % size
+            )
 
     def test_size_accuracy(self):
         # Sanity check for the accuracy for prime and non-prime sized inputs
@@ -1134,8 +1165,9 @@ class _TestIRFFTBase:
 
 # self.ndec is bogus; we should have a assert_array_approx_equal for number of
 # significant digits
-@pytest.mark.skipif(np.longfloat is np.float64,
-                    reason="Long double is aliased to double")
+@pytest.mark.skipif(
+    np.longfloat is np.float64, reason="Long double is aliased to double"
+)
 class TestIRFFTLongDouble(_TestIRFFTBase):
     def setup_method(self):
         self.cdt = np.cdouble
@@ -1194,11 +1226,11 @@ def get_reference_data():
     assert len(FFTWDATA_SIZES) == FFTWDATA_COUNT
 
     if is_longdouble_binary_compatible():
-        FFTWDATA_LONGDOUBLE = np.load(
-            join(fftpack_test_dir, "fftw_longdouble_ref.npz"))
+        FFTWDATA_LONGDOUBLE = np.load(join(fftpack_test_dir, "fftw_longdouble_ref.npz"))
     else:
-        FFTWDATA_LONGDOUBLE = {k: v.astype(np.longfloat)
-                               for k, v in FFTWDATA_DOUBLE.items()}
+        FFTWDATA_LONGDOUBLE = {
+            k: v.astype(np.longfloat) for k, v in FFTWDATA_DOUBLE.items()
+        }
 
     ref = {
         "FFTWDATA_LONGDOUBLE": FFTWDATA_LONGDOUBLE,
@@ -1206,7 +1238,7 @@ def get_reference_data():
         "FFTWDATA_SINGLE": FFTWDATA_SINGLE,
         "FFTWDATA_SIZES": FFTWDATA_SIZES,
         "X": X,
-        "Y": Y
+        "Y": Y,
     }
 
     globals()["__reference_data"] = ref
@@ -1355,52 +1387,37 @@ dec_map: DecMapType = {
     # DCT
     (dct, np.double, 1): 13,
     (dct, np.float32, 1): 6,
-
     (dct, np.double, 2): 14,
     (dct, np.float32, 2): 5,
-
     (dct, np.double, 3): 14,
     (dct, np.float32, 3): 5,
-
     (dct, np.double, 4): 13,
     (dct, np.float32, 4): 6,
-
     # IDCT
     (idct, np.double, 1): 14,
     (idct, np.float32, 1): 6,
-
     (idct, np.double, 2): 14,
     (idct, np.float32, 2): 5,
-
     (idct, np.double, 3): 14,
     (idct, np.float32, 3): 5,
-
     (idct, np.double, 4): 14,
     (idct, np.float32, 4): 6,
-
     # DST
     (dst, np.double, 1): 13,
     (dst, np.float32, 1): 6,
-
     (dst, np.double, 2): 14,
     (dst, np.float32, 2): 6,
-
     (dst, np.double, 3): 14,
     (dst, np.float32, 3): 7,
-
     (dst, np.double, 4): 13,
     (dst, np.float32, 4): 6,
-
     # IDST
     (idst, np.double, 1): 14,
     (idst, np.float32, 1): 6,
-
     (idst, np.double, 2): 14,
     (idst, np.float32, 2): 6,
-
     (idst, np.double, 3): 14,
     (idst, np.float32, 3): 6,
-
     (idst, np.double, 4): 14,
     (idst, np.float32, 4): 6,
 }
@@ -1421,7 +1438,7 @@ class TestDCT:
         # NOTE: We use different casting rule
         # assert_equal(y.dtype, dt)
         dec = dec_map[(dct, rdt, type)]
-        assert_allclose(y, yr, rtol=0., atol=np.max(yr) * 10**(-dec))
+        assert_allclose(y, yr, rtol=0.0, atol=np.max(yr) * 10 ** (-dec))
 
     @pytest.mark.parametrize("size", [7, 8, 9, 16, 32, 64])
     def test_axis(self, rdt, type, size):
@@ -1430,14 +1447,12 @@ class TestDCT:
         x = np.random.randn(nt, size)
         y = dct(x, type=type)
         for j in range(nt):
-            assert_array_almost_equal(y[j], dct(x[j], type=type),
-                                      decimal=dec)
+            assert_array_almost_equal(y[j], dct(x[j], type=type), decimal=dec)
 
         x = x.T
         y = dct(x, axis=0, type=type)
         for j in range(nt):
-            assert_array_almost_equal(y[:, j], dct(x[:, j], type=type),
-                                      decimal=dec)
+            assert_array_almost_equal(y[:, j], dct(x[:, j], type=type), decimal=dec)
 
 
 # TODO: scipy.fft.dct does also not pass these tests!?
@@ -1560,9 +1575,7 @@ class TestDCT:
 
 @pytest.mark.parametrize("routine", [dct, dst, idct, idst])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.longfloat])
-@pytest.mark.parametrize("shape, axis", [
-    ((16,), -1), ((16, 2), 0), ((2, 16), 1)
-])
+@pytest.mark.parametrize("shape, axis", [((16,), -1), ((16, 2), 0), ((2, 16), 1)])
 @pytest.mark.parametrize("type", [1, 2, 3, 4])
 @pytest.mark.parametrize("overwrite_x", [True, False])
 @pytest.mark.parametrize("norm", [None, "ortho"])
@@ -1578,7 +1591,13 @@ def test_overwrite(routine, dtype, shape, axis, type, norm, overwrite_x):
     routine(x2, type, None, axis, norm, overwrite_x=overwrite_x)
 
     sig = "%s(%s%r, %r, axis=%r, overwrite_x=%r)" % (
-        routine.__name__, x.dtype, x.shape, None, axis, overwrite_x)
+        routine.__name__,
+        x.dtype,
+        x.shape,
+        None,
+        axis,
+        overwrite_x,
+    )
     if not overwrite_x:
         assert_equal(x2, x, err_msg="spurious overwrite in %s" % sig)
 
@@ -1591,13 +1610,23 @@ class Test_DCTN_IDCTN:
     shape = (32, 16)
     data = rstate.randn(*shape)
 
-    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn),
-                                                   (dstn, idstn)])
-    @pytest.mark.parametrize("axes", [None,
-                                      1, (1,), np.array([1]),
-                                      0, (0,), np.array([0]),
-                                      (0, 1), np.array([0, 1]),
-                                      (-2, -1), np.array([-2, -1])])
+    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn), (dstn, idstn)])
+    @pytest.mark.parametrize(
+        "axes",
+        [
+            None,
+            1,
+            (1,),
+            np.array([1]),
+            0,
+            (0,),
+            np.array([0]),
+            (0, 1),
+            np.array([0, 1]),
+            (-2, -1),
+            np.array([-2, -1]),
+        ],
+    )
     @pytest.mark.parametrize("dct_type", dct_type)
     @pytest.mark.parametrize("norm", ["ortho"])
     def test_axes_round_trip(self, fforward, finverse, axes, dct_type, norm):
@@ -1622,8 +1651,7 @@ class Test_DCTN_IDCTN:
         y2 = ref_2d(func, fdata, type=dct_type, norm=norm)
         assert_array_almost_equal(y1, y2, decimal=11)
 
-    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn),
-                                                   (dstn, idstn)])
+    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn), (dstn, idstn)])
     def test_axes_and_shape(self, fforward, finverse):
         # NOTE: Test without explicit error message
         # s is passed as tuple instead of inteter
@@ -1640,10 +1668,14 @@ class Test_DCTN_IDCTN:
         assert_equal(tmp.shape, (128, 128))
 
     # NOTE: Removed tests where axes is a list and where axis is an inteter
-    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn),
-                                                   (dstn, idstn)])
-    @pytest.mark.parametrize("axes", [(1,),
-                                      (0,), ])
+    @pytest.mark.parametrize("fforward,finverse", [(dctn, idctn), (dstn, idstn)])
+    @pytest.mark.parametrize(
+        "axes",
+        [
+            (1,),
+            (0,),
+        ],
+    )
     def test_shape_is_none_with_axes(self, fforward, finverse, axes):
         tmp = fforward(self.data, s=None, axes=axes, norm="ortho")
         tmp = finverse(tmp, s=None, axes=axes, norm="ortho")

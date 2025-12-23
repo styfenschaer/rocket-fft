@@ -1,7 +1,13 @@
 from . import pocketfft
 from ._version import __version__
-from .overloads import (_scipy_installed_, get_workers, numpy_like, scipy_like,
-                        set_workers)
+from .overloads import (
+    _scipy_installed_,
+    get_workers,
+    set_workers,
+    numpy_like,
+    scipy_like,
+)
+
 
 if _scipy_installed_:
     scipy_like()
@@ -31,4 +37,5 @@ good_size = pocketfft.numba_good_size
 def _init_extension():
     if _scipy_installed_:
         from .special import add_signatures
+
         add_signatures()
