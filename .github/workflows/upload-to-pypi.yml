@@ -1,16 +1,19 @@
 name: Upload package to PyPI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-      - 'release*'
+      - dev
+      - release/**
 
 jobs:
   make_sdist:
-    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
     name: Make SDist
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -30,14 +33,16 @@ jobs:
         with:
           name: sdist
           path: dist/*.tar.gz
+          retention-days: 7
 
       - name: Check metadata
         run: twine check dist/*
 
   build_wheels:
-    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -70,9 +75,10 @@ jobs:
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
+          retention-days: 7
 
   upload_all:
-    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
 
@@ -82,7 +88,13 @@ jobs:
         with:
           path: dist
 
+      - name: Flatten dist directory
+        run: |
+          find dist -mindepth 2 -type f -exec mv -t dist {} +
+          find dist -mindepth 1 -type d -empty -delete
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@v1.9.0
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true

@@ -1,13 +1,16 @@
 name: Upload package to TestPyPI
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - '**'
+      - main
+      - dev
+      - release/**
 
 jobs:
   make_sdist:
-    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Make SDist
     runs-on: ubuntu-latest
 
@@ -30,12 +33,13 @@ jobs:
         with:
           name: sdist
           path: dist/*.tar.gz
+          retention-days: 7
 
       - name: Check metadata
         run: twine check dist/*
 
   build_wheels:
-    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -71,9 +75,10 @@ jobs:
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
+          retention-days: 7
 
   upload_all:
-    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
 
@@ -93,4 +98,4 @@ jobs:
         with:
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
-
+          skip-existing: true
