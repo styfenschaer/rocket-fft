@@ -1,8 +1,8 @@
-name: Upload package to Pypi
+name: Upload package to TestPyPI
 
 on:
   push:
-    branches: 
+    branches:
       - '**'
 
 jobs:
@@ -10,45 +10,50 @@ jobs:
     if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Make SDist
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install deps
-      run: python -m pip install build twine
+      - name: Install deps
+        run: python -m pip install build twine
 
-    - name: Build SDist
-      run: python -m build --sdist
+      - name: Build SDist
+        run: python -m build --sdist
 
-    - uses: actions/upload-artifact@v2
-      with:
-        path: dist/*.tar.gz
-        
-    - name: Check metadata
-      run: twine check dist/*
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+      - name: Check metadata
+        run: twine check dist/*
 
   build_wheels:
     if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
-          
-      - uses: actions/setup-python@v2
+
+      - uses: actions/setup-python@v5
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
@@ -59,24 +64,27 @@ jobs:
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_LINUX: "auto aarch64"
-        run: python -m cibuildwheel --output-dir wheelhouse 
+        run: python -m cibuildwheel --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v2
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
         with:
+          name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
 
   upload_all:
     if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
+
     steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
 
-    - uses: actions/download-artifact@v2
-      with:
-        name: artifact
-        path: dist
-
-    - uses: pypa/gh-action-pypi-publish@v1.4.1
-      with:
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@v1.9.0
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
