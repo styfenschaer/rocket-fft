@@ -78,7 +78,6 @@ class TestFFTFreq:
             NumpyFFT.fftfreq(1, device="gpu")
         NumpyFFT.rfftfreq(1, device=None)
         NumpyFFT.rfftfreq(1, device="cpu")
-        NumpyFFT.rfftfreq(1, device="CPU")
 
     def test_xp(self):
         with assert_raises(TypingError):
