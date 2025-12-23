@@ -1,6 +1,6 @@
 import inspect
 from os import cpu_count
-
+from functools import partial
 import numpy as np
 import numpy.fft
 from numba.core import types
