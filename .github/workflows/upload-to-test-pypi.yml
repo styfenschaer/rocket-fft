@@ -39,8 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: [ubuntu-latest, windows-latest, macos-latest]
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -56,15 +55,19 @@ jobs:
 
       - name: Build wheels
         env:
-          # Adjust versions if you truly need cp39/cp314 etc.
+          # Keep this aligned with what you truly support
           CIBW_BUILD: "cp313-*"
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
-          # Native only:
-          # - Linux: x86_64 on ubuntu-latest (no aarch64 here)
-          # - macOS: build x86_64 + arm64
+
+          # Native-only: x86_64 on ubuntu-latest, and arm64-only on macOS
           CIBW_ARCHS_LINUX: "auto"
-          # CIBW_ARCHS_MACOS: "x86_64 arm64"
-          # Simple smoke test (optional)
+          CIBW_ARCHS_MACOS: "arm64"
+
+          # Avoid macOS test env trying to build llvmlite from source
+          # (you can remove this if you don't run CIBW_TEST_COMMAND at all)
+          CIBW_TEST_SKIP: "*-macosx_*"
+
+          # Keep tests for Linux/Windows only (optional)
           CIBW_TEST_COMMAND: "python -c \"import rocket_fft; print('rocket_fft ok')\""
         run: |
           python -m cibuildwheel --output-dir dist
