@@ -39,7 +39,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +63,7 @@ jobs:
           # - Linux: x86_64 on ubuntu-latest (no aarch64 here)
           # - macOS: build x86_64 + arm64
           CIBW_ARCHS_LINUX: "auto"
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          # CIBW_ARCHS_MACOS: "x86_64 arm64"
           # Simple smoke test (optional)
           CIBW_TEST_COMMAND: "python -c \"import rocket_fft; print('rocket_fft ok')\""
         run: |
