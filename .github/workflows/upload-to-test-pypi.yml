@@ -112,8 +112,9 @@ jobs:
 
       - name: Validate distributions and keep only valid ones
         run: |
-          mkdir valid_dist
-          for f in dist/*; do
+          mkdir -p valid_dist
+
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) | while read -r f; do
             if twine check "$f"; then
               echo "VALID: $f"
               cp "$f" valid_dist/
