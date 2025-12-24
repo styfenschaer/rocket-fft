@@ -107,10 +107,15 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install latest twine
+      - name: Install twine with metadata-2.4 support
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade twine
+          python -m pip install --upgrade "twine>=6.2.0" "packaging>=24.2"
+
+      - name: Show tool versions
+        run: |
+          python -V
+          python -m pip show twine packaging pkginfo || true
 
       - name: Validate distributions and keep only valid ones
         run: |
