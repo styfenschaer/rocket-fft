@@ -85,15 +85,17 @@ jobs:
           name: sdist
           path: dist
 
-      - name: Download wheels
+      - name: Download wheel artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
-          path: dist
-          merge-multiple: true
+          path: wheel-artifacts
 
-      - name: List dist contents (debug)
-        run: ls -lh dist
+      - name: Extract wheels
+        run: |
+          mkdir -p dist
+          find wheel-artifacts -name "*.zip" -exec unzip -o {} -d dist \;
+          ls -lh dist
 
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.9.0

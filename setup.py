@@ -120,5 +120,4 @@ setup(
     extras_require={
         "dev": ["scipy>=1.13.1", "pytest>=8.4.2"],
     },
-    python_requires=">=3.9",
 )
