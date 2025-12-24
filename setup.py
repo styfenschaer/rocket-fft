@@ -1,10 +1,16 @@
 import platform
+import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.errors import CompileError
+
+
+def get_version(rel_path):
+    with open(Path(__file__).parent / rel_path) as file:
+        return re.search(r'__version__ = "(.*?)"', file.read())[1]
 
 
 def numpy_get_include():
@@ -56,6 +62,7 @@ else:
 
 setup(
     name="rocket-fft",
+    version=get_version("rocket_fft/_version.py"),
     description="Rocket-FFT extends Numba by scipy.fft and numpy.fft",
     long_description_content_type="text/markdown",
     long_description=long_description,

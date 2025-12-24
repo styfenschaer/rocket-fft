@@ -58,9 +58,9 @@ jobs:
 
       - name: Build wheels
         env:
-          CIBW_BUILD: "cp310-* cp313-*"
+          CIBW_BUILD: "cp313-*"
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_ARCHS_MACOS: "arm64"
           CIBW_ARCHS_LINUX: "auto"
           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=11.0"
           CIBW_BEFORE_BUILD: "python -m pip install --upgrade setuptools wheel"
@@ -77,31 +77,14 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download sdist
-        uses: actions/download-artifact@v4
-        with:
-          name: sdist
-          path: dist
 
-      - name: Download wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          path: wheel-artifacts
+    - uses: actions/download-artifact@v2
+      with:
+        name: artifact
+        path: dist
 
-      - name: Extract wheels
-        run: |
-          mkdir -p dist
-          find wheel-artifacts -name "*.zip" -exec unzip -o {} -d dist \;
-          ls -lh dist
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@v1.9.0
-        with:
-          packages-dir: dist
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
-          verify-metadata: true
+    - uses: pypa/gh-action-pypi-publish@v1.9.1
+      with:
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository_url: https://test.pypi.org/legacy/
