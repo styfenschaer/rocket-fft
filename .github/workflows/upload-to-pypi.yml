@@ -1,48 +1,40 @@
-name: Upload package to PyPI
+name: Upload package to Pypi
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-      - dev
-      - release/**
+      - 'release*'
 
 jobs:
   make_sdist:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
-    name: Make SDist
+    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    name: Build sdist
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.12"
 
-      - name: Install deps
-        run: python -m pip install build twine
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build
+          python -m build --sdist
 
-      - name: Build SDist
-        run: python -m build --sdist
-
-      - name: Upload sdist
+      - name: Upload sdist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdist
+          name: dist-sdist
           path: dist/*.tar.gz
-          retention-days: 7
-
-      - name: Check metadata
-        run: twine check dist/*
 
   build_wheels:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
-    name: Build wheels on ${{ matrix.os }}
+    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    name: Build wheels (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
@@ -51,50 +43,72 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
+      - name: Set up QEMU (Linux only)
         if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
       - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade cibuildwheel
 
       - name: Build wheels
         env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
-          CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_ARCHS_LINUX: "auto aarch64"
-        run: python -m cibuildwheel --output-dir wheelhouse
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
 
-      - name: Upload wheels
+          CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
+
+          CIBW_PRERELEASE_PYTHONS: "1"
+
+          CIBW_ARCHS_LINUX: "auto aarch64"
+
+          CIBW_ARCHS_MACOS: "arm64"
+        run: |
+          python -m cibuildwheel --output-dir dist
+
+      - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
-          path: wheelhouse/*.whl
-          retention-days: 7
+          name: dist-wheels-${{ matrix.os }}
+          path: dist/*.whl
 
   upload_all:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-pypi]')
-    needs: [build_wheels, make_sdist]
+    if: contains(github.event.head_commit.message, '[upload-to-pypi]')
+    name: Upload to PyPI
     runs-on: ubuntu-latest
+    needs: [make_sdist, build_wheels]
 
     steps:
-      - name: Download all artifacts
+      - name: Download all dists
         uses: actions/download-artifact@v4
         with:
+          pattern: dist-*
+          merge-multiple: true
           path: dist
 
-      - name: Flatten dist directory
+      - name: Install modern twine (avoid metadata parser issues)
         run: |
-          find dist -mindepth 2 -type f -exec mv -t dist {} +
-          find dist -mindepth 1 -type d -empty -delete
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade "twine>=6.2.0" "packaging>=24.2" "pkginfo>=1.12.0"
+          python -m twine --version
+          python -m pip show twine packaging pkginfo
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.9.0
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          skip-existing: true
+      - name: Check metadata
+        run: |
+          ls -lah dist
+          python -m twine check dist/*
+
+      - name: Upload to PyPI (twine)
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m twine upload \
+            --non-interactive \
+            dist/*
