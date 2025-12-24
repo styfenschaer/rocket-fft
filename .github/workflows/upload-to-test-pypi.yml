@@ -1,123 +1,92 @@
-name: Publish to TestPyPI
+name: Upload package to TestPyPI
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+      - 'release*'
       - dev
-      - release/**
-
-permissions:
-  contents: read
 
 jobs:
-  build_wheels:
-    name: Build wheels (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python (runner)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Build wheels with cibuildwheel
-        uses: pypa/cibuildwheel@v2.21.3
-        env:
-          CIBW_BUILD: "cp313-*"
-          CIBW_SKIP: "pp* *-musllinux_*"
-          PIP_DISABLE_PIP_VERSION_CHECK: "1"
-          CIBW_BUILD_VERBOSITY: "1"
-
-      - name: Upload wheels artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.os }}
-          path: wheelhouse/*.whl
-
   make_sdist:
-    name: Build sdist
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    name: Make SDist
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
-      - name: Build sdist
+      - name: Install build + twine
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade build
-          python -m build --sdist
+          python -m pip install --upgrade build "twine>=6.2.0" "packaging>=24.2" "pkginfo>=1.12.0"
 
-      # Minimal change that fixes your error:
-      # install modern twine + packaging + pkginfo, and run python -m twine
-      - name: Install twine + metadata parser
-        run: |
-          python -m pip install --upgrade "twine>=6.2.0" "packaging>=24.2" "pkginfo>=1.12.0"
-          python -m twine --version
-          python -m pip show packaging pkginfo twine
+      - name: Build SDist
+        run: python -m build --sdist
 
-      - name: Validate sdist with twine
-        run: |
-          python -m twine check dist/*.tar.gz
+      - name: Check metadata
+        run: python -m twine check dist/*
 
-      - name: Upload sdist artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: sdist
           path: dist/*.tar.gz
 
-  upload_testpypi:
-    name: Upload to TestPyPI
-    runs-on: ubuntu-latest
-    needs: [build_wheels, make_sdist]
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+  build_wheels:
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
-      - name: Download wheel artifacts
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cibuildwheel
+        run: python -m pip install --upgrade cibuildwheel
+
+      - name: Build wheels
+        env:
+          CIBW_BUILD: "cp313-*"
+          CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_* *-aarch64"
+        run: python -m cibuildwheel --output-dir wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  upload_all:
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    needs: [build_wheels, make_sdist]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: wheels-*
+          pattern: '*'
           merge-multiple: true
           path: dist
 
-      - name: Download sdist artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: sdist
-          path: dist
-
-      - name: Install twine + metadata parser
+      - name: Verify metadata again (modern twine)
         run: |
           python -m pip install --upgrade pip
           python -m pip install --upgrade "twine>=6.2.0" "packaging>=24.2" "pkginfo>=1.12.0"
-          python -m twine --version
-          python -m pip show packaging pkginfo twine
-
-      - name: Validate all distributions
-        run: |
-          ls -lah dist
           python -m twine check dist/*
 
       - name: Upload to TestPyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        run: |
-          python -m twine upload --repository-url https://test.pypi.org/legacy/ \
-            --non-interactive --skip-existing dist/*
+        uses: pypa/gh-action-pypi-publish@v1.10.1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
