@@ -1,16 +1,13 @@
 name: Upload package to TestPyPI
 
 on:
-  workflow_dispatch:
   push:
     branches:
-      - main
-      - dev
-      - release/**
+      - '**'
 
 jobs:
   make_sdist:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Make SDist
     runs-on: ubuntu-latest
 
@@ -33,16 +30,15 @@ jobs:
         with:
           name: sdist
           path: dist/*.tar.gz
-          retention-days: 7
+          retention-days: 1
 
       - name: Check metadata
         run: twine check dist/*
 
   build_wheels:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
@@ -60,10 +56,8 @@ jobs:
         env:
           CIBW_BUILD: "cp313-*"
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_*"
-          CIBW_ARCHS_MACOS: "arm64"
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_LINUX: "auto"
-          CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=11.0"
-          CIBW_BEFORE_BUILD: "python -m pip install --upgrade setuptools wheel"
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
@@ -71,20 +65,27 @@ jobs:
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
-          retention-days: 7
+          retention-days: 1
 
   upload_all:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[upload-to-test-pypi]')
+    if: contains(github.event.head_commit.message, '[upload-to-test-pypi]')
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
+    
     steps:
-
-    - uses: actions/download-artifact@v2
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
       with:
-        name: artifact
         path: dist
 
-    - uses: pypa/gh-action-pypi-publish@v1.9.0
+    - name: Flatten dist directory
+      run: |
+        find dist -mindepth 2 -type f -exec mv -t dist {} +
+        find dist -mindepth 1 -type d -empty -delete
+
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@v1.9.0
       with:
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository_url: https://test.pypi.org/legacy/
+        skip-existing: true
