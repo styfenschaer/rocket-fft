@@ -1,3 +1,65 @@
 [build-system]
-requires = ["setuptools>=80.9.0", "numba>=0.60.0"]
+# Build isolation needs these because setup.py imports numpy+numba to locate headers.
+requires = [
+  "setuptools>=80",
+  "wheel",
+  "numpy>=2.0.0",
+  "numba>=0.60.0",
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "rocket-fft"
+dynamic = ["version"]
+description = "Rocket-FFT extends Numba by scipy.fft and numpy.fft"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Styfen Schär", email = "styfen.schaer.blog@gmail.com" }]
+requires-python = ">=3.9"
+keywords = ["FFT", "Fourier", "Numba", "SciPy", "NumPy"]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+  "numba>=0.60.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/styfenschaer/rocket-fft"
+Repository = "https://github.com/styfenschaer/rocket-fft"
+
+[project.entry-points."numba_extensions"]
+init = "rocket_fft:_init_extension"
+
+[project.optional-dependencies]
+dev = ["scipy>=1.13.1", "pytest>=8.4.2"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+# If you keep your package at repo root (rocket_fft/), this is fine.
+where = ["."]
+include = ["rocket_fft*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "rocket_fft._version.__version__" }
+
+[tool.setuptools.package-data]
+rocket_fft = ["*.pyi", "py.typed", "*.h"]
