@@ -15,7 +15,7 @@ description = "Rocket-FFT extends Numba by scipy.fft and numpy.fft"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "BSD-3-Clause" }
 authors = [{ name = "Styfen Schär", email = "styfen.schaer.blog@gmail.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 keywords = ["FFT", "Fourier", "Numba", "SciPy", "NumPy"]
 
 classifiers = [
@@ -28,6 +28,7 @@ classifiers = [
   "Intended Audience :: Developers",
   "Intended Audience :: Education",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
