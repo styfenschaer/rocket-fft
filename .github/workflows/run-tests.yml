@@ -4,25 +4,30 @@ on: [push, pull_request]
 
 jobs:
   tests:
-    if: contains(github.event.head_commit.message, '[run-tests]')
+    if: |
+      github.event_name == 'push' && contains(github.event.head_commit.message, '[run-tests]') ||
+      github.event_name == 'pull_request'
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         os: [ubuntu-latest, windows-latest, macos-latest]
+
     runs-on: ${{ matrix.os }}
+
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Install 
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install -e .[dev]
-        
-    - name: Run tests
-      run: |
-        python tests/runtests.py
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+
+      - name: Run tests
+        run: |
+          python tests/runtests.py
