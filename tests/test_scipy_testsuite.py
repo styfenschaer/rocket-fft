@@ -28,17 +28,32 @@ from numpy.testing import (
     assert_equal,
 )
 from pytest import raises as assert_raises
-from scipy.fft._pocketfft.realtransforms import (
-    dct,
-    dctn,
-    dst,
-    dstn,
-    idct,
-    idctn,
-    idst,
-    idstn,
-)
-from scipy.fft._pocketfft.tests.test_real_transforms import fftpack_test_dir
+try:
+    from scipy.fft._pocketfft.realtransforms import (
+        dct,
+        dctn,
+        dst,
+        dstn,
+        idct,
+        idctn,
+        idst,
+        idstn,
+    )
+    from scipy.fft._pocketfft.tests.test_real_transforms import fftpack_test_dir
+except ModuleNotFoundError:
+    from pathlib import Path
+    from scipy.fft import (
+        dct,
+        dctn,
+        dst,
+        dstn,
+        idct,
+        idctn,
+        idst,
+        idstn,
+    )
+    import scipy.fftpack.tests
+    fftpack_test_dir = str(Path(scipy.fftpack.tests.__file__).parent)
 
 set_numba_capture_errors_new_style()
 
