@@ -119,6 +119,26 @@ class TestNextFastLen:
         ScipyFFT.next_fast_len(1, real=False)
 
 
+class TestPrevFastLen:
+    def test_target(self):
+        with assert_raises(TypingError, match=mk_match(0, "target")):
+            ScipyFFT.prev_fast_len(1.0, real=True)
+        with assert_raises(TypingError, match=mk_match(0, "target")):
+            ScipyFFT.prev_fast_len(None, real=True)
+        with assert_raises(TypingError, match=mk_match(0, "target")):
+            ScipyFFT.prev_fast_len((1,), real=True)
+        ScipyFFT.prev_fast_len(1, real=True)
+
+    def test_real(self):
+        with assert_raises(TypingError, match=mk_match(1, "real")):
+            ScipyFFT.prev_fast_len(1, real=None)
+        with assert_raises(TypingError, match=mk_match(1, "real")):
+            ScipyFFT.prev_fast_len(1, real=(True,))
+        with assert_raises(TypingError, match=mk_match(1, "real")):
+            ScipyFFT.prev_fast_len(1, real=1)
+        ScipyFFT.prev_fast_len(1, real=False)
+
+
 class Test1D:
     x = np.random.rand(42)
 
@@ -255,11 +275,35 @@ class Test1D:
         func(self.x, orthogonalize=None)
         func(self.x, orthogonalize=True)
 
-    @pytest.mark.parametrize("func", [NumpyFFT.fft])
+    @pytest.mark.parametrize(
+        "func",
+        [
+            NumpyFFT.fft,
+            NumpyFFT.ifft,
+            NumpyFFT.rfft,
+            NumpyFFT.irfft,
+            NumpyFFT.hfft,
+            NumpyFFT.ihfft,
+        ],
+    )
     def test_out(self, func):
         with assert_raises(TypingError, match=mk_match(4, "out")):
-            func(self.x, out=self.x)
+            func(self.x, out=1.0)
+        with assert_raises(TypingError, match=mk_match(4, "out")):
+            func(self.x, out=(1, 2))
         func(self.x, out=None)
+        if func in (NumpyFFT.irfft, NumpyFFT.hfft):
+            inp = self.x[:22] + 1j * self.x[:22]
+            out = np.empty(42, dtype=np.float64)
+            func(inp, out=out)
+        elif func in (NumpyFFT.rfft, NumpyFFT.ihfft):
+            inp = self.x
+            out = np.empty(22, dtype=np.complex128)
+            func(inp, out=out)
+        else:
+            inp = self.x.astype(np.complex128)
+            out = np.empty_like(inp)
+            func(inp, out=out)
 
 
 class Test2D:
@@ -341,6 +385,34 @@ class Test2D:
         func(self.x, workers=None)
         func(self.x, workers=1)
         func(self.x, None, (-2, -1), None, True, 4)
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            NumpyFFT.fft2,
+            NumpyFFT.ifft2,
+            NumpyFFT.rfft2,
+            NumpyFFT.irfft2,
+        ],
+    )
+    def test_out(self, func):
+        with assert_raises(TypingError, match=mk_match(4, "out")):
+            func(self.x, out=1.0)
+        with assert_raises(TypingError, match=mk_match(4, "out")):
+            func(self.x, out=(1, 2))
+        func(self.x, out=None)
+        if func is NumpyFFT.irfft2:
+            inp = (self.x[:, :22] + 1j * self.x[:, :22]).copy()
+            out = np.empty((42, 42), dtype=np.float64)
+            func(inp, out=out)
+        elif func is NumpyFFT.rfft2:
+            inp = self.x
+            out = np.empty((42, 22), dtype=np.complex128)
+            func(inp, out=out)
+        else:
+            inp = self.x.astype(np.complex128)
+            out = np.empty_like(inp)
+            func(inp, out=out)
 
 
 class TestND:
@@ -512,6 +584,34 @@ class TestND:
             func(self.x, 1, None, (0, 1, 2), None, True, 4, (False,))
         func(self.x, orthogonalize=None)
         func(self.x, 1, None, (0, 1, 2), None, True, 4, orthogonalize=True)
+
+    @pytest.mark.parametrize(
+        "func",
+        [
+            NumpyFFT.fftn,
+            NumpyFFT.ifftn,
+            NumpyFFT.rfftn,
+            NumpyFFT.irfftn,
+        ],
+    )
+    def test_out(self, func):
+        with assert_raises(TypingError, match=mk_match(4, "out")):
+            func(self.x, out=1.0)
+        with assert_raises(TypingError, match=mk_match(4, "out")):
+            func(self.x, out=(1, 2))
+        func(self.x, out=None)
+        if func is NumpyFFT.irfftn:
+            inp = (self.x[:, :, :4] + 1j * self.x[:, :, :4]).copy()
+            out = np.empty((7, 7, 6), dtype=np.float64)
+            func(inp, out=out)
+        elif func is NumpyFFT.rfftn:
+            inp = self.x
+            out = np.empty((7, 7, 4), dtype=np.complex128)
+            func(inp, out=out)
+        else:
+            inp = self.x.astype(np.complex128)
+            out = np.empty_like(inp)
+            func(inp, out=out)
 
 
 class TestFht:

@@ -292,3 +292,79 @@ def test_fftshift_ifftshift(shape, axes):
 
     assert_same_result(out_nb, out_np)
     assert_numpy_equivalent_behavior(s_nb, out_nb, out_np, s_before)
+
+
+# -----------------------------------------------------------------------------
+# OUT ARGUMENT
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "func_name,shape,is_complex",
+    [
+        ("fft", (16,), True),
+        ("ifft", (16,), True),
+        ("fft2", (8, 6), True),
+        ("ifft2", (8, 6), True),
+        ("fftn", (4, 6, 8), True),
+        ("ifftn", (4, 6, 8), True),
+        ("rfft", (16,), False),
+        ("irfft", (16,), True),
+        ("rfft2", (8, 6), False),
+        ("irfft2", (8, 6), True),
+        ("rfftn", (4, 6, 8), False),
+        ("irfftn", (4, 6, 8), True),
+        ("hfft", (16,), True),
+        ("ihfft", (16,), False),
+    ],
+)
+def test_out_argument(func_name, shape, is_complex):
+    rng = np.random.default_rng(42)
+    nb_func = getattr(NumpyFFT, func_name)
+    np_func = getattr(np.fft, func_name)
+
+    if is_complex:
+        if func_name in ("irfft", "irfft2", "irfftn", "hfft"):
+            real_shape = list(shape)
+            real_shape[-1] = (shape[-1] - 1) * 2
+            r_func = getattr(np.fft, "rfft" if func_name == "hfft" else func_name[1:])
+            inp = r_func(rng.standard_normal(real_shape))
+        else:
+            inp = rng.standard_normal(shape) + 1j * rng.standard_normal(shape)
+    else:
+        inp = rng.standard_normal(shape)
+
+    expected_np = np_func(inp)
+    out_nb = np.zeros_like(expected_np)
+    res_nb = nb_func(inp, out=out_nb)
+
+    assert res_nb is out_nb
+    assert_same_result(res_nb, expected_np)
+
+
+def test_out_inplace():
+    rng = np.random.default_rng(123)
+    a = rng.standard_normal(16) + 1j * rng.standard_normal(16)
+    a_np = a.copy()
+    a_nb = a.copy()
+
+    res_np = np.fft.fft(a_np, out=a_np)
+    res_nb = NumpyFFT.fft(a_nb, out=a_nb)
+
+    assert res_np is a_np
+    assert res_nb is a_nb
+    assert_same_result(res_nb, res_np)
+
+
+def test_out_shape_mismatch():
+    a = np.ones(16, dtype=np.complex128)
+    out = np.zeros(8, dtype=np.complex128)
+    with pytest.raises(Exception):
+        NumpyFFT.fft(a, out=out)
+
+
+def test_out_dtype_mismatch():
+    a = np.ones(16, dtype=np.complex128)
+    out = np.zeros(16, dtype=np.float64)
+    with pytest.raises(Exception):
+        NumpyFFT.fft(a, out=out)

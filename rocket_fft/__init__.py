@@ -32,6 +32,7 @@ genuine_hartley = r2r_genuine_hartley
 fftpack = r2r_fftpack
 
 good_size = pocketfft.numba_good_size
+prev_good_size = pocketfft.numba_prev_good_size
 
 
 def _init_extension():

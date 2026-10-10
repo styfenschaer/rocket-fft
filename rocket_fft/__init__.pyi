@@ -104,6 +104,9 @@ fftpack = r2r_fftpack
 def good_size(target: int64, real: bool_) -> int64:
     """Find the next fast size of input data to fft, for zero-padding, etc."""
 
+def prev_good_size(target: int64, real: bool_) -> int64:
+    """Find the previous fast size of input data to fft, for discarding samples, etc."""
+
 def get_workers() -> int:
     """Returns the default number of workers used."""
 

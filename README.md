@@ -53,18 +53,6 @@ Both functions can be used regardless of whether SciPy is installed<sup>2</sup>.
 <br/>
 <sup>2</sup>SciPy is an optional runtime dependency
 
-## Known limitations
-- Rocket-FFT implements NumPy's FFT interface and behavior as introduced in NumPy 2.0.
-  Note, however, that the `out` argument is not currently supported. Attempting to
-  specify it will result in a compile-time error.
-
-- There is a known issue in the implementations of `scipy.fft.dst`, `scipy.fft.idst`,
-  `scipy.fft.dstn`, and `scipy.fft.idstn` that may produce incorrect results when
-  `norm` and/or `orthogonalize` are set to non-default values. Specifying these
-  arguments with values other than their defaults emits a warning, and it is the
-  user's responsibility to verify the results. Using the default values is safe.
-
-
 ## Low-Level Interface
 Rocket-FFT also provides a low-level interface to the PocketFFT library. Using the low-level interface can significantly reduce compile time, minimize overhead and give more flexibility to the user. It also provides some functions that are not available through the SciPy-like and NumPy-like interfaces. You can import its functions from the `rocket_fft` namespace:
 ```python
@@ -82,6 +70,7 @@ def r2r_separable_hartley(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | ND
 def r2r_genuine_hartley(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | NDArray[f8], axes: NDArray[i8], fct: f4 | f8, nthreads: i8) -> None: ...
 def r2r_fftpack(ain: NDArray[f4] | NDArray[f8], aout: NDArray[f4] | NDArray[f8], axes: NDArray[i8], real2hermitian: b1, forward: b1, fct: f4 | f8, nthreads: i8) -> None: ...
 def good_size(target: i8, real: b1) -> i8: ...
+def prev_good_size(target: i8, real: b1) -> i8: ...
 ```
 Note that the low-level interface provides a lower level of safety and convenience compared to the SciPy-like and NumPy-like interfaces. 
 There is almost no safety net, and it is up to the user to ensure proper usage. You may want to consult the original [PocketFFT](https://github.com/mreineck/pocketfft) C++ implementation before using it.

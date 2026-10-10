@@ -5,7 +5,7 @@ https://github.com/scipy/scipy/blob/main/scipy/fft/tests/test_fftlog.py
 Whenever I changed a test, I left a note.
 """
 
-from contextlib import redirect_stdout
+import warnings
 
 import numpy as np
 from numba.core.errors import TypingError
@@ -154,17 +154,7 @@ def test_fht_identity(n, bias, offset, optimal):
     assert_allclose(a, a_)
 
 
-class Buffer:
-    def __init__(self):
-        self.written = False
-
-    def write(self, *args, **kwargs):
-        self.written = True
-
-
 def test_fht_special_cases():
-    # NOTE: We can't warn about singularity so we check if something is printed
-
     rng = np.random.RandomState(3491349965)
 
     a = rng.standard_normal(64)
@@ -174,39 +164,27 @@ def test_fht_special_cases():
 
     # case 1: xp in M, xm in M => well-defined transform
     mu, bias = -4.0, 1.0
-    # with warnings.catch_warnings(record=True) as record:
-    buf = Buffer()
-    with redirect_stdout(buf):
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
         ScipyFFT.fht(a, dln, mu, bias=bias)
-        assert not buf.written, "fht warned about a well-defined transform"
-    # assert not record, "fht warned about a well-defined transform"
+        assert not record, "fht warned about a well-defined transform"
 
     # case 2: xp not in M, xm in M => well-defined transform
     mu, bias = -2.5, 0.5
-    # with warnings.catch_warnings(record=True) as record:
-    buf = Buffer()
-    with redirect_stdout(buf):
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
         ScipyFFT.fht(a, dln, mu, bias=bias)
-        assert not buf.written, "fht warned about a well-defined transform"
-    # assert not record, "fht warned about a well-defined transform"
+        assert not record, "fht warned about a well-defined transform"
 
     # case 3: xp in M, xm not in M => singular transform
     mu, bias = -3.5, 0.5
-    # with pytest.warns(Warning) as record:
-    buf = Buffer()
-    with redirect_stdout(buf):
+    with pytest.warns(UserWarning, match="singular transform; consider changing the bias"):
         ScipyFFT.fht(a, dln, mu, bias=bias)
-        assert buf.written, "fht did not warn about a singular transform"
-    # assert record, "fht did not warn about a singular transform"
 
     # case 4: xp not in M, xm in M => singular inverse transform
     mu, bias = -2.5, 0.5
-    # with pytest.warns(Warning) as record:
-    buf = Buffer()
-    with redirect_stdout(buf):
+    with pytest.warns(UserWarning, match="singular inverse transform; consider changing the bias"):
         ScipyFFT.ifht(a, dln, mu, bias=bias)
-        assert buf.written, "ifht did not warn about a singular transform"
-    # assert record, "ifht did not warn about a singular transform"
 
 
 @pytest.mark.parametrize("n", [64, 63])

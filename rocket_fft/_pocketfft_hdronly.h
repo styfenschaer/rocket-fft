@@ -230,6 +230,17 @@ namespace pocketfft
     {
       static constexpr uint64_t val = 2;
     };
+#elif (defined(__riscv_vector))
+    template <>
+    struct VLEN<float>
+    {
+      static constexpr uint64_t val = 8;
+    };
+    template <>
+    struct VLEN<double>
+    {
+      static constexpr uint64_t val = 4;
+    };
 #else
 #define POCKETFFT_NO_VECTORS
 #endif
@@ -585,30 +596,39 @@ namespace pocketfft
         return result * double(ni);
       }
 
-      /* returns the smallest composite of 2, 3, 5, 7 and 11 which is >= n */
-      static POCKETFFT_NOINLINE uint64_t good_size_cmplx(uint64_t n)
+      /* inner workings of good_size_cmplx() */
+      template <typename UIntT>
+      static POCKETFFT_NOINLINE UIntT good_size_cmplx_typed(UIntT n)
       {
-        if (n <= 12)
-          return n;
+        static_assert(std::numeric_limits<UIntT>::is_integer && (!std::numeric_limits<UIntT>::is_signed),
+          "type must be unsigned integer");
+        if (n <= 12) return n;
+        if (n > std::numeric_limits<UIntT>::max() / 11 / 2)
+        {
+          if (sizeof(UIntT) < sizeof(std::uint64_t))
+          {
+            std::uint64_t res = good_size_cmplx_typed<std::uint64_t>(n);
+            if (res <= std::numeric_limits<UIntT>::max())
+              return static_cast<UIntT>(res);
+          }
+          throw std::runtime_error("FFT size is too large.");
+        }
 
-        uint64_t bestfac = 2 * n;
-        for (uint64_t f11 = 1; f11 < bestfac; f11 *= 11)
-          for (uint64_t f117 = f11; f117 < bestfac; f117 *= 7)
-            for (uint64_t f1175 = f117; f1175 < bestfac; f1175 *= 5)
+        UIntT bestfac = 2 * n;
+        for (UIntT f11 = 1; f11 < bestfac; f11 *= 11)
+          for (UIntT f117 = f11; f117 < bestfac; f117 *= 7)
+            for (UIntT f1175 = f117; f1175 < bestfac; f1175 *= 5)
             {
-              uint64_t x = f1175;
-              while (x < n)
-                x *= 2;
+              UIntT x = f1175;
+              while (x < n) x *= 2;
               for (;;)
               {
                 if (x < n)
                   x *= 3;
                 else if (x > n)
                 {
-                  if (x < bestfac)
-                    bestfac = x;
-                  if (x & 1)
-                    break;
+                  if (x < bestfac) bestfac = x;
+                  if (x & 1) break;
                   x >>= 1;
                 }
                 else
@@ -617,29 +637,51 @@ namespace pocketfft
             }
         return bestfac;
       }
-
-      /* returns the smallest composite of 2, 3, 5 which is >= n */
-      static POCKETFFT_NOINLINE uint64_t good_size_real(uint64_t n)
+      /* returns the smallest composite of 2, 3, 5, 7 and 11 which is >= n */
+      static POCKETFFT_NOINLINE uint64_t good_size_cmplx(uint64_t n)
       {
-        if (n <= 6)
-          return n;
+        return good_size_cmplx_typed(n);
+      }
+      /* returns the smallest composite of 2, 3, 5, 7 and 11 which is >= n
+         and a multiple of required_factor. */
+      static POCKETFFT_NOINLINE uint64_t good_size_cmplx(uint64_t n, uint64_t required_factor)
+      {
+        if (required_factor < 1)
+          throw std::runtime_error("required factor must not be 0");
+        return good_size_cmplx((n + required_factor - 1) / required_factor) * required_factor;
+      }
 
-        uint64_t bestfac = 2 * n;
-        for (uint64_t f5 = 1; f5 < bestfac; f5 *= 5)
+      /* inner workings of good_size_real() */
+      template <typename UIntT>
+      static POCKETFFT_NOINLINE UIntT good_size_real_typed(UIntT n)
+      {
+        static_assert(std::numeric_limits<UIntT>::is_integer && (!std::numeric_limits<UIntT>::is_signed),
+          "type must be unsigned integer");
+        if (n <= 6) return n;
+        if (n > std::numeric_limits<UIntT>::max() / 5 / 2)
         {
-          uint64_t x = f5;
-          while (x < n)
-            x *= 2;
+          if (sizeof(UIntT) < sizeof(std::uint64_t))
+          {
+            std::uint64_t res = good_size_real_typed<std::uint64_t>(n);
+            if (res <= std::numeric_limits<UIntT>::max())
+              return static_cast<UIntT>(res);
+          }
+          throw std::runtime_error("FFT size is too large.");
+        }
+
+        UIntT bestfac = 2 * n;
+        for (UIntT f5 = 1; f5 < bestfac; f5 *= 5)
+        {
+          UIntT x = f5;
+          while (x < n) x *= 2;
           for (;;)
           {
             if (x < n)
               x *= 3;
             else if (x > n)
             {
-              if (x < bestfac)
-                bestfac = x;
-              if (x & 1)
-                break;
+              if (x < bestfac) bestfac = x;
+              if (x & 1) break;
               x >>= 1;
             }
             else
@@ -647,6 +689,103 @@ namespace pocketfft
           }
         }
         return bestfac;
+      }
+      /* returns the smallest composite of 2, 3, 5 which is >= n */
+      static POCKETFFT_NOINLINE uint64_t good_size_real(uint64_t n)
+      {
+        return good_size_real_typed(n);
+      }
+      /* returns the smallest composite of 2, 3, 5 which is >= n
+         and a multiple of required_factor. */
+      static POCKETFFT_NOINLINE uint64_t good_size_real(uint64_t n, uint64_t required_factor)
+      {
+        if (required_factor < 1)
+          throw std::runtime_error("required factor must not be 0");
+        return good_size_real((n + required_factor - 1) / required_factor) * required_factor;
+      }
+
+      /* inner workings of prev_good_size_cmplx() */
+      template <typename UIntT>
+      static POCKETFFT_NOINLINE UIntT prev_good_size_cmplx_typed(UIntT n)
+      {
+        static_assert(std::numeric_limits<UIntT>::is_integer && (!std::numeric_limits<UIntT>::is_signed),
+          "type must be unsigned integer");
+        if (n <= 12) return n;
+        if (n > std::numeric_limits<UIntT>::max() / 11)
+        {
+          if (sizeof(UIntT) < sizeof(std::uint64_t))
+          {
+            auto res = prev_good_size_cmplx_typed<std::uint64_t>(n);
+            if (res <= std::numeric_limits<UIntT>::max())
+              return static_cast<UIntT>(res);
+          }
+          throw std::runtime_error("FFT size is too large.");
+        }
+
+        UIntT bestfound = 1;
+        for (UIntT f11 = 1; f11 <= n; f11 *= 11)
+          for (UIntT f117 = f11; f117 <= n; f117 *= 7)
+            for (UIntT f1175 = f117; f1175 <= n; f1175 *= 5)
+            {
+              UIntT x = f1175;
+              while (x * 2 <= n) x *= 2;
+              if (x > bestfound) bestfound = x;
+              while (true)
+              {
+                if (x * 3 <= n) x *= 3;
+                else if (x % 2 == 0) x /= 2;
+                else break;
+
+                if (x > bestfound) bestfound = x;
+              }
+            }
+        return bestfound;
+      }
+      /* returns the largest composite of 2, 3, 5, 7 and 11 which is <= n */
+      static POCKETFFT_NOINLINE uint64_t prev_good_size_cmplx(uint64_t n)
+      {
+        return prev_good_size_cmplx_typed(n);
+      }
+
+      /* inner workings of prev_good_size_real() */
+      template <typename UIntT>
+      static POCKETFFT_NOINLINE UIntT prev_good_size_real_typed(UIntT n)
+      {
+        static_assert(std::numeric_limits<UIntT>::is_integer && (!std::numeric_limits<UIntT>::is_signed),
+          "type must be unsigned integer");
+        if (n <= 6) return n;
+        if (n > std::numeric_limits<UIntT>::max() / 5)
+        {
+          if (sizeof(UIntT) < sizeof(std::uint64_t))
+          {
+            auto res = prev_good_size_real_typed<std::uint64_t>(n);
+            if (res <= std::numeric_limits<UIntT>::max())
+              return static_cast<UIntT>(res);
+          }
+          throw std::runtime_error("FFT size is too large.");
+        }
+
+        UIntT bestfound = 1;
+        for (UIntT f5 = 1; f5 <= n; f5 *= 5)
+        {
+          UIntT x = f5;
+          while (x * 2 <= n) x *= 2;
+          if (x > bestfound) bestfound = x;
+          while (true)
+          {
+            if (x * 3 <= n) x *= 3;
+            else if (x % 2 == 0) x /= 2;
+            else break;
+
+            if (x > bestfound) bestfound = x;
+          }
+        }
+        return bestfound;
+      }
+      /* returns the largest composite of 2, 3, 5 which is <= n */
+      static POCKETFFT_NOINLINE uint64_t prev_good_size_real(uint64_t n)
+      {
+        return prev_good_size_real_typed(n);
       }
 
       static uint64_t prod(const shape_view_t &shape)
@@ -3031,12 +3170,12 @@ namespace pocketfft
             for (uint64_t k = 0, kc = N - 1; k < kc; ++k, --kc)
               std::swap(c[k], c[kc]);
           if (ortho)
-            c[0] *= sqrt2 * T0(0.5);
+            c[cosine ? 0 : N - 1] *= sqrt2 * T0(0.5);
         }
         else
         {
           if (ortho)
-            c[0] *= sqrt2;
+            c[cosine ? 0 : N - 1] *= sqrt2;
           if (!cosine)
             for (uint64_t k = 0, kc = N - 1; k < NS2; ++k, --kc)
               std::swap(c[k], c[kc]);

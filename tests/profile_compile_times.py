@@ -1,101 +1,235 @@
+"""
+Measures pure JIT compilation times (isolating compiler warmup from transform lowering).
+Covers fast-path (default arguments) and generic polymorphic paths across 1D, 2D, and ND
+transforms for both SciPy and NumPy interfaces.
+"""
+
+import argparse
 import os
 import subprocess
 import sys
+from textwrap import dedent
 
 import numpy as np
 
-test_fft = """
-from time import perf_counter
-import numpy as np
-import numba as nb
-import scipy.fft
-nb.njit(lambda: None)()
+# Transform templates for isolated subprocess profiling
+TESTS = {
+    # 1D Transforms (Fast path)
+    "scipy.fft.fft [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.fft(a)
+        a = np.ones(16, dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.ifft [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.ifft(a)
+        a = np.ones(16, dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.rfft [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.rfft(a)
+        a = np.ones(16, dtype=np.float64)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.irfft [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.irfft(a)
+        a = np.ones(9, dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.dct [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.dct(a)
+        a = np.ones(16, dtype=np.float64)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.dst [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.dst(a)
+        a = np.ones(16, dtype=np.float64)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.fht [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.fht(a, 0.1, 0.5)
+        a = np.ones(16, dtype=np.float64)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
 
-@nb.njit
-def func(a):
-    return scipy.fft.fft(a)
+    # 2D & ND Transforms (Fast path)
+    "scipy.fft.fft2 [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.fft2(a)
+        a = np.ones((8, 8), dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.fftn [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.fftn(a)
+        a = np.ones((4, 4, 4), dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.rfft2 [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return scipy.fft.rfft2(a)
+        a = np.ones((8, 8), dtype=np.float64)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
 
-a = np.ones(1, dtype=np.complex128)
+    # Generic Polymorphic Paths (explicit arguments)
+    "scipy.fft.fft [generic]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a, n, axis, norm): return scipy.fft.fft(a, n, axis, norm)
+        a = np.ones(16, dtype=np.complex128)
+        tic = perf_counter(); func(a, 8, -1, 'ortho'); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "scipy.fft.fft2 [generic]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, scipy.fft, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a, s, axes, norm): return scipy.fft.fft2(a, s, axes, norm)
+        a = np.ones((8, 8), dtype=np.complex128)
+        tic = perf_counter(); func(a, (4, 4), (-2, -1), 'ortho'); toc = perf_counter()
+        print(toc - tic)
+    """),
 
-tic = perf_counter()
-func(a)
-toc = perf_counter()
-elapsed = toc - tic
-
-print(elapsed)
-"""
-
-test_fht = """
-from time import perf_counter
-import numpy as np
-import numba as nb
-import scipy.fft
-nb.njit(lambda: None)()
-
-@nb.njit
-def func(a):
-    return scipy.fft.fht(a, 1.0, 1.0)
-
-a = np.ones(1)
-
-tic = perf_counter()
-func(a)
-toc = perf_counter()
-elapsed = toc - tic
-
-print(elapsed)
-"""
-
-test_dct = """
-from time import perf_counter
-import numpy as np
-import numba as nb
-import scipy.fft
-nb.njit(lambda: None)()
-
-@nb.njit
-def func(a):
-    return scipy.fft.dct(a)
-
-a = np.ones(2)
-
-tic = perf_counter()
-func(a)
-toc = perf_counter()
-elapsed = toc - tic
-
-print(elapsed)
-"""
+    # NumPy equivalents (with out argument support)
+    "numpy.fft.fft [fast]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a): return np.fft.fft(a)
+        a = np.ones(16, dtype=np.complex128)
+        tic = perf_counter(); func(a); toc = perf_counter()
+        print(toc - tic)
+    """),
+    "numpy.fft.fft [with out]": dedent("""
+        from time import perf_counter
+        import numpy as np, numba as nb, rocket_fft
+        nb.njit(lambda: None)()
+        @nb.njit
+        def func(a, out): return np.fft.fft(a, out=out)
+        a = np.ones(16, dtype=np.complex128)
+        out = np.empty_like(a)
+        tic = perf_counter(); func(a, out); toc = perf_counter()
+        print(toc - tic)
+    """),
+}
 
 
-def test(src, n_iter):
+def run_benchmark(name, src, n_iter):
+    filename = f"_prof_temp_{os.getpid()}.py"
     try:
-        filename = "profile_compile.py"
-        with open(filename, "w") as file:
-            file.write(src)
+        with open(filename, "w") as f:
+            f.write(src)
 
-        timings = []
-        for i in range(n_iter):
-            elapsed = subprocess.check_output([sys.executable, filename])
-            elapsed = float(elapsed)
-            print(f"Iteration {i+1}/{n_iter}: {elapsed:.3f}")
-            timings.append(elapsed)
+        timings_ms = []
+        for _ in range(n_iter):
+            res = subprocess.check_output([sys.executable, filename])
+            timings_ms.append(float(res.strip()) * 1000.0)
 
-        print(f"   Min: {np.amin(timings):.3f}")
-        print(f"  Mean: {np.median(timings):.3f}")
-        print(f"Median: {np.mean(timings):.3f}")
-        print(f"   Max: {np.amax(timings):.3f}")
-
-    except Exception as e:
-        raise e
+        t = np.array(timings_ms)
+        return {
+            "name": name,
+            "min": np.amin(t),
+            "mean": np.mean(t),
+            "median": np.median(t),
+            "max": np.amax(t),
+            "std": np.std(t),
+        }
     finally:
-        os.unlink(filename)
+        if os.path.exists(filename):
+            os.unlink(filename)
 
 
-def main(n_iter):
-    for src in (test_fft, test_fht, test_dct):
-        test(src, n_iter)
+def print_summary_table(results):
+    print("\n" + "=" * 80)
+    print(f"{'Transform':<28} | {'Min (ms)':>9} | {'Mean (ms)':>10} | {'Median (ms)':>11} | {'Max (ms)':>9} | {'Std (ms)':>8}")
+    print("-" * 80)
+    for r in results:
+        print(
+            f"{r['name']:<28} | "
+            f"{r['min']:9.2f} | "
+            f"{r['mean']:10.2f} | "
+            f"{r['median']:11.2f} | "
+            f"{r['max']:9.2f} | "
+            f"{r['std']:8.2f}"
+        )
+    print("=" * 80 + "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Profile Rocket-FFT JIT compilation times")
+    parser.add_argument("--iter", type=int, default=3, help="Number of profiling iterations per transform (default: 3)")
+    parser.add_argument("--fast-only", action="store_true", help="Only profile fast-path transforms")
+    parser.add_argument("--filter", type=str, default="", help="Filter transform names matching substring")
+    args = parser.parse_args()
+
+    tests = TESTS
+    if args.fast_only:
+        tests = {k: v for k, v in tests.items() if "[fast]" in k}
+    if args.filter:
+        tests = {k: v for k, v in tests.items() if args.filter in k}
+
+    print(f"Profiling JIT compile times ({len(tests)} transforms, {args.iter} iterations each)...")
+
+    results = []
+    for name, src in tests.items():
+        print(f"Profiling {name}...", end="", flush=True)
+        r = run_benchmark(name, src, args.iter)
+        results.append(r)
+        print(f" Mean: {r['mean']:.1f} ms, Median: {r['median']:.1f} ms")
+
+    print_summary_table(results)
 
 
 if __name__ == "__main__":
-    main(int(sys.argv[1]) if len(sys.argv) > 1 else 5)
+    main()

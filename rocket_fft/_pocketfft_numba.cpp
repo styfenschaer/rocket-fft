@@ -28,6 +28,12 @@ numba_good_size(uint64_t target, bool real) {
                 : util::good_size_cmplx(target);
 }
 
+DLL_EXPORT uint64_t
+numba_prev_good_size(uint64_t target, bool real) {
+    return real ? util::prev_good_size_real(target)
+                : util::prev_good_size_cmplx(target);
+}
+
 DLL_EXPORT void
 numba_c2c(uint64_t ndim, const arystruct_t* ain, arystruct_t* aout, arystruct_t* axes,
     bool forward, double fct, uint64_t nthreads = 1) {

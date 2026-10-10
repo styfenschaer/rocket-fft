@@ -127,6 +127,19 @@ class Pocketfft:
         fn = get_or_insert_function(builder.module, fnty, fname)
         return builder.call(fn, args)
 
+    @staticmethod
+    def prev_good_size(builder, args):
+        fname = "numba_prev_good_size"
+        fnty = ir.FunctionType(
+            ll_uint64,
+            (
+                ll_uint64,  # target
+                ll_bool,  # real
+            ),
+        )
+        fn = get_or_insert_function(builder.module, fnty, fname)
+        return builder.call(fn, args)
+
 
 def array_as_voidptr(context, builder, ary_t, ary):
     ary = make_array(ary_t)(context, builder, ary)
@@ -220,6 +233,24 @@ def numba_good_size(typingctx, n, real):
         n = builder.zext(n, ll_uint64)
         real = builder.trunc(real, ll_bool)
         ret = Pocketfft.good_size(builder, (n, real))
+        return ret
+
+    sig = uint64(n, real)
+    return sig, codegen
+
+
+@intrinsic
+def numba_prev_good_size(typingctx, n, real):
+    if not isinstance(n, (types.Integer, types.Boolean)):
+        raise TypingError("The first argument 'n' must be an integer")
+    if not isinstance(real, (types.Integer, types.Boolean)):
+        raise TypingError("The second argument 'real' must be a boolean")
+
+    def codegen(context, builder, sig, args):
+        n, real = args
+        n = builder.zext(n, ll_uint64)
+        real = builder.trunc(real, ll_bool)
+        ret = Pocketfft.prev_good_size(builder, (n, real))
         return ret
 
     sig = uint64(n, real)

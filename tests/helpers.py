@@ -445,6 +445,11 @@ class ScipyFFT:
 
     @staticmethod
     @nb.njit
+    def prev_fast_len(n, real=False):
+        return scipy.fft.prev_fast_len(n, real)
+
+    @staticmethod
+    @nb.njit
     def dct(
         x,
         type=2,

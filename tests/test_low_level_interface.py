@@ -18,6 +18,7 @@ set_numba_capture_errors_new_style()
 from rocket_fft import (
     c2c,
     good_size,
+    prev_good_size,
     r2r_fftpack,
     r2r_genuine_hartley,
     r2r_separable_hartley,
@@ -323,3 +324,47 @@ def test_good_size_raise(n, real):
 )
 def test_good_size_noraise(n, real):
     jit_good_size(n, real)
+
+
+@nb.njit
+def jit_prev_good_size(n, real):
+    return prev_good_size(n, real)
+
+
+@pytest.mark.parametrize("real", (1.0, 1j))
+@pytest.mark.parametrize("n", (1.0, 1j))
+def test_prev_good_size_raise(n, real):
+    with assert_raises(Exception):
+        jit_prev_good_size(n, real)
+
+
+@pytest.mark.parametrize(
+    "real",
+    (
+        True,
+        np.int8(42),
+        np.uint8(42),
+        np.int16(42),
+        np.uint16(42),
+        np.int32(42),
+        np.uint32(42),
+        np.int64(42),
+        np.uint64(42),
+    ),
+)
+@pytest.mark.parametrize(
+    "n",
+    (
+        True,
+        np.int8(42),
+        np.uint8(42),
+        np.int16(42),
+        np.uint16(42),
+        np.int32(42),
+        np.uint32(42),
+        np.int64(42),
+        np.uint64(42),
+    ),
+)
+def test_prev_good_size_noraise(n, real):
+    jit_prev_good_size(n, real)

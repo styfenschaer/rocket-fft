@@ -40,6 +40,22 @@ def assert_input_unchanged(inp, before):
     assert np.array_equal(inp, before)
 
 
+def run_and_compare(nb_fn, scipy_fn, a, *args, overwrite_x=False, rtol=1e-12, atol=1e-12, **kwargs):
+    a_nb = a.copy()
+    a_scipy = a.copy()
+    a_orig = a.copy()
+
+    out_nb = nb_fn(a_nb, *args, overwrite_x=overwrite_x, **kwargs)
+    out_scipy = scipy_fn(a_scipy, *args, overwrite_x=overwrite_x, **kwargs)
+
+    assert_same_result(out_nb, out_scipy, rtol=rtol, atol=atol)
+
+    if not overwrite_x:
+        assert_input_unchanged(a_nb, a_orig)
+        assert_not_same_array(out_nb, a_nb)
+    return out_nb
+
+
 # -----------------------------------------------------------------------------
 # FFT / IFFT (1D)
 # -----------------------------------------------------------------------------
@@ -54,14 +70,11 @@ def test_fft_ifft(dtype, n, axis, norm, overwrite_x):
     rng = np.random.default_rng(0)
     a = random_array(rng, (16,), dtype)
 
-    assert_same_result(
-        ScipyFFT.fft(a, n, axis, norm, overwrite_x),
-        scipy.fft.fft(a, n, axis, norm, overwrite_x),
+    run_and_compare(
+        ScipyFFT.fft, scipy.fft.fft, a, n, axis, norm, overwrite_x=overwrite_x
     )
-
-    assert_same_result(
-        ScipyFFT.ifft(a, n, axis, norm, overwrite_x),
-        scipy.fft.ifft(a, n, axis, norm, overwrite_x),
+    run_and_compare(
+        ScipyFFT.ifft, scipy.fft.ifft, a, n, axis, norm, overwrite_x=overwrite_x
     )
 
 
@@ -79,14 +92,11 @@ def test_fft2_ifft2(dtype, shape, axes, norm, overwrite_x):
     rng = np.random.default_rng(1)
     a = random_array(rng, shape, dtype)
 
-    assert_same_result(
-        ScipyFFT.fft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.fft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    run_and_compare(
+        ScipyFFT.fft2, scipy.fft.fft2, a, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
-
-    assert_same_result(
-        ScipyFFT.ifft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.ifft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    run_and_compare(
+        ScipyFFT.ifft2, scipy.fft.ifft2, a, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
 
 
@@ -104,14 +114,11 @@ def test_fftn_ifftn(dtype, shape, axes, norm, overwrite_x):
     rng = np.random.default_rng(2)
     a = random_array(rng, shape, dtype)
 
-    assert_same_result(
-        ScipyFFT.fftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.fftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    run_and_compare(
+        ScipyFFT.fftn, scipy.fft.fftn, a, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
-
-    assert_same_result(
-        ScipyFFT.ifftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.ifftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    run_and_compare(
+        ScipyFFT.ifftn, scipy.fft.ifftn, a, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
 
 
@@ -128,13 +135,11 @@ def test_rfft_irfft(n, axis, norm, overwrite_x):
     rng = np.random.default_rng(3)
     a = rng.standard_normal(32)
 
-    r_nb = ScipyFFT.rfft(a, n, axis, norm, overwrite_x)
-    r_np = scipy.fft.rfft(a, n, axis, norm, overwrite_x)
-    assert_same_result(r_nb, r_np)
-
-    assert_same_result(
-        ScipyFFT.irfft(r_nb, n, axis, norm, overwrite_x),
-        scipy.fft.irfft(r_np, n, axis, norm, overwrite_x),
+    r_nb = run_and_compare(
+        ScipyFFT.rfft, scipy.fft.rfft, a, n, axis, norm, overwrite_x=overwrite_x
+    )
+    run_and_compare(
+        ScipyFFT.irfft, scipy.fft.irfft, r_nb, n, axis, norm, overwrite_x=overwrite_x
     )
 
 
@@ -146,13 +151,11 @@ def test_rfft2_irfft2(shape, axes, norm, overwrite_x):
     rng = np.random.default_rng(4)
     a = rng.standard_normal(shape)
 
-    r_nb = ScipyFFT.rfft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x)
-    r_np = scipy.fft.rfft2(a, axes=axes, norm=norm, overwrite_x=overwrite_x)
-    assert_same_result(r_nb, r_np)
-
-    assert_same_result(
-        ScipyFFT.irfft2(r_nb, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.irfft2(r_np, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    r_nb = run_and_compare(
+        ScipyFFT.rfft2, scipy.fft.rfft2, a, axes=axes, norm=norm, overwrite_x=overwrite_x
+    )
+    run_and_compare(
+        ScipyFFT.irfft2, scipy.fft.irfft2, r_nb, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
 
 
@@ -164,13 +167,11 @@ def test_rfftn_irfftn(shape, axes, norm, overwrite_x):
     rng = np.random.default_rng(5)
     a = rng.standard_normal(shape)
 
-    r_nb = ScipyFFT.rfftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x)
-    r_np = scipy.fft.rfftn(a, axes=axes, norm=norm, overwrite_x=overwrite_x)
-    assert_same_result(r_nb, r_np)
-
-    assert_same_result(
-        ScipyFFT.irfftn(r_nb, axes=axes, norm=norm, overwrite_x=overwrite_x),
-        scipy.fft.irfftn(r_np, axes=axes, norm=norm, overwrite_x=overwrite_x),
+    r_nb = run_and_compare(
+        ScipyFFT.rfftn, scipy.fft.rfftn, a, axes=axes, norm=norm, overwrite_x=overwrite_x
+    )
+    run_and_compare(
+        ScipyFFT.irfftn, scipy.fft.irfftn, r_nb, axes=axes, norm=norm, overwrite_x=overwrite_x
     )
 
 
@@ -187,13 +188,11 @@ def test_hfft_ihfft(n, axis, norm, overwrite_x):
     rng = np.random.default_rng(6)
     a = rng.standard_normal(16) + 1j * rng.standard_normal(16)
 
-    r_nb = ScipyFFT.hfft(a, n, axis, norm, overwrite_x)
-    r_np = scipy.fft.hfft(a, n, axis, norm, overwrite_x)
-    assert_same_result(r_nb, r_np)
-
-    assert_same_result(
-        ScipyFFT.ihfft(r_nb, n, axis, norm, overwrite_x),
-        scipy.fft.ihfft(r_np, n, axis, norm, overwrite_x),
+    r_nb = run_and_compare(
+        ScipyFFT.hfft, scipy.fft.hfft, a, n, axis, norm, overwrite_x=overwrite_x
+    )
+    run_and_compare(
+        ScipyFFT.ihfft, scipy.fft.ihfft, r_nb, n, axis, norm, overwrite_x=overwrite_x
     )
 
 
@@ -256,6 +255,13 @@ def test_next_fast_len(n, real):
     assert ScipyFFT.next_fast_len(n, real) == scipy.fft.next_fast_len(n, real)
 
 
+@pytest.mark.parametrize("n", [0, 1, 8, 16, 31])
+@pytest.mark.parametrize("real", [False, True])
+def test_prev_fast_len(n, real):
+    if hasattr(scipy.fft, "prev_fast_len"):
+        assert ScipyFFT.prev_fast_len(n, real) == scipy.fft.prev_fast_len(n, real)
+
+
 # -----------------------------------------------------------------------------
 # DCT / DST families
 # -----------------------------------------------------------------------------
@@ -280,9 +286,10 @@ SHAPES_ND = [(4, 5), (3, 4, 5)]
 def test_dct_idct(n, axis, type, norm, orthogonalize, overwrite_x):
     rng = np.random.default_rng(8)
     a = rng.standard_normal(32)
-    a0 = a.copy()
 
-    r_nb = ScipyFFT.dct(
+    r_nb = run_and_compare(
+        ScipyFFT.dct,
+        scipy.fft.dct,
         a,
         type=type,
         n=n,
@@ -292,20 +299,10 @@ def test_dct_idct(n, axis, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-    r_np = scipy.fft.dct(
-        a0,
-        type=type,
-        n=n,
-        axis=axis,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
 
-    assert_same_result(r_nb, r_np)
-
-    out_nb = ScipyFFT.idct(
+    run_and_compare(
+        ScipyFFT.idct,
+        scipy.fft.idct,
         r_nb,
         type=type,
         n=n,
@@ -315,18 +312,6 @@ def test_dct_idct(n, axis, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-    out_np = scipy.fft.idct(
-        r_np,
-        type=type,
-        n=n,
-        axis=axis,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    assert_same_result(out_nb, out_np)
 
 
 @pytest.mark.parametrize("n", SHAPES_1D + [None])
@@ -338,9 +323,10 @@ def test_dct_idct(n, axis, type, norm, orthogonalize, overwrite_x):
 def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
     rng = np.random.default_rng(9)
     a = rng.standard_normal(32)
-    a0 = a.copy()
 
-    r_nb = ScipyFFT.dst(
+    r_nb = run_and_compare(
+        ScipyFFT.dst,
+        scipy.fft.dst,
         a,
         type=type,
         n=n,
@@ -351,22 +337,9 @@ def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
         orthogonalize=orthogonalize,
     )
 
-    r_np = scipy.fft.dst(
-        a0,
-        type=type,
-        n=n,
-        axis=axis,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    # TODO: Remove this if the bug is fixed
-    if norm is None and orthogonalize is None:
-        assert_same_result(r_nb, r_np)
-
-    out_nb = ScipyFFT.idst(
+    run_and_compare(
+        ScipyFFT.idst,
+        scipy.fft.idst,
         r_nb,
         type=type,
         n=n,
@@ -376,21 +349,6 @@ def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-
-    out_np = scipy.fft.idst(
-        r_np,
-        type=type,
-        n=n,
-        axis=axis,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    # TODO: Remove this if the bug is fixed
-    if norm is None and orthogonalize is None:
-        assert_same_result(out_nb, out_np)
 
 
 @pytest.mark.parametrize("shape", SHAPES_ND)
@@ -403,9 +361,10 @@ def test_dst_idst(n, axis, type, norm, orthogonalize, overwrite_x):
 def test_dctn_idctn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
     rng = np.random.default_rng(10)
     a = rng.standard_normal(shape)
-    a0 = a.copy()
 
-    r_nb = ScipyFFT.dctn(
+    r_nb = run_and_compare(
+        ScipyFFT.dctn,
+        scipy.fft.dctn,
         a,
         type=type,
         s=s,
@@ -415,20 +374,10 @@ def test_dctn_idctn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-    r_np = scipy.fft.dctn(
-        a0,
-        type=type,
-        s=s,
-        axes=axes,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
 
-    assert_same_result(r_nb, r_np)
-
-    out_nb = ScipyFFT.idctn(
+    run_and_compare(
+        ScipyFFT.idctn,
+        scipy.fft.idctn,
         r_nb,
         type=type,
         s=s,
@@ -438,18 +387,6 @@ def test_dctn_idctn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-    out_np = scipy.fft.idctn(
-        r_np,
-        type=type,
-        s=s,
-        axes=axes,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    assert_same_result(out_nb, out_np)
 
 
 @pytest.mark.parametrize("shape", SHAPES_ND)
@@ -462,9 +399,10 @@ def test_dctn_idctn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
 def test_dstn_idstn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
     rng = np.random.default_rng(11)
     a = rng.standard_normal(shape)
-    a0 = a.copy()
 
-    r_nb = ScipyFFT.dstn(
+    r_nb = run_and_compare(
+        ScipyFFT.dstn,
+        scipy.fft.dstn,
         a,
         type=type,
         s=s,
@@ -475,22 +413,9 @@ def test_dstn_idstn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
         orthogonalize=orthogonalize,
     )
 
-    r_np = scipy.fft.dstn(
-        a0,
-        type=type,
-        s=s,
-        axes=axes,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    # TODO: Remove this if the bug is fixed
-    if norm is None and orthogonalize is None:
-        assert_same_result(r_nb, r_np)
-
-    out_nb = ScipyFFT.idstn(
+    run_and_compare(
+        ScipyFFT.idstn,
+        scipy.fft.idstn,
         r_nb,
         type=type,
         s=s,
@@ -500,21 +425,6 @@ def test_dstn_idstn(shape, axes, s, type, norm, orthogonalize, overwrite_x):
         workers=1,
         orthogonalize=orthogonalize,
     )
-
-    out_np = scipy.fft.idstn(
-        r_np,
-        type=type,
-        s=s,
-        axes=axes,
-        norm=norm,
-        overwrite_x=overwrite_x,
-        workers=1,
-        orthogonalize=orthogonalize,
-    )
-
-    # TODO: Remove this if the bug is fixed
-    if norm is None and orthogonalize is None:
-        assert_same_result(out_nb, out_np)
 
 
 # -----------------------------------------------------------------------------

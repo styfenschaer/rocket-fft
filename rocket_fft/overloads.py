@@ -4,6 +4,7 @@ from os import cpu_count
 from functools import partial
 import numpy as np
 import numpy.fft
+from numba import objmode
 from numba.core import types
 from numba.core.errors import NumbaValueError, TypingError
 from numba.cpython.unsafe.tuple import tuple_setitem
@@ -146,11 +147,11 @@ fft_typing_validator = TypingValidator(
         error_message="The {} argument '{}' must be a boolean.",
     ),
     out=TypeConstraint(
-        types.NoneType,
+        types.Array,
         allow_scalar=True,
         allow_sequence=False,
         allow_none=True,
-        error_message="The {} argument '{}' is not yet supported.",  # TODO
+        error_message="The {} argument '{}' must be an array.",
     ),
     workers=TypeConstraint(
         types.Integer,
@@ -669,11 +670,8 @@ def _(shape, x, s, axes):
 
 @resize.fallback
 def _(shape, x, s, axes):
-    last_ax = x.ndim - 1
     for i, ax in enumerate(axes):
-        if ax == last_ax:
-            shape = tuple_setitem(shape, last_ax, s[i])
-            break
+        shape = tuple_setitem(shape, ax, s[i])
     return shape
 
 
@@ -879,8 +877,8 @@ def fhtcoeff(n, dln, mu, offset=0.0, bias=0.0):
 @register_jitable
 def _fhtq(a, u):
     if np.isinf(u[0]):
-        # TODO: Any better solution for dealing with warnings in jitted code?
-        print("Warning: singular transform; consider changing the bias")
+        with objmode():
+            warnings.warn("singular transform; consider changing the bias")
         u = u.copy()
         u[0] = 0
     A = np.fft.rfft(a)
@@ -892,8 +890,8 @@ def _fhtq(a, u):
 @register_jitable
 def _ifhtq(a, u):
     if u[0] == 0:
-        # TODO: Any better solution for dealing with warnings in jitted code?
-        print("Warning: singular inverse transform; consider changing the bias")
+        with objmode():
+            warnings.warn("singular inverse transform; consider changing the bias")
         u = u.copy()
         u[0] = np.inf
     A = np.fft.rfft(a)
@@ -1039,73 +1037,105 @@ def scipy_r2cn(x, forward):
     return impl
 
 
-# TODO: Support the 'out' arguments
-def numpy_c2cn(x, s, forward):
+def numpy_c2cn(x, s, forward, out=None):
     rettype = as_complex(x.dtype)
+    if is_not_nonelike(out):
+        if isinstance(out, types.Array) and out.dtype != rettype:
+            raise TypingError(
+                f"Cannot cast output from dtype '{rettype}' to dtype '{out.dtype}'"
+            )
 
     if isinstance(x.dtype, types.Complex):
         alloc_output = generated_alloc_output(s, x.dtype, rettype)
 
-        def impl(x, s, axes, norm, _out):
+        def impl(x, s, axes, norm, out):
             s, axes = ndshape_and_axes(x, s, axes)
             x = zeropad_or_crop(x, s, axes, rettype)
-            out = alloc_output(x, False)
+            if out is not None:
+                if out.shape != x.shape:
+                    raise NumbaValueError("output array has wrong shape.")
+                res = out
+            else:
+                res = alloc_output(x, False)
             fct = get_fct(x, axes, norm, forward)
             nthreads = get_nthreads(None)
-            pocketfft.numba_c2c(x, out, axes, forward, fct, nthreads)
-            return out
+            pocketfft.numba_c2c(x, res, axes, forward, fct, nthreads)
+            return res
 
     else:
         argtype = as_real(x.dtype)
 
-        def impl(x, s, axes, norm, _out):
+        def impl(x, s, axes, norm, out):
             s, axes = ndshape_and_axes(x, s, axes)
             x = zeropad_or_crop(x, s, axes, argtype)
-            out = np.empty(x.shape, dtype=rettype)
+            if out is not None:
+                if out.shape != x.shape:
+                    raise NumbaValueError("output array has wrong shape.")
+                res = out
+            else:
+                res = np.empty(x.shape, dtype=rettype)
             fct = get_fct(x, axes, norm, forward)
             nthreads = get_nthreads(None)
-            pocketfft.numba_c2c_sym(x, out, axes, forward, fct, nthreads)
-            return out
+            pocketfft.numba_c2c_sym(x, res, axes, forward, fct, nthreads)
+            return res
 
     return impl
 
 
-# TODO: Support the 'out' arguments
-def numpy_r2cn(x, forward):
+def numpy_r2cn(x, forward, out=None):
     if isinstance(x.dtype, types.Complex):
         raise TypingError(f"unsupported dtype {x.dtype}")
 
     argtype = as_real(x.dtype)
     rettype = as_complex(argtype)
+    if is_not_nonelike(out):
+        if isinstance(out, types.Array) and out.dtype != rettype:
+            raise TypingError(
+                f"Cannot cast output from dtype '{rettype}' to dtype '{out.dtype}'"
+            )
 
-    def impl(x, s, axes, norm, _out):
+    def impl(x, s, axes, norm, out):
         s, axes = ndshape_and_axes(x, s, axes)
         x = zeropad_or_crop(x, s, axes, argtype)
         shape = decrease_shape(x.shape, axes)
-        out = np.empty(shape, dtype=rettype)
+        if out is not None:
+            if out.shape != shape:
+                raise NumbaValueError("output array has wrong shape.")
+            res = out
+        else:
+            res = np.empty(shape, dtype=rettype)
         fct = get_fct(x, axes, norm, forward)
         nthreads = get_nthreads(None)
-        pocketfft.numba_r2c(x, out, axes, forward, fct, nthreads)
-        return out
+        pocketfft.numba_r2c(x, res, axes, forward, fct, nthreads)
+        return res
 
     return impl
 
 
-# TODO: Support the 'out' arguments
-def numpy_c2rn(x, forward):
+def numpy_c2rn(x, forward, out=None):
     argtype = as_complex(x.dtype)
     rettype = as_real(argtype)
+    if is_not_nonelike(out):
+        if isinstance(out, types.Array) and out.dtype != rettype:
+            raise TypingError(
+                f"Cannot cast output from dtype '{rettype}' to dtype '{out.dtype}'"
+            )
 
-    def impl(x, s, axes, norm, _out):
+    def impl(x, s, axes, norm, out):
         s, axes = ndshape_and_axes(x, s, axes)
         xin = zeropad_or_crop(x, s, axes, argtype)
         shape = increase_shape(x.shape, axes)
         shape = resize(shape, x, s, axes)
-        out = np.empty(shape, dtype=rettype)
-        fct = get_fct(out, axes, norm, forward)
+        if out is not None:
+            if out.shape != shape:
+                raise NumbaValueError("output array has wrong shape.")
+            res = out
+        else:
+            res = np.empty(shape, dtype=rettype)
+        fct = get_fct(res, axes, norm, forward)
         nthreads = get_nthreads(None)
-        pocketfft.numba_c2r(xin, out, axes, forward, fct, nthreads)
-        return out
+        pocketfft.numba_c2r(xin, res, axes, forward, fct, nthreads)
+        return res
 
     return impl
 
@@ -1118,98 +1148,98 @@ def numpy_c2rn(x, forward):
 @overload(numpy.fft.fft)
 @fft_typing_validator.decorator
 def numpy_fft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_c2cn(a, n, forward=True)
+    impl = numpy_c2cn(a, n, forward=True, out=out)
     return apply_signature(numpy_fft, impl)
 
 
 @overload(numpy.fft.ifft)
 @fft_typing_validator.decorator
 def numpy_ifft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_c2cn(a, n, forward=False)
+    impl = numpy_c2cn(a, n, forward=False, out=out)
     return apply_signature(numpy_ifft, impl)
 
 
 @overload(numpy.fft.fft2)
 @fft_typing_validator.decorator
 def numpy_fft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    impl = numpy_c2cn(a, s, forward=True)
+    impl = numpy_c2cn(a, s, forward=True, out=out)
     return apply_signature(numpy_fft2, impl)
 
 
 @overload(numpy.fft.ifft2)
 @fft_typing_validator.decorator
 def numpy_ifft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    impl = numpy_c2cn(a, s, forward=False)
+    impl = numpy_c2cn(a, s, forward=False, out=out)
     return apply_signature(numpy_ifft2, impl)
 
 
 @overload(numpy.fft.fftn)
 @fft_typing_validator.decorator
 def numpy_fftn(a, s=None, axes=None, norm=None, out=None):
-    impl = numpy_c2cn(a, s, forward=True)
+    impl = numpy_c2cn(a, s, forward=True, out=out)
     return apply_signature(numpy_fftn, impl)
 
 
 @overload(numpy.fft.ifftn)
 @fft_typing_validator.decorator
 def numpy_ifftn(a, s=None, axes=None, norm=None, out=None):
-    impl = numpy_c2cn(a, s, forward=False)
+    impl = numpy_c2cn(a, s, forward=False, out=out)
     return apply_signature(numpy_ifftn, impl)
 
 
 @overload(numpy.fft.rfft)
 @fft_typing_validator.decorator
 def numpy_rfft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True, out=out)
     return apply_signature(numpy_rfft, impl)
 
 
 @overload(numpy.fft.irfft)
 @fft_typing_validator.decorator
 def numpy_irfft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False, out=out)
     return apply_signature(numpy_irfft, impl)
 
 
 @overload(numpy.fft.rfft2)
 @fft_typing_validator.decorator
 def numpy_rfft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    impl = numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True, out=out)
     return apply_signature(numpy_rfft2, impl)
 
 
 @overload(numpy.fft.irfft2)
 @fft_typing_validator.decorator
 def numpy_irfft2(a, s=None, axes=(-2, -1), norm=None, out=None):
-    impl = numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False, out=out)
     return apply_signature(numpy_irfft2, impl)
 
 
 @overload(numpy.fft.rfftn)
 @fft_typing_validator.decorator
 def numpy_rfftn(a, s=None, axes=None, norm=None, out=None):
-    impl = numpy_r2cn(a, forward=True)
+    impl = numpy_r2cn(a, forward=True, out=out)
     return apply_signature(numpy_rfftn, impl)
 
 
 @overload(numpy.fft.irfftn)
 @fft_typing_validator.decorator
 def numpy_irfftn(a, s=None, axes=None, norm=None, out=None):
-    impl = numpy_c2rn(a, forward=False)
+    impl = numpy_c2rn(a, forward=False, out=out)
     return apply_signature(numpy_irfftn, impl)
 
 
 @overload(numpy.fft.hfft)
 @fft_typing_validator.decorator
 def numpy_hfft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_c2rn(a, forward=True)
+    impl = numpy_c2rn(a, forward=True, out=out)
     return apply_signature(numpy_hfft, impl)
 
 
 @overload(numpy.fft.ihfft)
 @fft_typing_validator.decorator
 def numpy_ihfft(a, n=None, axis=-1, norm=None, out=None):
-    impl = numpy_r2cn(a, forward=False)
+    impl = numpy_r2cn(a, forward=False, out=out)
     return apply_signature(numpy_ihfft, impl)
 
 
@@ -1653,17 +1683,6 @@ if _scipy_installed_:
         )
         return apply_signature(scipy_idctn, impl)
 
-    # TODO: Resolved this issue
-    def _dst_only_default_scaling_guard(norm, orthogonalize):
-        if is_not_nonelike(norm) or is_not_nonelike(orthogonalize):
-            warnings.warn(
-                "Specifying the 'norm' and 'orthogonalize' arguments may lead to "
-                "incorrect results due to an unresolved issue. "
-                "Please carefully verify the output if these options are provided. "
-                "Using the default values ('norm=None' and 'orthogonalize=None') is "
-                "safe until this issue is resolved in a future version."
-            )
-
     @overload(scipy.fft.dst)
     @fft_typing_validator.decorator
     def scipy_dst(
@@ -1676,7 +1695,6 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             n,
@@ -1698,7 +1716,6 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             n,
@@ -1720,7 +1737,6 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             s,
@@ -1742,7 +1758,6 @@ if _scipy_installed_:
         workers=None,
         orthogonalize=None,
     ):
-        _dst_only_default_scaling_guard(norm, orthogonalize)
         impl = scipy_r2rn(
             x,
             s,
@@ -1869,10 +1884,15 @@ if _scipy_installed_:
 
         return impl
 
-    # TODO: Implement 'scipy.fft.prev_fast_len'
-    # if hasattr(scipy.fft, "prev_fast_len"):  # Only introduced in Scipy 0.14
-    #
-    #     @overload(scipy.fft.prev_fast_len)
-    #     @fastlen_typing_validator.decorator
-    #     def prev_fast_len(target, real=False):
-    #         ...
+    if hasattr(scipy.fft, "prev_fast_len"):
+
+        @overload(scipy.fft.prev_fast_len)
+        @fastlen_typing_validator.decorator
+        def prev_fast_len(target, real=False):
+
+            def impl(target, real=False):
+                if target < 0:
+                    raise NumbaValueError("Target length must be positive.")
+                return pocketfft.numba_prev_good_size(target, real)
+
+            return impl
