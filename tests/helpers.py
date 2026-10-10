@@ -443,10 +443,11 @@ class ScipyFFT:
     def next_fast_len(n, real=False):
         return scipy.fft.next_fast_len(n, real)
 
-    @staticmethod
-    @nb.njit
-    def prev_fast_len(n, real=False):
-        return scipy.fft.prev_fast_len(n, real)
+    if hasattr(scipy.fft, "prev_fast_len"):
+        @staticmethod
+        @nb.njit
+        def prev_fast_len(n, real=False):
+            return scipy.fft.prev_fast_len(n, real)
 
     @staticmethod
     @nb.njit

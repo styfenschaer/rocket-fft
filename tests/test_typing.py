@@ -119,6 +119,10 @@ class TestNextFastLen:
         ScipyFFT.next_fast_len(1, real=False)
 
 
+@pytest.mark.skipif(
+    not hasattr(scipy.fft, "prev_fast_len"),
+    reason="scipy.fft.prev_fast_len requires SciPy >= 1.15",
+)
 class TestPrevFastLen:
     def test_target(self):
         with assert_raises(TypingError, match=mk_match(0, "target")):

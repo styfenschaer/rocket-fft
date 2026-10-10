@@ -61,7 +61,7 @@ jobs:
 
       - name: Build wheels
         env:
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
 
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux_* cp39-win_arm64 cp310-win_arm64 cp311-win_arm64"
 
