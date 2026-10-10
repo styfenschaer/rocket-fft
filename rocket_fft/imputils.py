@@ -57,8 +57,11 @@ class ConditionalOverload:
             for fn in self.preprocessors:
                 args = fn(*args)
 
-            sig = inspect.signature(self.signature)
-            bound = sig.bind(*args)
+            # Cache the signature
+            if not hasattr(self, "_sig"):
+                self._sig = inspect.signature(self.signature)
+
+            bound = self._sig.bind(*args)
             bound.apply_defaults()
             arguments = bound.arguments
 

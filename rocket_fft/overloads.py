@@ -526,6 +526,31 @@ def _(x, axes, norm, forward, delta=None):
     return 1.0 / mul_axes(x.shape, axes, delta)
 
 
+@get_fct.case(norm=is_literal_string("backward"), forward=is_literal_bool(True))
+def _(x, axes, norm, forward, delta=None):
+    return 1.0
+
+
+@get_fct.case(norm=is_literal_string("backward"), forward=is_literal_bool(False))
+def _(x, axes, norm, forward, delta=None):
+    return 1.0 / mul_axes(x.shape, axes, delta)
+
+
+@get_fct.case(norm=is_literal_string("ortho"))
+def _(x, axes, norm, forward, delta=None):
+    return 1.0 / np.sqrt(mul_axes(x.shape, axes, delta))
+
+
+@get_fct.case(norm=is_literal_string("forward"), forward=is_literal_bool(True))
+def _(x, axes, norm, forward, delta=None):
+    return 1.0 / mul_axes(x.shape, axes, delta)
+
+
+@get_fct.case(norm=is_literal_string("forward"), forward=is_literal_bool(False))
+def _(x, axes, norm, forward, delta=None):
+    return 1.0
+
+
 @get_fct.case(norm=is_not_nonelike, forward=is_literal_bool(True))
 def _(x, axes, norm, forward, delta=None):
     if norm == "backward":
@@ -656,6 +681,23 @@ def increase_shape(shape, axes):
     n = (shape[idx] - 1) * 2
     shape = tuple_setitem(shape, idx, n)
     return shape
+
+
+@implements_jit
+def c2r_input_s(s):
+    pass
+
+
+@c2r_input_s.case(s=is_nonelike)
+def _(s):
+    return s
+
+
+@c2r_input_s.fallback
+def _(s):
+    s_in = s.copy()
+    s_in[-1] = (s_in[-1] // 2) + 1
+    return s_in
 
 
 @implements_jit
@@ -974,7 +1016,8 @@ def scipy_c2rn(x, forward):
 
     def impl(x, s, axes, norm, overwrite_x, workers, plan):
         s, axes = ndshape_and_axes(x, s, axes)
-        xin = zeropad_or_crop(x, s, axes, argtype)
+        s_in = c2r_input_s(s)
+        xin = zeropad_or_crop(x, s_in, axes, argtype)
         shape = increase_shape(x.shape, axes)
         shape = resize(shape, x, s, axes)
         out = np.empty(shape, dtype=rettype)
@@ -1123,7 +1166,8 @@ def numpy_c2rn(x, forward, out=None):
 
     def impl(x, s, axes, norm, out):
         s, axes = ndshape_and_axes(x, s, axes)
-        xin = zeropad_or_crop(x, s, axes, argtype)
+        s_in = c2r_input_s(s)
+        xin = zeropad_or_crop(x, s_in, axes, argtype)
         shape = increase_shape(x.shape, axes)
         shape = resize(shape, x, s, axes)
         if out is not None:

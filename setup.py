@@ -36,21 +36,27 @@ class build_ext_with_pthreads(build_ext):
 
 
 define_macros = [
-    ("POCKETFFT_NO_SANITYCHECK", None),
-    ("POCKETFFT_CACHE_SIZE", "16"),
+    ("DUCC0_USE_NANOBIND", None),
 ]
 
 if platform.system() == "Windows":
-    extra_compile_args = ["/Ox", "/W3"]
+    extra_compile_args = ["/std:c++17", "/Ox", "/W3"]
 else:
-    extra_compile_args = ["-std=c++11", "-O3", "-Wall"]
+    extra_compile_args = ["-std=c++17", "-O3", "-Wall", "-pthread"]
 
-include_dirs = [numpy_get_include(), numba_get_include()]
+include_dirs = [numpy_get_include(), numba_get_include(), "rocket_fft"]
 
 ext_modules = [
     Extension(
         "rocket_fft._pocketfft_numba",
-        sources=["rocket_fft/_pocketfft_numba.cpp"],
+        sources=[
+            "rocket_fft/_pocketfft_numba.cpp",
+            "rocket_fft/ducc0/fft/fft_inst1.cc",
+            "rocket_fft/ducc0/fft/fft_inst2.cc",
+            "rocket_fft/ducc0/infra/threading.cc",
+            "rocket_fft/ducc0/infra/mav.cc",
+            "rocket_fft/ducc0/infra/string_utils.cc",
+        ],
         define_macros=define_macros,
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
