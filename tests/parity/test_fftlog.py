@@ -231,6 +231,8 @@ def test_fht_batched():
 @pytest.mark.parametrize("initial", [0.0, 0.3])
 @pytest.mark.parametrize("bias", [0.0, 0.8])
 def test_fhtoffset_parity(dln, mu, initial, bias):
-    assert ScipyFFT.fhtoffset(dln, mu, initial=initial, bias=bias) == scipy.fft.fhtoffset(
-        dln, mu, initial=initial, bias=bias
-    )
+    # Not bit-exact: where the CPU has fused multiply-add (ARM), compilers may use it
+    # differently for rocket-fft and SciPy, which changes the last bits.
+    got = ScipyFFT.fhtoffset(dln, mu, initial=initial, bias=bias)
+    ref = scipy.fft.fhtoffset(dln, mu, initial=initial, bias=bias)
+    assert got == pytest.approx(ref, rel=1e-12, abs=1e-15)

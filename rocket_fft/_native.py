@@ -28,6 +28,14 @@ def _select_library() -> tuple[str, str]:
     Set ROCKET_FFT_SIMD to "generic" or "avx2" to force one of them.
     """
     generic = _library_path("_rocket_fft_numba")
+    if generic is None:
+        package_dir = os.path.dirname(os.path.abspath(__file__))
+        raise ImportError(
+            f"rocket-fft's native library is missing in {package_dir}. This usually means "
+            "Python imported a source checkout of rocket-fft (for example because the working "
+            "directory is the repository) instead of the installed package. Build it in place "
+            "with `pip install -e .`, or run from another directory."
+        )
     choice = os.environ.get("ROCKET_FFT_SIMD", "auto").strip().lower()
     if choice not in ("auto", "generic", "avx2"):
         raise ValueError(f"ROCKET_FFT_SIMD must be 'auto', 'generic' or 'avx2', not {choice!r}")
