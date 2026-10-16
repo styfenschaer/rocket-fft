@@ -208,11 +208,18 @@ def test_fht_exact(n):
     assert_allclose(A, At)
 
 
+# SciPy < 1.15 computes the FHT of odd-length input differently (rocket-fft follows
+# SciPy >= 1.15, which also agrees with test_fht_exact above).
+SCIPY_ODD_FHT_FIXED = tuple(int(p) for p in scipy.__version__.split(".")[:2]) >= (1, 15)
+
+
 @pytest.mark.parametrize("n", [8, 16, 32, 63, 64])
 @pytest.mark.parametrize("mu", [0.0, 0.5, 1.5])
 @pytest.mark.parametrize("offset", [0.0, 0.3])
 @pytest.mark.parametrize("bias", [0.0, 0.7])
 def test_fht_parity(n, mu, offset, bias):
+    if n % 2 and not SCIPY_ODD_FHT_FIXED:
+        pytest.skip("SciPy < 1.15 differs for odd lengths")
     a = random_array(n)
     for dln in [0.05, 0.1]:
         A = ScipyFFT.fht(a, dln, mu, offset=offset, bias=bias)

@@ -68,6 +68,14 @@ def _applicable(x, kwargs):
     return x.ndim >= max(ndim_needed, 1 if not any(k in ("axes", "s") for k, _ in kwargs) else 2)
 
 
+def _assert_values_close(got, ref):
+    # Single precision gets a looser tolerance: where compilers fuse multiply-adds
+    # (ARM), float32 results can differ from the reference by a few dozen ulps.
+    single = got.dtype in (np.float32, np.complex64)
+    tol = 1e-4 if single else 1e-10
+    np.testing.assert_allclose(got, ref, rtol=tol, atol=tol)
+
+
 def _check(module, name, kwargs, layout, dtype, overwrite_x=False):
     ref_in = _make_input(layout, dtype)
     if not _applicable(ref_in, kwargs) or (name in ("fft2", "ifft2", "rfft2", "irfft2", "hfft2", "ihfft2") and ref_in.ndim < 2):
@@ -90,7 +98,7 @@ def _check(module, name, kwargs, layout, dtype, overwrite_x=False):
     assert got.flags.f_contiguous == ref.flags.f_contiguous
     assert (got is jit_in) == (ref is ref_in)
     assert np.shares_memory(got, jit_in) == np.shares_memory(ref, ref_in)
-    np.testing.assert_allclose(got, ref, rtol=1e-6, atol=1e-6)
+    _assert_values_close(got, ref)
 
 
 FFT_CASES = [
@@ -172,7 +180,7 @@ def test_extras(src, ref_fn, layout, dtype):
     assert got.strides == ref.strides
     assert got.flags.c_contiguous == ref.flags.c_contiguous
     assert got.flags.f_contiguous == ref.flags.f_contiguous
-    np.testing.assert_allclose(got, ref, rtol=1e-5, atol=1e-6)
+    _assert_values_close(got, ref)
 
 
 def test_fht_bias_dtype():
