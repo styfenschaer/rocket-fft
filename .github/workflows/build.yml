@@ -1,0 +1,230 @@
+# Builds the sdist, builds the wheels from that sdist and tests the wheels.
+# Called by ci.yml and release.yml; release publishes exactly these artifacts.
+name: Build and test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Build sdist
+        run: pipx run build==1.6.1 --sdist
+
+      - name: Check metadata
+        run: pipx run twine==7.0.0 check --strict dist/*
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  wheels:
+    name: Build wheels (${{ matrix.os }})
+    needs: sdist
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # All native runners: every wheel is built and smoke-tested on its own architecture.
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+          - windows-11-arm
+          - macos-latest
+          - macos-15-intel
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-sdist
+          path: sdist
+
+      - name: Locate sdist
+        shell: bash
+        run: echo "SDIST=$(ls sdist/*.tar.gz)" >> "$GITHUB_ENV"
+
+      # Building from the sdist (not the checkout) proves the sdist is complete.
+      # Configuration lives in [tool.cibuildwheel] in pyproject.toml.
+      - uses: pypa/cibuildwheel@b3395e271a35f73dad77f21802abe9b986dfe299 # v4.3.1
+        with:
+          package-dir: ${{ env.SDIST }}
+          output-dir: wheelhouse
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+        # Limited to the Python versions for which Numba publishes wheels.
+        include:
+          - { os: windows-11-arm, python: "3.12" }
+          - { os: windows-11-arm, python: "3.13" }
+          - { os: windows-11-arm, python: "3.14" }
+          - { os: macos-15-intel, python: "3.10" }
+          - { os: macos-15-intel, python: "3.11" }
+          - { os: macos-15-intel, python: "3.12" }
+          - { os: macos-15-intel, python: "3.13" }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Only the tests and top-level files (pyproject.toml holds the pytest config):
+      # the package must come from the installed wheel.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tests
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-wheels-${{ matrix.os }}
+          path: dist
+
+      # --only-binary: never build Numba from source. On platforms Numba has
+      # dropped, pip resolves to the newest release that still has a wheel.
+      - name: Install wheel and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: dist/*.whl --group test
+
+      - name: Smoke test
+        run: python tests/smoke.py
+
+      - name: Run tests
+        run: pytest
+
+  test-oldest:
+    name: Test (oldest supported dependencies)
+    needs: wheels
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tests
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-wheels-ubuntu-latest
+          path: dist
+
+      # Keep in sync with the lower bounds in pyproject.toml.
+      - name: Install wheel with minimum dependency versions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: dist/*.whl \
+            "numba==0.60.0" "numpy==2.0.*" "scipy==1.13.1" "pytest==8.4.2"
+
+      - name: Smoke test
+        run: python tests/smoke.py
+
+      - name: Run tests
+        run: pytest
+
+  test-generic-simd:
+    # x86-64 wheels contain a generic and an AVX2 build of the native library, and
+    # CI runners all support AVX2; this job tests the generic one.
+    name: Test (generic SIMD build)
+    needs: wheels
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      ROCKET_FFT_SIMD: generic
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tests
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-wheels-ubuntu-latest
+          path: dist
+
+      - name: Install wheel and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: dist/*.whl --group test
+
+      - name: Smoke test
+        run: python tests/smoke.py
+
+      - name: Run tests
+        run: pytest
+
+  test-no-scipy:
+    name: Test (without SciPy)
+    needs: wheels
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tests
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist-wheels-ubuntu-latest
+          path: dist
+
+      - name: Install wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --only-binary=:all: dist/*.whl
+          if python -c "import scipy" 2>/dev/null; then
+            echo "::error::SciPy got installed, but this job must run without it"
+            exit 1
+          fi
+
+      # The test suite compares against SciPy throughout, so only the smoke test runs here.
+      - name: Smoke test
+        run: python tests/smoke.py
