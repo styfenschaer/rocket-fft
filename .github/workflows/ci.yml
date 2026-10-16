@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, to catch breakage caused by new Numba, NumPy or SciPy releases.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --group lint
+
+      - name: Run ruff
+        run: ruff check --output-format=github .
+
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+
+  # Single status to mark as required in the branch protection rules, so the
+  # rule does not need updating whenever the matrix changes.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [lint, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

@@ -1,7 +1,8 @@
 include LICENSE
+recursive-include LICENSES *
 include README.md
 include pyproject.toml
 include setup.py
 
-recursive-include rocket_fft *.py *.pyi *.h *.cpp py.typed
+recursive-include rocket_fft *.py *.pyi *.h *.cc *.cpp py.typed
 recursive-include tests *.py

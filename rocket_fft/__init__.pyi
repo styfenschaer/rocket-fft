@@ -1,128 +1,75 @@
 from typing import Union
 
-from numpy import bool_, complex64, complex128, float32, float64, int64
+from numpy import complex64, complex128, float32, float64, floating, integer
 from numpy.typing import NDArray
 
-def c2c(
-    ain: Union[NDArray[complex64], NDArray[complex128]],
-    aout: Union[NDArray[complex64], NDArray[complex128]],
-    axes: NDArray[int64],
-    forward: bool_,
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+from . import special as special
 
-def r2c(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[complex64], NDArray[complex128]],
-    axes: NDArray[int64],
-    forward: bool_,
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+__version__: str
 
-def c2r(
-    ain: Union[NDArray[complex64], NDArray[complex128]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    forward: bool_,
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+_Real = Union[NDArray[float32], NDArray[float64]]
+_Complex = Union[NDArray[complex64], NDArray[complex128]]
+_Axes = NDArray[Union[integer, floating]]
 
-def c2c_sym(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[complex64], NDArray[complex128]],
-    axes: NDArray[int64],
-    forward: bool_,
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Similar to c2c, but takes a real-valued input array.
-    It uses symmetry to speed up the calculation.
-    Please refer to https://github.com/mreineck/pocketfft for documentation.
-    """
+# Low-level interface (jitted code only). The output array determines the
+# transform lengths; `fct` is applied as is and `nthreads` follows SciPy's
+# `workers` semantics.
 
-def dst(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    type: int64,
-    fct: Union[float32, float64],
-    ortho: bool_,
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+def c2c(ain: _Complex, aout: _Complex, axes: _Axes, forward: bool, fct: float, nthreads: int) -> None:
+    """Complex-to-complex FFT."""
 
-def dct(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    type: int64,
-    fct: Union[float32, float64],
-    ortho: bool_,
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+def c2c_sym(ain: _Real, aout: _Complex, axes: _Axes, forward: bool, fct: float, nthreads: int) -> None:
+    """Complex FFT of real input, exploiting Hermitian symmetry."""
 
-def r2r_separable_hartley(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+def r2c(ain: _Real, aout: _Complex, axes: _Axes, forward: bool, fct: float, nthreads: int) -> None:
+    """Real-to-complex FFT; the last axis in `axes` is the halved one."""
 
-def r2r_genuine_hartley(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    fct: Union[float32, float64],
-    nthreads: int64,
-) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+def c2r(ain: _Complex, aout: _Real, axes: _Axes, forward: bool, fct: float, nthreads: int) -> None:
+    """Complex-to-real FFT; the last axis in `axes` is the halved one."""
+
+def dct(ain: _Real, aout: _Real, axes: _Axes, type: int, fct: float, ortho: bool, nthreads: int) -> None:
+    """Discrete cosine transform of type 1-4."""
+
+def dst(ain: _Real, aout: _Real, axes: _Axes, type: int, fct: float, ortho: bool, nthreads: int) -> None:
+    """Discrete sine transform of type 1-4."""
+
+def r2r_separable_hartley(ain: _Real, aout: _Real, axes: _Axes, fct: float, nthreads: int) -> None:
+    """Separable Hartley transform."""
+
+def r2r_genuine_hartley(ain: _Real, aout: _Real, axes: _Axes, fct: float, nthreads: int) -> None:
+    """Genuine multidimensional Hartley transform."""
 
 def r2r_fftpack(
-    ain: Union[NDArray[float32], NDArray[float64]],
-    aout: Union[NDArray[float32], NDArray[float64]],
-    axes: NDArray[int64],
-    real2hermitian: bool_,
-    forward: bool_,
-    fct: Union[float32, float64],
-    nthreads: int64,
+    ain: _Real, aout: _Real, axes: _Axes, real2hermitian: bool, forward: bool, fct: float, nthreads: int
 ) -> None:
-    """Please refer to https://github.com/mreineck/pocketfft for documentation."""
+    """FFTPACK-style real-to-real transform."""
 
 separable_hartley = r2r_separable_hartley
 genuine_hartley = r2r_genuine_hartley
 fftpack = r2r_fftpack
 
-def good_size(target: int64, real: bool_) -> int64:
-    """Find the next fast size of input data to fft, for zero-padding, etc."""
+# Usable from both Python and jitted code.
 
-def prev_good_size(target: int64, real: bool_) -> int64:
-    """Find the previous fast size of input data to fft, for discarding samples, etc."""
+def good_size(target: int, real: bool = False) -> int:
+    """Smallest fast FFT length greater than or equal to `target`."""
+
+def prev_good_size(target: int, real: bool = False) -> int:
+    """Largest fast FFT length less than or equal to `target`."""
+
+next_fast_len = good_size
+prev_fast_len = prev_good_size
 
 def get_workers() -> int:
-    """Returns the default number of workers used."""
+    """Default number of worker threads."""
 
 def set_workers(workers: int) -> None:
-    """Sets the default number of workers used.
-    This change cannot be undone after compilation of Rocket-FFT's internals.
-    """
+    """Set the default number of worker threads."""
+
+# Deprecated no-ops, kept for backwards compatibility. Each interface now follows
+# its own library: scipy.fft rejects duplicate axes, numpy.fft allows them.
 
 def scipy_like() -> None:
-    """Handle the `axes` argument in the same way as SciPy.
-    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn`
-    functions will result in an error.
-    """
+    """Deprecated no-op."""
 
 def numpy_like() -> None:
-    """Handle the `axes` argument in the same way as NumPy.
-    Passing duplicate axes to the `fft2`, `fftn`, `ifft2`, or `ifftn`
-    functions is allowed
-    """
+    """Deprecated no-op."""

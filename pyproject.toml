@@ -1,11 +1,5 @@
 [build-system]
-# Build isolation needs these because setup.py imports numpy+numba to locate headers.
-requires = [
-  "setuptools>=80",
-  "wheel",
-  "numpy>=2.0.0",
-  "numba>=0.60.0",
-]
+requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,14 +7,14 @@ name = "rocket-fft"
 dynamic = ["version"]
 description = "Rocket-FFT extends Numba by scipy.fft and numpy.fft"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE", "LICENSES/*"]
 authors = [{ name = "Styfen Schär", email = "styfen.schaer.blog@gmail.com" }]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["FFT", "Fourier", "Numba", "SciPy", "NumPy"]
 
 classifiers = [
   "Development Status :: 4 - Beta",
-  "License :: OSI Approved :: BSD License",
   "Operating System :: OS Independent",
   "Topic :: Scientific/Engineering",
   "Topic :: Software Development",
@@ -28,7 +22,8 @@ classifiers = [
   "Intended Audience :: Developers",
   "Intended Audience :: Education",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: C++",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -39,23 +34,29 @@ classifiers = [
 
 dependencies = [
   "numba>=0.60.0",
+  "numpy>=2.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/styfenschaer/rocket-fft"
 Repository = "https://github.com/styfenschaer/rocket-fft"
+Issues = "https://github.com/styfenschaer/rocket-fft/issues"
+Changelog = "https://github.com/styfenschaer/rocket-fft/releases"
 
 [project.entry-points."numba_extensions"]
 init = "rocket_fft:_init_extension"
 
-[project.optional-dependencies]
-dev = ["scipy>=1.13.1", "pytest>=8.4.2"]
+[dependency-groups]
+test = ["scipy>=1.13.1", "pytest>=8.4.2"]
+lint = ["ruff==0.17.0"]
+dev = [{ include-group = "test" }, { include-group = "lint" }]
 
 [tool.setuptools]
-include-package-data = true
+# Wheels get only the package data listed below. MANIFEST.in still controls the
+# sdist, which additionally carries the C++ sources.
+include-package-data = false
 
 [tool.setuptools.packages.find]
-# If you keep your package at repo root (rocket_fft/), this is fine.
 where = ["."]
 include = ["rocket_fft*"]
 
@@ -63,4 +64,45 @@ include = ["rocket_fft*"]
 version = { attr = "rocket_fft._version.__version__" }
 
 [tool.setuptools.package-data]
-rocket_fft = ["*.pyi", "py.typed", "*.h"]
+rocket_fft = ["*.pyi", "py.typed"]
+
+[tool.cibuildwheel]
+# setup.py produces one abi3 wheel per platform. cibuildwheel builds it with the
+# first selected Python and then reuses it for, and smoke-tests it on, every other.
+build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*", "cp314-*", "cp315-*"]
+# Skip interpreters without Numba wheels (nothing to test against). The abi3 wheel
+# built with the remaining ones is tagged cp310 regardless and serves them all.
+skip = [
+  "*-win32", "*-manylinux_i686", "*-musllinux_*",
+  "cp310-win_arm64", "cp311-win_arm64", "cp315-win_arm64",
+  "cp314-macosx_x86_64", "cp315-macosx_x86_64",
+]
+test-sources = ["tests/smoke.py"]
+test-command = "python tests/smoke.py"
+# Never build Numba/llvmlite from source; pip falls back to the newest version with a wheel.
+test-environment = { PIP_ONLY_BINARY = ":all:" }
+
+[[tool.cibuildwheel.overrides]]
+# DUCC0 needs C++17 features (aligned new, std::thread) that require macOS 10.15+.
+select = "*-macosx_x86_64"
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets tests in subdirectories import tests/common.py.
+pythonpath = ["tests"]
+addopts = ["-ra"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["rocket_fft/ducc0"]
+
+[tool.ruff.lint]
+# Pyflakes plus the error-level pycodestyle checks: catches real bugs (undefined
+# names, unused imports/variables, shadowing) without imposing a style.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test modules import `rocket_fft` purely to register its overloads.
+"tests/**" = ["F401"]
+"benchmarks/**" = ["F401"]

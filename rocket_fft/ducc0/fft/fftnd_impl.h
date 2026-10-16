@@ -1427,7 +1427,24 @@ template<typename T> DUCC0_NOINLINE void c2c(const cfmav<complex<T>> &in,
 
   const auto &in2(reinterpret_cast<const cfmav<Cmplx<T> >&>(in));
   const auto &out2(reinterpret_cast<const vfmav<Cmplx<T> >&>(out));
-  // Preserve user-specified axis order to maintain exact parity across C and Fortran layouts
+  if ((axes.size()>1) && (in.data()!=out.data())) // optimize axis order
+    {
+    if ((in.stride(axes[0])!=1)&&(out.stride(axes[0])==1))
+      {
+      shape_t axes2(axes);
+      swap(axes2[0],axes2.back());
+      general_nd<pocketfft_c<T>>(in2, out2, axes2, fct, nthreads, ExecC2C{forward});
+      return;
+      }
+    for (size_t i=1; i<axes.size(); ++i)
+      if (in.stride(axes[i])==1)
+        {
+        shape_t axes2(axes);
+        swap(axes2[0],axes2[i]);
+        general_nd<pocketfft_c<T>>(in2, out2, axes2, fct, nthreads, ExecC2C{forward});
+        return;
+        }
+    }
   general_nd<pocketfft_c<T>>(in2, out2, axes, fct, nthreads, ExecC2C{forward});
   }
 
