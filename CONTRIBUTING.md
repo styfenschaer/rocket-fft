@@ -70,6 +70,16 @@ The rule set is deliberately small (`pyproject.toml`): it catches bugs such as
 unused or undefined names, without enforcing a formatting style. Please match
 the style of the surrounding code, and comment the *why*, not the *what*.
 
+## Credit
+
+This rocket would never have left the ground without other people's work, so
+please give credit where it's due.
+
+If you copy, adapt or closely follow code from another project, tests included,
+please say so where it appears: name the project, the original file or function
+and, if known, the authors. If its license requires a notice, add it to
+`LICENSES/` and mention it in the README's License section.
+
 ## Benchmarks
 
 ```
@@ -115,7 +125,11 @@ The vendored copy is upstream commit `a2d5a64` (2026-10-12) of
    needs to change, update it.
 2. Verify the copy: every file in `rocket_fft/ducc0/` must be byte-identical to
    upstream (for example with `diff -r`, limited to the vendored files).
-3. Rebuild and run the tests, with both SIMD builds, and the benchmarks.
+3. Rebuild and run the tests, with both SIMD builds, and the benchmarks. Besides
+   DUCC0's n-dimensional functions, the frontend's fast path uses the 1-D plan
+   classes `ducc0::pocketfft_c` and `ducc0::pocketfft_r` and the half-complex
+   order of the latter; `tests/test_fast_path.py` checks that it still matches
+   DUCC0's general path exactly.
 4. Update the commit above and, if needed, the copyright notice in
    `LICENSES/ducc0.txt`.
 

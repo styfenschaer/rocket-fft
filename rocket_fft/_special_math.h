@@ -1,5 +1,14 @@
 // Special functions needed by the Fast Hankel Transform (loggamma for complex
-// arguments and the Pochhammer symbol). Ported from SciPy's special module.
+// arguments and the Pochhammer symbol).
+//
+// Ported from SciPy's special functions, now maintained in the xsf library
+// (https://github.com/scipy/xsf), under SciPy's BSD-3-Clause license (see
+// LICENSES/scipy.txt). Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers.
+//   * evalpoly, loggamma_*, zlog1, sinpi, complex_loggamma: xsf/evalpoly.h,
+//     xsf/loggamma.h, xsf/zlog1.h and xsf/trig.h; original author Josh Wilson
+//     (2016). The algorithm follows Hare, "Computing the Principal Branch of
+//     log-Gamma", J. Algorithms (1997).
+//   * poch and its helpers gammasgn and is_nonpos_int: xsf/cephes/poch.h.
 #pragma once
 
 #include <cmath>
