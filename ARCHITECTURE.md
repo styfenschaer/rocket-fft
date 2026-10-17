@@ -71,7 +71,8 @@ Take `np.fft.fft(x)` inside an `@njit` function.
    result with exactly the memory layout NumPy or SciPy would produce
    (`numpy_result`/`scipy_result`), and dispatches to a runner (`run_c2c`,
    `run_r2c`, `run_dcst`, ...) that converts or pads the input if needed and calls
-   DUCC0.
+   DUCC0. A single 1-D FFT into a contiguous output takes a fast path that calls
+   DUCC0's 1-D plans directly (see the design decisions below).
 
 5. **Errors.** C++ never throws across the library boundary. Every entry point
    returns a `Status`; `check_status` in the generated code turns a non-zero code
@@ -193,6 +194,14 @@ The non-obvious decisions, and why they were made:
   speeds up single-threaded transforms of large arrays by up to ~20%, but threads
   that first touch the same 2 MiB page wait for each other, which made
   multithreaded transforms up to 2x slower.
+- **A fast path for single 1-D FFTs.** For short transforms, DUCC0's
+  n-dimensional machinery (views, iterators, scratch allocation, thread dispatch)
+  costs more than the transform itself. Single 1-D complex and real FFTs into a
+  contiguous output of up to 2^16 points therefore call DUCC0's public 1-D plan
+  classes (`ducc0::pocketfft_c`, `ducc0::pocketfft_r`) directly, which halves
+  the cost of a short FFT. The fast path does exactly what DUCC0 does for 1-D
+  arrays, so its results are bit-identical (`tests/test_fast_path.py`). Plans are
+  cached per thread; the length limit bounds the memory these caches hold.
 - **Copy into the output.** When the input must be copied anyway (dtype
   conversion, zero-padding), it is copied straight into the output and
   transformed in place, saving a scratch buffer as large as the result.
