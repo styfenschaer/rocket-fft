@@ -2,6 +2,8 @@
 
 The known-answer tests are adapted from SciPy's test_fftlog.py:
 https://github.com/scipy/scipy/blob/main/scipy/fft/tests/test_fftlog.py
+Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers; BSD-3-Clause,
+see LICENSES/scipy.txt.
 """
 
 import warnings

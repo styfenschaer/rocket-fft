@@ -1,6 +1,7 @@
 """
 These tests are a modified version of pypocketfft's tests:
 https://gitlab.mpcdf.mpg.de/mtr/pypocketfft/-/blob/master/test.py
+by Martin Reinecke (Max-Planck-Society); BSD-3-Clause, see LICENSES/pypocketfft.txt.
 """
 
 from functools import partial

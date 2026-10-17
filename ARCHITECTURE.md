@@ -117,6 +117,8 @@ call. `implement` registers a typing template and a lowering directly instead
   **exported entry points** (`rf_*`, all `extern "C"`, all `noexcept`).
 
 `_special_math.h` is a port of SciPy's `loggamma` and `poch`, needed by the FHT.
+Code adapted from other projects says so where it appears, and their licenses
+are in `LICENSES/`.
 
 `ducc0/` is a vendored copy of the files of [DUCC0](https://gitlab.mpcdf.mpg.de/mtr/ducc)
 that rocket-fft needs. Must stay byte-identical to upstream (see

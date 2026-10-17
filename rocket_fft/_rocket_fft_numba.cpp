@@ -191,6 +191,10 @@ struct IntSeq {
     int64_t dtype;
 };
 
+// The declarations of ArrayHeader and the NRT structs below mirror Numba's own
+// headers (Copyright (c) 2012, Anaconda, Inc., BSD-2-Clause; see LICENSES/numba.txt),
+// so that this library can exchange arrays with Numba-compiled code.
+
 // Header of Numba's array struct (numba/_arraystruct.h). It is followed by
 // `ndim` shape entries and `ndim` stride entries (in bytes).
 struct ArrayHeader {
@@ -962,6 +966,11 @@ void dispatch(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64
 // Fast Hankel transform
 // -----------------------------------------------------------------------------
 
+// A port of scipy.fft's FFTLog implementation (fhtcoeff, _fhtq and fhtoffset in
+// scipy/fft/_fftlog_backend.py, by Nicolas Tessore), which follows the Fortran
+// FFTLog code of A. J. S. Hamilton (2000), MNRAS 312, 257. BSD-3-Clause; see
+// LICENSES/scipy.txt.
+
 void warn_singular(bool inverse) {
     PyGILState_STATE gil = PyGILState_Ensure();
     const char* msg = inverse ? "singular inverse transform; consider changing the bias"
@@ -1066,6 +1075,12 @@ void run_fht(const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, int64_t in
 // Optimal transform lengths
 // -----------------------------------------------------------------------------
 
+// DUCC0 only provides the next good size (ducc0::good_size_complex/_real, used
+// by rf_good_size). These two find the previous one, for scipy.fft.prev_fast_len.
+// Adapted from prev_good_size_cmplx and prev_good_size_real in SciPy's copy of
+// pocketfft (pocketfft_hdronly.h), BSD-3-Clause; see LICENSES/scipy.txt.
+
+// Returns the largest composite of 2, 3, 5, 7 and 11 that is <= n.
 template <typename UInt>
 UInt prev_good_size_complex(UInt n) {
     if (n <= 12) return n;
@@ -1086,6 +1101,7 @@ UInt prev_good_size_complex(UInt n) {
     return best;
 }
 
+// Returns the largest composite of 2, 3 and 5 that is <= n.
 template <typename UInt>
 UInt prev_good_size_real(UInt n) {
     if (n <= 6) return n;
