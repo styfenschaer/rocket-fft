@@ -13,12 +13,14 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <complex>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string_view>
 #include <thread>
 #include <type_traits>
@@ -59,6 +61,13 @@ template <typename T>
 class DimArray {
 public:
     DimArray() = default;
+    // Copies only the used elements, not the whole capacity.
+    DimArray(const DimArray& other) : size_(other.size_) { std::copy(other.begin(), other.end(), data_); }
+    DimArray& operator=(const DimArray& other) {
+        size_ = other.size_;
+        std::copy(other.begin(), other.end(), data_);
+        return *this;
+    }
     explicit DimArray(size_t n) { resize(n); }
     DimArray(size_t n, const T& value) {
         resize(n);
@@ -596,6 +605,12 @@ std::pair<uintptr_t, uintptr_t> byte_extent(const ArrayHeader* a, int64_t ndim) 
     return {lo, hi + static_cast<uintptr_t>(a->itemsize)};
 }
 
+bool overlaps(const ArrayHeader* a, const ArrayHeader* b, int64_t ndim) {
+    const auto [a_lo, a_hi] = byte_extent(a, ndim);
+    const auto [b_lo, b_hi] = byte_extent(b, ndim);
+    return a_lo < b_hi && b_lo < a_hi;
+}
+
 // If the input needs copying anyway (to convert its type or to change a length)
 // and the copy would have the output's shape, copies it straight into the output,
 // zero-padding where needed, so the caller can transform in place. That saves a
@@ -605,9 +620,7 @@ bool copy_into_output(const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, i
     const int64_t* in_shape = shape_of(ain);
     if (dtype == dtype_code<T>() && std::equal(shape.begin(), shape.end(), in_shape)) return false;  // no copy needed
     if (!std::equal(shape.begin(), shape.end(), shape_of(aout))) return false;
-    const auto [in_lo, in_hi] = byte_extent(ain, ndim);
-    const auto [out_lo, out_hi] = byte_extent(aout, ndim);
-    if (in_lo < out_hi && out_lo < in_hi) return false;  // the output aliases the input
+    if (overlaps(ain, aout, ndim)) return false;  // the output aliases the input
 
     Shape count(ndim);
     for (int64_t i = 0; i < ndim; ++i) count[i] = std::min(in_shape[i], shape[i]);
@@ -792,8 +805,122 @@ Status make_plan(const Options& o, const ArrayHeader* ain, const ArrayHeader* ao
 // Execution
 // -----------------------------------------------------------------------------
 
+// Fast path for a single 1-D transform. For short transforms, DUCC0's
+// n-dimensional machinery (views, iterators, scratch allocation, thread dispatch)
+// costs more than the transform itself, so these runners call DUCC0's 1-D plans
+// (`ducc0::pocketfft_c`, `ducc0::pocketfft_r`) directly. They do exactly what
+// DUCC0 does for 1-D arrays, with the same plans and the same packing, so the
+// results are identical: the half-complex (un)packing in run_r2c_1d and
+// run_c2r_1d re-implements that of DUCC0's general_r2c and general_c2r
+// (ducc0/fft/fftnd_impl.h). Plans are cached per thread, which needs no lock; the
+// length limit bounds the memory these caches hold.
+constexpr int64_t kFastPathMaxLength = int64_t(1) << 16;
+
+// Whether the planned transform qualifies: a single 1-D transform of moderate
+// length whose output (with elements of type Out) is contiguous.
+template <typename Out>
+bool fast_path_applies(const ArrayHeader* aout, int64_t ndim, const Plan& p) {
+    return ndim == 1 && p.axes.size() == 1 && p.lengths[0] <= kFastPathMaxLength
+           && strides_of(aout, 1)[0] == int64_t(sizeof(Out));
+}
+
+template <typename P>
+const P& cached_plan(size_t n) {
+    struct Entry {
+        size_t n = 0;
+        std::unique_ptr<P> plan;
+    };
+    thread_local std::array<Entry, 4> cache;
+    thread_local size_t next = 0;
+    for (const Entry& e : cache) {
+        if (e.plan && e.n == n) return *e.plan;
+    }
+    Entry& e = cache[next++ % cache.size()];
+    e.n = n;
+    e.plan = std::make_unique<P>(n, /*vectorize=*/true);  // as DUCC0 does for 1-D arrays
+    return *e.plan;
+}
+
+// Per-thread scratch memory for at least `n` elements, kept between calls.
+template <typename T>
+T* scratch(size_t n) {
+    thread_local Buffer<T> buf;
+    if (buf.size() < n) buf.realloc(n);
+    return buf.data();
+}
+
+// Copies the 1-D array `a`, converted to D, into the `n` elements of `dst`,
+// truncating it or zero-padding at the end.
+template <typename D>
+void copy_padded(const ArrayHeader* a, int64_t dtype, int64_t n, D* dst) {
+    const int64_t count = std::min(shape_of(a)[0], n);
+    const int64_t stride = sizeof(D);
+    copy_from<D>(dtype, 1, &count, a->data, strides_of(a, 1), reinterpret_cast<char*>(dst), &stride);
+    std::fill(dst + count, dst + n, D(0));
+}
+
+template <typename T>
+bool run_c2c_1d(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, const Plan& p) {
+    const int64_t n = p.lengths[0];
+    const bool in_place = ain->data == aout->data && o.in_dtype == dtype_code<complex<T>>()
+                          && strides_of(ain, 1)[0] == strides_of(aout, 1)[0] && shape_of(ain)[0] == n;
+    if (!in_place) {
+        if (overlaps(ain, aout, 1)) return false;
+        copy_padded(ain, o.in_dtype, n, reinterpret_cast<complex<T>*>(aout->data));
+    }
+    using C = ducc0::Cmplx<T>;
+    const auto& plan = cached_plan<ducc0::pocketfft_c<T>>(static_cast<size_t>(n));
+    plan.exec_copyback(reinterpret_cast<C*>(aout->data), scratch<C>(plan.bufsize()), T(p.fct), p.forward,
+                       p.nthreads);
+    return true;
+}
+
+// Real-to-complex transform of length n into the first n / 2 + 1 elements of the
+// output. The output has room for the n real values, so the transform runs there.
+template <typename T>
+bool run_r2c_1d(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, const Plan& p) {
+    if (overlaps(ain, aout, 1)) return false;
+    const int64_t n = p.lengths[0];
+    T* hc = reinterpret_cast<T*>(aout->data);
+    copy_padded(ain, o.in_dtype, n, hc);
+    const auto& plan = cached_plan<ducc0::pocketfft_r<T>>(static_cast<size_t>(n));
+    plan.exec_copyback(hc, scratch<T>(plan.bufsize()), T(p.fct), true, p.nthreads);
+    // Unpack DUCC0's half-complex order (r0, r1, i1, r2, i2, ...) into complex
+    // numbers in place, back to front, conjugating for the backward direction.
+    complex<T>* out = reinterpret_cast<complex<T>*>(aout->data);
+    if (n % 2 == 0 && n > 1) out[n / 2] = complex<T>(hc[n - 1], T(0));
+    for (int64_t k = (n - 1) / 2; k >= 1; --k) {
+        const T re = hc[2 * k - 1], im = hc[2 * k];
+        out[k] = complex<T>(re, p.forward ? im : -im);
+    }
+    out[0] = complex<T>(hc[0], T(0));
+    return true;
+}
+
+// Complex-to-real transform: packs the input into DUCC0's half-complex order in
+// the output, conjugating for the forward direction (hfft), and transforms there.
+template <typename T>
+bool run_c2r_1d(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, const Plan& p) {
+    if (overlaps(ain, aout, 1)) return false;
+    const int64_t n = p.lengths[0];
+    complex<T>* in = scratch<complex<T>>(static_cast<size_t>(n / 2 + 1));
+    copy_padded(ain, o.in_dtype, n / 2 + 1, in);
+    T* hc = reinterpret_cast<T*>(aout->data);
+    hc[0] = in[0].real();
+    int64_t i = 1, k = 1;
+    for (; i < n - 1; i += 2, ++k) {
+        hc[i] = in[k].real();
+        hc[i + 1] = p.forward ? -in[k].imag() : in[k].imag();
+    }
+    if (i < n) hc[i] = in[k].real();
+    const auto& plan = cached_plan<ducc0::pocketfft_r<T>>(static_cast<size_t>(n));
+    plan.exec_copyback(hc, scratch<T>(plan.bufsize()), T(p.fct), false, p.nthreads);
+    return true;
+}
+
 template <typename T>
 void run_c2c(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, const Plan& p) {
+    if (fast_path_applies<complex<T>>(aout, ndim, p) && run_c2c_1d<T>(o, ain, aout, p)) return;
     auto out = array_view<complex<T>>(aout, ndim);
     const Axes& axes = ducc_axes(p.axes);
     if (copy_into_output<complex<T>>(ain, aout, ndim, o.in_dtype, p.in_shape)) {
@@ -809,6 +936,12 @@ void run_c2c(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_
 // r2c transform and fill in the rest using Hermitian symmetry.
 template <typename T>
 void run_c2c_sym(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, const Plan& p) {
+    if (fast_path_applies<complex<T>>(aout, ndim, p) && run_r2c_1d<T>(o, ain, aout, p)) {
+        complex<T>* out = reinterpret_cast<complex<T>*>(aout->data);
+        const int64_t n = p.lengths[0];
+        for (int64_t k = n / 2 + 1; k < n; ++k) out[k] = std::conj(out[n - k]);
+        return;
+    }
     Buffer<T> buf;
     auto in = materialize<T>(ain, ndim, o.in_dtype, p.in_shape, buf);
     auto out = array_view<complex<T>>(aout, ndim);
@@ -823,6 +956,7 @@ void run_c2c_sym(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, in
 
 template <typename T>
 void run_r2c(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, const Plan& p) {
+    if (fast_path_applies<complex<T>>(aout, ndim, p) && run_r2c_1d<T>(o, ain, aout, p)) return;
     Buffer<T> buf;
     auto in = materialize<T>(ain, ndim, o.in_dtype, p.in_shape, buf);
     ducc0::r2c(in, array_view<complex<T>>(aout, ndim), ducc_axes(p.axes), p.forward, T(p.fct), p.nthreads);
@@ -830,6 +964,7 @@ void run_r2c(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_
 
 template <typename T>
 void run_c2r(const Options& o, const ArrayHeader* ain, ArrayHeader* aout, int64_t ndim, const Plan& p) {
+    if (fast_path_applies<T>(aout, ndim, p) && run_c2r_1d<T>(o, ain, aout, p)) return;
     Buffer<complex<T>> buf;
     auto in = materialize<complex<T>>(ain, ndim, o.in_dtype, p.in_shape, buf);
     ducc0::c2r(in, array_view<T>(aout, ndim), ducc_axes(p.axes), p.forward, T(p.fct), p.nthreads);
