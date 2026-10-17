@@ -70,6 +70,16 @@ The rule set is deliberately small (`pyproject.toml`): it catches bugs such as
 unused or undefined names, without enforcing a formatting style. Please match
 the style of the surrounding code, and comment the *why*, not the *what*.
 
+## Credit
+
+This rocket would never have left the ground without other people's work, so
+please give credit where it's due.
+
+If you copy, adapt or closely follow code from another project, tests included,
+please say so where it appears: name the project, the original file or function
+and, if known, the authors. If its license requires a notice, add it to
+`LICENSES/` and mention it in the README's License section.
+
 ## Benchmarks
 
 ```

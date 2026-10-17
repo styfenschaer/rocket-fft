@@ -1,6 +1,8 @@
 """numpy.roll in jitted code, and deprecated top-level functions.
 
-The first numpy.roll tests are adopted from NumPy.
+The tests of TestRoll are adapted from NumPy's TestRoll:
+https://github.com/numpy/numpy/blob/main/numpy/_core/tests/test_numeric.py
+Copyright (c) 2005-2025, NumPy Developers; BSD-3-Clause, see LICENSES/numpy.txt.
 """
 
 import numba as nb
