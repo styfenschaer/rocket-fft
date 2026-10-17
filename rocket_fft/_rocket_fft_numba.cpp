@@ -242,21 +242,18 @@ const NRT_api_functions* g_nrt = nullptr;
 // -----------------------------------------------------------------------------
 
 constexpr size_t kAlignment = 64;
-// Large arrays can be backed by transparent huge pages where the OS allows it (as
-// NumPy does), so first touching them costs ~500x fewer page faults. That speeds
-// up single-threaded transforms of large arrays by up to ~20%, but threads that
-// first touch the same 2 MiB page wait for each other, which made multithreaded
-// transforms up to 2x slower. Huge pages are therefore only requested for arrays
-// that a single thread fills (see allocate_array).
+// On Linux, large arrays are backed by transparent huge pages where the system
+// allows it (as NumPy does), so first touching them costs ~500x fewer page
+// faults. Large results are new memory that the transform touches first, so this
+// speeds up single-threaded transforms of large arrays by up to ~20%, and
+// multithreaded ones even more, because their threads compete for page faults.
 constexpr size_t kHugePageThreshold = size_t(1) << 22;  // 4 MiB
 constexpr size_t kHugePageSize = size_t(1) << 21;       // 2 MiB
-int g_huge_pages_tag;  // its address marks the allocator that may use huge pages
 
-void* aligned_malloc(size_t size, void* opaque) {
+void* aligned_malloc(size_t size, void*) {
 #if defined(__linux__) && defined(MADV_HUGEPAGE)
-    const bool huge = opaque == &g_huge_pages_tag && size >= kHugePageThreshold;
+    const bool huge = size >= kHugePageThreshold;
 #else
-    (void)opaque;
     const bool huge = false;
 #endif
     // Only whole, aligned huge pages can be used, hence the larger alignment.
@@ -282,7 +279,6 @@ void* aligned_realloc(void*, size_t, void*) {
 }
 
 NRT_ExternalAllocator g_allocator = {aligned_malloc, aligned_realloc, aligned_free, nullptr};
-NRT_ExternalAllocator g_allocator_huge_pages = {aligned_malloc, aligned_realloc, aligned_free, &g_huge_pages_tag};
 
 struct BadAlloc {};
 
@@ -339,14 +335,12 @@ Shape empty_like_strides(const ArrayHeader* proto, int64_t ndim, const int64_t* 
 }
 
 // Fill `result` with a new array with the given byte strides, which must
-// describe a dense layout (C order if omitted). `nthreads` is the number of
-// threads that will fill it.
+// describe a dense layout (C order if omitted).
 void allocate_array(ArrayHeader* result, int64_t ndim, const int64_t* shape, int64_t itemsize,
-                    const int64_t* strides = nullptr, size_t nthreads = 1) {
+                    const int64_t* strides = nullptr) {
     int64_t nitems = 1;
     for (int64_t i = 0; i < ndim; ++i) nitems *= shape[i];
-    NRT_ExternalAllocator* allocator = nthreads == 1 ? &g_allocator_huge_pages : &g_allocator;
-    NRT_MemInfo* mi = g_nrt->allocate_external(static_cast<size_t>(std::max<int64_t>(nitems * itemsize, 1)), allocator);
+    NRT_MemInfo* mi = g_nrt->allocate_external(static_cast<size_t>(std::max<int64_t>(nitems * itemsize, 1)), &g_allocator);
     if (mi == nullptr) throw BadAlloc{};
     result->meminfo = mi;
     result->parent = nullptr;
@@ -1255,7 +1249,7 @@ void numpy_result(const Options& o, const ArrayHeader* ain, int64_t ndim, const 
         shape = next;
         itemsize = next_itemsize;
     }
-    allocate_array(result, ndim, shape.data(), itemsize, strides.data(), p.nthreads);
+    allocate_array(result, ndim, shape.data(), itemsize, strides.data());
 }
 
 // scipy.fft works on `tmp`: the input, converted to floating point if it is
@@ -1276,11 +1270,11 @@ void scipy_result(const Options& o, const ArrayHeader* ain, int64_t ndim, const 
     const bool reuse = overwrite || converted || padded;
 
     if (!((o.kind == C2C && complex_in) || r2r) || padded) {
-        allocate_array(result, ndim, p.out_shape.data(), out_size, nullptr, p.nthreads);
+        allocate_array(result, ndim, p.out_shape.data(), out_size, nullptr);
     } else if (reuse && converted) {
         // The converted copy has the input's full shape; the result views its leading part.
         const Shape strides = empty_like_strides(ain, ndim, in, out_size);
-        allocate_array(result, ndim, in, out_size, strides.data(), p.nthreads);
+        allocate_array(result, ndim, in, out_size, strides.data());
         truncate_view(result, ndim, p.out_shape.data());
     } else if (reuse) {
         // A new array object viewing the input's memory, as SciPy returns.
@@ -1290,9 +1284,9 @@ void scipy_result(const Options& o, const ArrayHeader* ain, int64_t ndim, const 
     } else if (r2r && complex_in) {
         const Shape strides = empty_like_strides(ndim, p.out_shape.data(), strides_of(ain, ndim), ain->itemsize,
                                                  p.out_shape.data(), out_size);
-        allocate_array(result, ndim, p.out_shape.data(), out_size, strides.data(), p.nthreads);
+        allocate_array(result, ndim, p.out_shape.data(), out_size, strides.data());
     } else {
-        allocate_array(result, ndim, p.out_shape.data(), out_size, nullptr, p.nthreads);
+        allocate_array(result, ndim, p.out_shape.data(), out_size, nullptr);
     }
 }
 
