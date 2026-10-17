@@ -189,11 +189,11 @@ The non-obvious decisions, and why they were made:
 - **Exact output layouts**, not just values: code that relies on contiguity
   (for example passing the result to C code) behaves the same with and without
   Numba.
-- **Huge pages only for single-threaded results.** Backing large results with
-  transparent huge pages (as NumPy does) cuts page faults on first touch and
-  speeds up single-threaded transforms of large arrays by up to ~20%, but threads
-  that first touch the same 2 MiB page wait for each other, which made
-  multithreaded transforms up to 2x slower.
+- **Huge pages for large results.** On Linux, results of 4 MiB and more are
+  backed by transparent huge pages (as NumPy does). That cuts page faults on
+  first touch, which speeds up single-threaded transforms of large arrays by up
+  to ~20%. Multithreaded transforms gain even more, because otherwise their
+  threads compete for page fault.
 - **A fast path for single 1-D FFTs.** For short transforms, DUCC0's
   n-dimensional machinery (views, iterators, scratch allocation, thread dispatch)
   costs more than the transform itself. Single 1-D complex and real FFTs into a
